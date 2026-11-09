@@ -33,7 +33,12 @@ Game::Game(const Logger& log, const AssetDatabase* assets, SceneLoader loader)
 {
 }
 
-Game::~Game() = default;
+Game::~Game()
+{
+    if (m_scene != nullptr) {
+        sound().stopAll();   // the game's sounds end with it
+    }
+}
 
 void Game::start(const Scene& scene, AssetId sceneId)
 {
@@ -51,12 +56,20 @@ void Game::start(const Scene& scene, AssetId sceneId)
     m_input.endFrame();
     m_scene.reset();
     m_scripts.reset();   // scripts start from scratch, and read their files again
+    sound().stopAll();   // a new game starts in silence
+    m_soundObjects.clear();
+    m_objectSounds.clear();
     m_runner->setState(GameState::newGame(*m_setup.content));   // a new game
     beginScene(scene, sceneId);
 }
 
 void Game::stop()
 {
+    if (m_scene != nullptr) {
+        sound().stopAll();
+    }
+    m_soundObjects.clear();
+    m_objectSounds.clear();
     m_scene.reset();
     m_scripts.reset();
     m_toDestroy.clear();
@@ -86,6 +99,14 @@ void Game::beginScene(Scene scene, AssetId id)
     });
     m_triggers.clear();
     m_prompt.clear();
+    // The old scene's looping sounds stop; short effects and the music carry
+    // on (a new scene with the same music continues it).
+    stopObjectSounds();
+    scene.forEach([&](const Entity& e, int) {
+        if (const Sound* s = e.get<Sound>(); s != nullptr && !s->music && !s->sound.isNull()) {
+            sound().preload(s->sound);   // effects: read now, not in the middle of play (music streams)
+        }
+    });
     // Clips start with the scene (game time keeps counting across scenes).
     scene.forEach([&](const Entity& e, int) {
         if (e.get<Animator>() != nullptr) {
@@ -134,6 +155,7 @@ void Game::update(float dt)
     if (talking) {
         handleDialogueInput();
     }
+    updateSounds();
     runBehaviours();
     if (m_scene != nullptr) {
         runTriggers(talking);
@@ -707,6 +729,111 @@ bool Game::isAnimationFinished(EntityId id) const
     }
     const AnimationClip* clip = animatorClip(*asset->animation, *animator);
     return clip != nullptr && clip->finishedAt(animatorTime(*animator, m_time));
+}
+
+} // namespace rolo
+
+namespace rolo {
+
+// --- Sound -------------------------------------------------------------------------------------------------
+
+SoundHandle Game::playSound(AssetId soundId, const SoundOptions& options)
+{
+    return soundId.isNull() ? 0 : sound().play(soundId, options);
+}
+
+SoundHandle Game::playSound(EntityId id)
+{
+    const Entity* entity = m_scene != nullptr ? m_scene->find(id) : nullptr;
+    const Sound* s = entity != nullptr ? entity->get<Sound>() : nullptr;
+    if (s == nullptr || s->sound.isNull()) {
+        return 0;
+    }
+    if (s->music) {
+        sound().playMusic(s->sound, s->fade, s->volume);
+        return 0;
+    }
+    // A loop already going carries on: playing it every frame does not stack it.
+    if (const auto playing = m_objectSounds.find(id);
+        playing != m_objectSounds.end() && s->loop && sound().isPlaying(playing->second.handle)) {
+        return playing->second.handle;
+    }
+    const SoundHandle handle = sound().play(s->sound, s->options());
+    m_objectSounds[id] = {handle, s->loop};
+    return handle;
+}
+
+void Game::stopSound(EntityId id)
+{
+    const Entity* entity = m_scene != nullptr ? m_scene->find(id) : nullptr;
+    if (const Sound* s = entity != nullptr ? entity->get<Sound>() : nullptr; s != nullptr && s->music) {
+        if (sound().music() == s->sound) {
+            sound().stopMusic(s->fade);
+        }
+        return;
+    }
+    if (const auto playing = m_objectSounds.find(id); playing != m_objectSounds.end()) {
+        sound().stop(playing->second.handle);
+        m_objectSounds.erase(playing);
+    }
+}
+
+void Game::playMusic(AssetId music, float fadeSeconds, float volume)
+{
+    if (!music.isNull()) {
+        sound().playMusic(music, fadeSeconds, volume);
+    }
+}
+
+void Game::stopMusic(float fadeSeconds)
+{
+    sound().stopMusic(fadeSeconds);
+}
+
+// Plays the Sound of objects that have just appeared, and stops the loops of
+// objects that went away. Runs at the start of each frame, so a scene's sounds
+// begin in its first frame.
+void Game::updateSounds()
+{
+    // Gone, switched off, or the component removed: a looping effect stops
+    // (a short one plays to its end), and the sound starts again if the
+    // object comes back.
+    for (auto it = m_soundObjects.begin(); it != m_soundObjects.end();) {
+        const Entity* entity = m_scene->find(*it);
+        const Sound* s = entity != nullptr ? entity->get<Sound>() : nullptr;
+        if (s != nullptr && isActiveInScene(*entity)) {
+            ++it;
+            continue;
+        }
+        if (const auto playing = m_objectSounds.find(*it); playing != m_objectSounds.end()) {
+            if (playing->second.loop) {
+                sound().stop(playing->second.handle);
+            }
+            m_objectSounds.erase(playing);
+        }
+        it = m_soundObjects.erase(it);
+    }
+    for (const EntityId id : findAllWith(Sound::componentType().id)) {
+        const Entity* entity = m_scene->find(id);
+        if (entity == nullptr || !isActiveInScene(*entity) || !m_soundObjects.insert(id).second) {
+            continue;
+        }
+        if (entity->get<Sound>()->playOnStart) {
+            playSound(id);
+        }
+    }
+}
+
+// Stops the looping effects of the scene's objects (leaving the scene).
+void Game::stopObjectSounds()
+{
+    for (const auto& [id, playing] : m_objectSounds) {
+        if (playing.loop) {
+            sound().stop(playing.handle);
+        }
+    }
+    m_objectSounds.clear();
+    m_soundObjects.clear();
 }
 
 } // namespace rolo

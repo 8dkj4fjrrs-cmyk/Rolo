@@ -38,8 +38,11 @@ Please report what you find.
 
 ## Games
 
-- **No sound**: Axmol's audio is switched off (its OpenAL Soft is LGPL and
-  needs careful linking). Sound files can be imported, but nothing plays them.
+- **Sound** ([guide](sound.md)) is effects and music, without positions:
+  no 3D or distance effects (a script can set an effect's volume and pan),
+  no filters or reverb, and no options menu for players to change volumes
+  (a script can, with `audio.setVolume`). MP3 files do not loop seamlessly;
+  use OGG for music.
 - **Keyboard only**: no gamepads or touch. The mouse position is available
   to C++ behaviours.
 - The window is 1280 × 720 points. There is no fullscreen

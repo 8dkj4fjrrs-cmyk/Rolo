@@ -809,6 +809,7 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
                                  : asset.type == AssetType::Dialogue ? ui::Icon::Terminal
                                  : asset.type == AssetType::Quest    ? ui::Icon::Check
                                  : asset.type == AssetType::Script   ? ui::Icon::Code
+                                 : asset.type == AssetType::Audio    ? ui::Icon::Sound
                                                                    : ui::Icon::Folder,
                                  16.0f, ui::Color::hex(0xF2A93B));
     auto& name = header.emplace<ui::TextField>("Name");
@@ -1071,6 +1072,15 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
             .setTooltip("Cut this image into tiles for painting tilemaps");
         actions.emplace<ui::Button>("Create Animations…", [this, id] { showCreateAnimationsDialog(id); })
             .setTooltip("Use this image as a sprite sheet: cut it into frames and make animation clips from them");
+    }
+    if (asset.type == AssetType::Audio && asset.isUsable()) {
+        actions.emplace<ui::Button>("Play", [this, id] { m_editor.previewSound(id); })
+            .setTooltip("Listen to the sound. In a game, a Sound component, a playSound action or audio.play in a "
+                        "script plays it.");
+        actions.emplace<ui::Button>("Stop", [this] { m_editor.stopSoundPreview(); });
+        actions.emplace<ui::Button>("Place in Scene", [this, id] { m_editor.placeAsset(id, {640.0f, 360.0f}); })
+            .setTooltip("Adds an object with a Sound component that plays it when the scene starts (or drag the "
+                        "sound into the Scene view)");
     }
     actions.emplace<ui::Button>("Show in Folder", [this, id] {
         AssetDatabase* assets = m_editor.assets();

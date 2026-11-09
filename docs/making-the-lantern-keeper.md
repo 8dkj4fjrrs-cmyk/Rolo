@@ -234,6 +234,21 @@ is a quick start: keep the player and interface, then repaint):
 Objects removed with `destroy` (flames, Biscuit, the gate) stay removed
 when you come back, and in saved games.
 
+## 8½. Sound and music
+
+Import the sounds from `examples/lantern_keeper/project/assets/sounds` (or
+your own; see the [sound guide](sound.md)):
+
+- **Music:** in each scene, an object *Music* with a **Sound** component,
+  **Music** on and a **Music Fade** of 2 seconds: `night` in the village and
+  the woods (so it carries on when you walk between them), `mine` in the
+  mine (it fades over from the night music).
+- **Effects**, as the first action of triggers:
+  - each Lost Flame's trigger: `playSound flame`;
+  - the wayshrine's Rest Area: `playSound rest`;
+  - the gate's *Opens*: `playSound gate`;
+  - *Lantern Lights Up*: `playSound lantern_lit`.
+
 ## 9. Play it through
 
 Talk to Maren and Wren, find Biscuit, get the key from Wren, rest at the
@@ -245,7 +260,9 @@ every test run, so the game stays finishable as Rolo changes.
 
 `examples/lantern_keeper/project` was made the same way, but with scripts:
 1. `rolo_editor --new-project` made the fresh project.
-2. `tools/make_art.py` drew the art.
+2. `tools/make_art.py` drew the art, and `tools/make_sounds.py` made the
+   sounds and music (synthesised from sine waves and noise: original, like
+   the art).
 3. `tools/build_project.py` added everything above, writing the same files
    the editor writes.
 

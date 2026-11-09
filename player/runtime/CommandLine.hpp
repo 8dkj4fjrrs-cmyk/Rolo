@@ -37,6 +37,7 @@ struct PlayerOptions {
     std::string screenshotPath;   // empty = none
     bool showStats = true;
     bool statsChosen = false;     // --stats or --no-stats was given (exported games hide them by default)
+    bool sound = true;            // --mute: play no sound
 
     // For automated tests of gameplay.
     std::vector<Key> heldKeys;    // --hold: keys held down for the whole run

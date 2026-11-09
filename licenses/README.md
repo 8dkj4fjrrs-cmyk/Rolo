@@ -11,6 +11,8 @@ Their license texts are in this folder; games carry a copy of it.
 | `lua.txt` | Lua 5.4.9 (gameplay scripts) | MIT |
 | `nlohmann-json.txt` | nlohmann/json 3.12.0 | MIT |
 | `stb.txt` | stb_image, stb_truetype | MIT or public domain |
+| `miniaudio.txt` | miniaudio 0.11.26 (sound) | public domain (Unlicense) or MIT No Attribution |
+| `stb-vorbis.txt` | stb_vorbis 1.22 (OGG sounds) | MIT or public domain |
 | `astcenc.txt` | astc-encoder 5.3.0 | Apache-2.0 |
 | `clipper2.txt` | Clipper2 2.0.1 | BSL-1.0 |
 | `concurrentqueue.txt` | moodycamel::ConcurrentQueue 1.0.4 | BSL-1.0 or Simplified BSD |

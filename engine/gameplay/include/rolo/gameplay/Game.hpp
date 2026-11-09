@@ -32,6 +32,7 @@
 #include "rolo/gameplay/Collision.hpp"
 #include "rolo/gameplay/Input.hpp"
 #include "rolo/gameplay/SaveStore.hpp"
+#include "rolo/gameplay/Sound.hpp"
 #include "rolo/scene/Scene.hpp"
 
 #include <cstdint>
@@ -60,6 +61,7 @@ struct GameSetup {
     const ContentLibrary* content = nullptr; // variables, dialogues, quests (none: no content)
     SaveStore* saves = nullptr;              // where save slots go (none: saving is reported, not done)
     std::string gameName = "Game";           // written in save files
+    SoundPlayer* sound = nullptr;            // the program's audio (none: the game is silent)
 };
 
 class Game : private ContentHost {
@@ -191,6 +193,23 @@ public:
     /// The prompt for what the player can interact with now, e.g. "[E] Talk".
     const std::string& interactionPrompt() const noexcept { return m_prompt; }
 
+    // --- Sound (see Sound.hpp) ---------------------------------------------------------------------
+    /// The program's audio: channel volumes, stopping effects. Silent if the
+    /// program has none (the game works the same, without sound).
+    SoundPlayer& sound() noexcept { return m_setup.sound != nullptr ? *m_setup.sound : m_silence; }
+    /// Plays a sound effect, e.g. playSound(coinSound, {.pitch = 1.2f}).
+    /// Returns a handle for sound().stop(), or 0 if it could not play.
+    SoundHandle playSound(AssetId sound, const SoundOptions& options = {});
+    /// Plays the object's Sound component (as music if it is set to). Playing
+    /// a looping sound that is already playing lets it carry on. 0 if the
+    /// object has no Sound, or it is music.
+    SoundHandle playSound(EntityId id);
+    /// Stops what the object's Sound component is playing.
+    void stopSound(EntityId id);
+    /// Plays music, fading from what played before (see SoundPlayer::playMusic).
+    void playMusic(AssetId music, float fadeSeconds = 1.0f, float volume = 1.0f);
+    void stopMusic(float fadeSeconds = 1.0f);
+
 private:
     friend class ScriptHost;   // Lua scripts reach setActive and the player through it
     friend struct Script;
@@ -207,6 +226,9 @@ private:
     void setActive(EntityId entity, bool active) override;
     void saveGame(std::string_view slot) override { save(slot); }
     void loadGame(std::string_view slot) override { load(slot); }
+    void soundAction(AssetId sound) override { playSound(sound); }
+    void musicAction(AssetId music) override { playMusic(music); }
+    void stopMusicAction() override { stopMusic(); }
 
     std::vector<EntityId> findAllWith(std::string_view typeId) const;
     // The player: the first object with an Interactor, or a null id.
@@ -215,6 +237,8 @@ private:
     std::shared_ptr<ScriptHost> scriptHost();
     void beginScene(Scene scene, AssetId id);
     void handleDialogueInput();
+    void updateSounds();
+    void stopObjectSounds();
     void runBehaviours();
     void runTriggers(bool talkedThisFrame);
     void updatePresentation();
@@ -248,6 +272,13 @@ private:
     std::size_t m_choice = 0;                         // the selected dialogue choice
     std::string m_shownLine;                          // to notice a new line (resets the choice)
     std::shared_ptr<ScriptHost> m_scripts;            // Lua scripts' state; dropped when the game stops
+    SilentSoundPlayer m_silence;                      // sound() when the program has no audio
+    std::set<EntityId> m_soundObjects;                // objects whose Sound has started (active ones)
+    struct ObjectSound {
+        SoundHandle handle = 0;
+        bool loop = false;   // remembered: the object may be gone when it is stopped
+    };
+    std::map<EntityId, ObjectSound> m_objectSounds;   // the effect each object's Sound plays
 };
 
 } // namespace rolo

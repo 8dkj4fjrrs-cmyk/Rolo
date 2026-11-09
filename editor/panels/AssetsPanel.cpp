@@ -224,7 +224,7 @@ void AssetsPanel::rebuild()
                                            : "Image";
                 break;
             case AssetType::Tileset: item.icon = ui::Icon::Grid; item.detail = "Tileset"; break;
-            case AssetType::Audio: item.icon = ui::Icon::Dot; item.detail = "Sound"; break;
+            case AssetType::Audio: item.icon = ui::Icon::Sound; item.detail = "Sound"; break;
             case AssetType::Font: item.icon = ui::Icon::Dot; item.detail = "Font"; break;
             case AssetType::Scene: item.icon = ui::Icon::Rolo; item.detail = "Scene"; break;
             case AssetType::Variables: item.icon = ui::Icon::Sliders; item.detail = "Variables"; break;
@@ -508,6 +508,9 @@ void AssetsPreviewPanel::update(UiFrame& frame)
             if (asset->type == AssetType::Animation && asset->animation) {
                 imageId = asset->animation->image;
                 e.icon = ui::Icon::Play;
+            }
+            if (asset->type == AssetType::Audio && asset->isUsable()) {
+                e.icon = ui::Icon::Sound;
             }
             const AssetRecord* image = db->find(imageId);
             if (image != nullptr && image->isUsable()) {

@@ -48,6 +48,7 @@ enum class Icon {
     Undo,          // arrow curving back to the left
     Redo,          // arrow curving on to the right
     Code,          // "</>": a script
+    Sound,         // a speaker with sound waves: a sound file
 };
 
 /// Draws `icon` centred in `area`.

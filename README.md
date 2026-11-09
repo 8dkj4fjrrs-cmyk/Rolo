@@ -62,6 +62,7 @@ project to a game you can share in half an hour.
 * [Getting started](docs/getting-started.md): your first game, step by step
 * [Editor guide](docs/editor.md): every panel and tool
 * [Scripting in Lua](docs/scripting.md): gameplay code without a compiler, with the full API
+* [Sound and music](docs/sound.md): effects, music and volumes, with or without code
 * [Gameplay in C++](docs/gameplay.md): behaviours and game modules (Rolo built from source)
 * [Exporting games](docs/exporting.md): making a program to share
 * [Making The Lantern Keeper](docs/making-the-lantern-keeper.md): a whole RPG, built step by step
@@ -117,6 +118,9 @@ Some highlights:
   - sandboxed, so scripts cannot reach files or programs;
   - errors point at the file and line;
   - endless loops are stopped.
+- **Sound and music**: WAV, OGG and MP3, from a Sound component, trigger
+  actions or scripts. Music fades between scenes, and carries on when the
+  next scene has the same piece.
 - **Play mode** inside the editor: ▶ to play, ■ to stop. Errors show in the
   Console, and the scene being edited is never changed.
 - **New Project wizard**:

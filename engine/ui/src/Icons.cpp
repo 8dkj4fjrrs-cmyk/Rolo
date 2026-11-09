@@ -301,6 +301,17 @@ void drawIcon(DrawList& draw, Icon icon, Rect area, Color color)
         draw.line(g(9.2f, 3.5f), g(6.8f, 12.5f), color, w);
         break;
     }
+    case Icon::Sound: {
+        // A speaker: a small box and its cone, and two waves coming out.
+        // (Two convex parts: the whole outline is not convex.)
+        const std::array<Vec2, 4> box{g(1.8f, 6.0f), g(4.8f, 6.0f), g(4.8f, 10.0f), g(1.8f, 10.0f)};
+        const std::array<Vec2, 4> cone{g(4.6f, 6.0f), g(8.4f, 2.8f), g(8.4f, 13.2f), g(4.6f, 10.0f)};
+        draw.fillConvexPolygon(box, color);
+        draw.fillConvexPolygon(cone, color);
+        ring(draw, g(8.4f, 8.0f), 3.2f * u, color, w * 0.9f, -0.85f, 0.85f, false);
+        ring(draw, g(8.4f, 8.0f), 5.9f * u, color, w * 0.9f, -0.9f, 0.9f, false);
+        break;
+    }
     case Icon::Brush: {
         // A handle going down-left into a rounded tip.
         draw.line(g(13.5f, 2.5f), g(7.2f, 8.8f), color, w * 1.2f);

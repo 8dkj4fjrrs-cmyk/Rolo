@@ -32,6 +32,9 @@ and AI assistants.
   C++ exceptions into Lua errors (`guarded`). New script functions need docs/scripting.md and tests. `engine/gameplay` has no
   backend; the runtime and editor translate their input into `rolo::Input`. A game always plays a
   copy of the scene (`Game::start`), never the scene being edited.
+- Sound: games ask for it through `rolo::SoundPlayer` (`engine/gameplay`, `Sound.hpp`), never a
+  backend. miniaudio stays inside `engine/audio/src/AudioEngine.cpp` (ADR 0015); nothing else
+  includes it.
 - RPG content (`engine/content`) is data: conditions and actions are a fixed, typed set, never code or
   free expressions. Authored definitions (variables, dialogues, quests) stay apart from progress
   (`GameState`, save files). New action or condition types need the JSON form, the written form

@@ -159,6 +159,8 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `obj:isTouching(other)` | true if their Colliders overlap |
 | `obj:text()`, `obj:setText("Score: 3")` | the text of a Text component |
 | `obj:setFlipX(true/false)` | mirrors its Sprite left to right |
+| `obj:playSound()` | plays its Sound component (as music, if the Sound is set to Music). Returns a handle for `audio.stop`, or `nil` |
+| `obj:stopSound()` | stops what its Sound component plays |
 
 `tostring(obj)` gives `object "Door"`. `a == b` is true for the same object.
 
@@ -199,6 +201,24 @@ Key names, in any case:
   either side;
 - `"f1"` to `"f12"`;
 - `"mouse left"`, `"mouse right"`, `"mouse middle"`.
+
+### `audio`
+
+Sounds are named like scenes: by file name (`"coin"`) or path
+(`"sounds/coin.wav"`). See the [sound guide](sound.md).
+
+| Function | What it does |
+|---|---|
+| `audio.play("coin")` | plays a sound effect; returns a handle, or `nil` if it could not play |
+| `audio.play("coin", { volume = 0.5, pitch = 1.2, pan = -1, loop = true })` | ...with options: volume 0–2 (1 as recorded), pitch 0.1–4 (2 is an octave up), pan -1 (left) to 1 (right), loop |
+| `audio.stop(handle)` | stops that sound (a `nil` handle is ignored) |
+| `audio.isPlaying(handle)` | true while it plays |
+| `audio.playMusic("theme")` | changes the music, fading over a second. The same music already playing carries on |
+| `audio.playMusic("theme", { fade = 3, volume = 0.8 })` | ...with a fade in seconds (0–30) and a volume |
+| `audio.stopMusic()`, `audio.stopMusic(2)` | fades the music out (over 1 second, or the given seconds) |
+| `audio.music()` | the music playing now (its name), or `nil` |
+| `audio.setVolume("music", 0.5)` | a channel's volume, 0–1: `"master"`, `"music"` or `"effects"` |
+| `audio.volume("music")` | a channel's volume |
 
 ### Lua's own library, and `require`
 

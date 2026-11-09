@@ -132,6 +132,13 @@ std::string formatValue(const Value& v)
 
 // --- Reading -------------------------------------------------------------------------------------
 
+
+// How an asset kind is named in messages: audio assets are "sounds".
+std::string_view kindLabel(std::string_view kind)
+{
+    return kind == "audio" ? std::string_view("sound") : kind;
+}
+
 class Parser {
 public:
     Parser(std::vector<Token> tokens, const NotationNames& names)
@@ -194,15 +201,16 @@ public:
     std::optional<AssetId> asset(std::string_view kind)
     {
         const Token t = next();
+        const std::string what(kindLabel(kind));
         if (t.kind != Token::Kind::Word && t.kind != Token::Kind::Text) {
-            fail("expected the name of a " + std::string(kind) + ", not "
+            fail("expected the name of a " + what + ", not "
                  + (t.kind == Token::Kind::End ? std::string("the end") : "\"" + t.text + "\""));
             return std::nullopt;
         }
         if (isHexId(t.text)) {
             return AssetId::parse(t.text);
         }
-        std::string reason = "there is no " + std::string(kind) + " called \"" + t.text + "\"";
+        std::string reason = "there is no " + what + " called \"" + t.text + "\"";
         if (m_names.findAsset) {
             if (auto id = m_names.findAsset(t.text, kind, reason)) {
                 return id;
@@ -477,7 +485,10 @@ std::string formatAction(const Action& a, const NotationNames& names)
     case Action::Kind::FailQuest: return type + " " + assetText(a.quest, names);
     case Action::Kind::CompleteObjective: return type + " " + assetText(a.quest, names) + " " + a.objective;
     case Action::Kind::StartDialogue:
-    case Action::Kind::ChangeScene: return type + " " + assetText(a.asset, names);
+    case Action::Kind::ChangeScene:
+    case Action::Kind::PlaySound:
+    case Action::Kind::PlayMusic: return type + " " + assetText(a.asset, names);
+    case Action::Kind::StopMusic: return type;
     case Action::Kind::SetActive: return type + " " + entityText(a.entity, names) + (a.active ? " on" : " off");
     case Action::Kind::Destroy: return type + " " + entityText(a.entity, names);
     case Action::Kind::Emit: return type + " " + wordOrQuoted(a.text);
@@ -506,7 +517,7 @@ std::optional<Action> parseActionNotation(std::string_view text, const NotationN
         const Token verb = p.next();
         Action a;
         bool known = false;
-        for (int k = 0; k <= static_cast<int>(Action::Kind::LoadGame); ++k) {
+        for (int k = 0; k <= static_cast<int>(Action::Kind::StopMusic); ++k) {
             if (actionTypeName(static_cast<Action::Kind>(k)) == verb.text) {
                 a.kind = static_cast<Action::Kind>(k);
                 known = true;
@@ -517,7 +528,7 @@ std::optional<Action> parseActionNotation(std::string_view text, const NotationN
             p.fail(verb.kind == Token::Kind::End ? std::string("write an action, e.g. add gems 1")
                                                  : "\"" + verb.text + "\" is not an action (known: set, add, startQuest, "
                                                    "completeObjective, failQuest, startDialogue, changeScene, setActive, "
-                                                   "destroy, emit, log, wait, saveGame, loadGame)");
+                                                   "destroy, emit, log, wait, saveGame, loadGame, playSound, playMusic, stopMusic)");
         }
         const auto word = [&](const char* what) -> std::optional<std::string> {
             const Token t = p.next();
@@ -569,6 +580,16 @@ std::optional<Action> parseActionNotation(std::string_view text, const NotationN
                 }
                 break;
             }
+            case Action::Kind::PlaySound:
+            case Action::Kind::PlayMusic: {
+                const auto asset = p.asset("audio");
+                ok = asset.has_value();
+                if (ok) {
+                    a.asset = *asset;
+                }
+                break;
+            }
+            case Action::Kind::StopMusic: break;
             case Action::Kind::SetActive:
             case Action::Kind::Destroy: {
                 const auto entity = p.entity();
@@ -674,8 +695,9 @@ NotationNames projectNotationNames(const AssetDatabase* assets, const Scene* sce
             if (matches.size() == 1) {
                 return matches.front()->id;
             }
-            error = matches.empty() ? "there is no " + std::string(kind) + " called \"" + std::string(name) + "\""
-                                    : "several " + std::string(kind) + "s are called \"" + std::string(name)
+            const std::string what(kindLabel(kind));
+            error = matches.empty() ? "there is no " + what + " called \"" + std::string(name) + "\""
+                                    : "several " + what + "s are called \"" + std::string(name)
                                           + "\"; write the path, e.g. \"" + matches.front()->path + "\"";
             return std::nullopt;
         };

@@ -134,6 +134,10 @@ public:
     virtual bool isPaused() const = 0;
     /// Where the Scene view reports keys and the mouse while playing (null otherwise).
     virtual Input* gameInput() = 0;
+
+    // Sound: listening to a sound file from the Inspector.
+    virtual void previewSound(AssetId sound) = 0;
+    virtual void stopSoundPreview() = 0;
 };
 
 /// A toolbar strip along the top of a panel.

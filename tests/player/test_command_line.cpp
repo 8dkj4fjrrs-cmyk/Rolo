@@ -146,3 +146,11 @@ TEST_CASE("An exported game is found beside the player", "[player][cli]")
     CHECK(stats.options.statsChosen);
     CHECK_FALSE(parse({}).options.statsChosen);
 }
+
+TEST_CASE("The mute option plays without sound", "[player][cli]")
+{
+    CHECK(parse({}).options.sound);
+    const ParseResult r = parse({"--mute"});
+    REQUIRE(r.ok());
+    CHECK_FALSE(r.options.sound);
+}

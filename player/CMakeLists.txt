@@ -10,7 +10,7 @@ target_link_libraries(rolo_player_cli PUBLIC rolo::gameplay)   # key names
 rolo_set_warnings(rolo_player_cli)
 
 add_executable(rolo_player runtime/main.cpp)
-target_link_libraries(rolo_player PRIVATE rolo_player_cli rolo::runtime)
+target_link_libraries(rolo_player PRIVATE rolo_player_cli rolo::runtime rolo::audio)
 rolo_set_warnings(rolo_player)
 rolo_link_game_modules(rolo_player)   # the game's behaviours
 

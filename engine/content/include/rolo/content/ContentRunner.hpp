@@ -47,6 +47,11 @@ public:
     virtual void emit(std::string_view event) = 0;
     virtual void saveGame(std::string_view slot) = 0;
     virtual void loadGame(std::string_view slot) = 0;
+    /// The playSound, playMusic and stopMusic actions. A host without
+    /// audio may leave these out.
+    virtual void soundAction(AssetId /*sound*/) {}
+    virtual void musicAction(AssetId /*music*/) {}
+    virtual void stopMusicAction() {}
     virtual void notify(const ContentEvent& /*event*/) {}
 };
 

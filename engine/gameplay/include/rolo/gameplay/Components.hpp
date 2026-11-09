@@ -57,7 +57,7 @@ struct DialogueView : ComponentBase<DialogueView> {
     static const ComponentType& componentType();
 };
 
-/// Adds Interactor, Trigger and DialogueView.
+/// Adds Interactor, Trigger, DialogueView and Sound (Sound.hpp).
 void registerGameplayComponents(ComponentRegistry& registry);
 
 } // namespace rolo

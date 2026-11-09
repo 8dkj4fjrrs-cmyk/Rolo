@@ -7,6 +7,7 @@
 
 #include "CommandLine.hpp"
 
+#include "rolo/audio/AudioEngine.hpp"
 #include "rolo/core/Engine.hpp"
 #include "rolo/core/Files.hpp"
 #include "rolo/core/Version.hpp"
@@ -181,6 +182,14 @@ int main(int argc, char** argv)
     }
     rolo::FolderSaveStore saves(saveFolder);
 
+    // Sound: the computer's sound output (or silence with --mute, or when
+    // there is none).
+    std::unique_ptr<rolo::AudioEngine> audio;
+    if (opt.sound) {
+        audio = std::make_unique<rolo::AudioEngine>(engine.logger());
+        audio->setAssets(assets.get());
+    }
+
     // The game: plays the scene, loading other scenes of the project when
     // gameplay asks for them.
     rolo::GameSetup setup;
@@ -188,6 +197,7 @@ int main(int argc, char** argv)
     setup.content = &content;
     setup.saves = saveFolder.empty() ? nullptr : &saves;
     setup.gameName = title;
+    setup.sound = audio.get();
     setup.loadScene = [&](rolo::AssetId id, std::string& error) -> std::optional<rolo::Scene> {
         const rolo::AssetRecord* record = assets != nullptr ? assets->find(id) : nullptr;
         if (record == nullptr || record->type != rolo::AssetType::Scene) {
@@ -243,6 +253,9 @@ int main(int argc, char** argv)
             }
             const float dt = opt.fixedStep ? 1.0f / 60.0f : static_cast<float>(frame.deltaSeconds);
             game.update(dt);
+            if (audio) {
+                audio->update();   // frees the sounds that finished
+            }
             app.setAnimationTime(game.time());   // animations follow game time
             if (game.sharedScene() != shown) {   // the game changed scene
                 shown = game.sharedScene();

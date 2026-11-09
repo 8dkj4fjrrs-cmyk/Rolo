@@ -524,6 +524,10 @@
             "condition": null,
             "actions": [
               {
+                "type": "playSound",
+                "sound": "4b45455000000028"
+              },
+              {
                 "type": "saveGame",
                 "slot": "quick"
               },
@@ -732,6 +736,10 @@
               "value": true
             },
             "actions": [
+              {
+                "type": "playSound",
+                "sound": "4b4545500000002a"
+              },
               {
                 "type": "setActive",
                 "entity": "4b45010000000004",
@@ -1181,6 +1189,29 @@
           "color": "#ffe08aff",
           "align": "center",
           "width": 0
+        }
+      ]
+    },
+    {
+      "id": "4b45010000000027",
+      "name": "Music",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 0],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Sound",
+          "sound": "4b4545500000002b",
+          "volume": 0.7,
+          "pitch": 1,
+          "loop": false,
+          "playOnStart": true,
+          "music": true,
+          "fade": 2
         }
       ]
     }

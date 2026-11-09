@@ -43,6 +43,9 @@ constexpr std::array kActionNames{
     KindName{static_cast<int>(Action::Kind::Wait), "wait"},
     KindName{static_cast<int>(Action::Kind::SaveGame), "saveGame"},
     KindName{static_cast<int>(Action::Kind::LoadGame), "loadGame"},
+    KindName{static_cast<int>(Action::Kind::PlaySound), "playSound"},
+    KindName{static_cast<int>(Action::Kind::PlayMusic), "playMusic"},
+    KindName{static_cast<int>(Action::Kind::StopMusic), "stopMusic"},
 };
 
 constexpr std::array<std::string_view, 6> kOpNames{"==", "!=", "<", "<=", ">", ">="};
@@ -429,6 +432,13 @@ std::optional<Action> actionFromJson(const Json& j, std::string& error)
             return std::nullopt;
         }
         break;
+    case Action::Kind::PlaySound:
+    case Action::Kind::PlayMusic:
+        if (!readAsset(j, "sound", a.asset, error, type)) {
+            return std::nullopt;
+        }
+        break;
+    case Action::Kind::StopMusic: break;
     case Action::Kind::SetActive:
         if (!readEntity()) {
             return std::nullopt;
@@ -509,6 +519,9 @@ Json toJson(const Action& a)
         break;
     case Action::Kind::StartDialogue: j["dialogue"] = toJson(a.asset); break;
     case Action::Kind::ChangeScene: j["scene"] = toJson(a.asset); break;
+    case Action::Kind::PlaySound:
+    case Action::Kind::PlayMusic: j["sound"] = toJson(a.asset); break;
+    case Action::Kind::StopMusic: break;
     case Action::Kind::SetActive:
         j["entity"] = entity();
         j["active"] = a.active;
@@ -661,6 +674,9 @@ std::string describe(const Action& a)
     case Action::Kind::FailQuest: return "fail quest " + a.quest.toString();
     case Action::Kind::StartDialogue: return "start dialogue " + a.asset.toString();
     case Action::Kind::ChangeScene: return "change to scene " + a.asset.toString();
+    case Action::Kind::PlaySound: return "play sound " + a.asset.toString();
+    case Action::Kind::PlayMusic: return "play music " + a.asset.toString();
+    case Action::Kind::StopMusic: return "stop the music";
     case Action::Kind::SetActive:
         return std::string(a.active ? "switch on " : "switch off ")
                + (a.entity.isNull() ? std::string("this object") : "object " + a.entity.toString());

@@ -111,6 +111,10 @@ asset in the editor never breaks anything.
 - **Place an image** in the scene: drag it from Assets Preview into the
   Scene view, or click **Place in Scene**. It becomes a Sprite at the image's
   own size (1 pixel = 1 point).
+- **Listen to a sound:** select it and press **Play** (and **Stop**) in the
+  Inspector. Dragging a sound into the Scene view (or **Place in Scene**)
+  makes an object with a **Sound** component that plays it when the scene
+  starts. See the [sound guide](sound.md).
 - A damaged or unsupported file is listed with a warning, and the problem is
   shown in the Inspector and the Console.
 
@@ -149,6 +153,8 @@ border.
 - **Keyboard:** the game gets the keys while the Scene view has focus.
   Click the game first if the view says so. ⌘/Ctrl shortcuts still go to
   the editor.
+- **Sound:** the game's sounds and music play; Pause holds them and Stop
+  stops them. **Game > Mute Sound** silences the editor (remembered).
 - **⏸ Pause** (⇧⌘P) freezes the game; press again to resume. **⏭ Step**
   (⌥⌘P) pauses and runs exactly one frame, to watch something closely.
 - **■ Stop** (⌘P again) ends the game. The game always plays a *copy* of
@@ -165,7 +171,8 @@ border.
   in Play mode are kept in the editor's settings folder (`play-saves`),
   never with the real game's saves.
 
-Gameplay is written in C++: see the [gameplay guide](gameplay.md).
+Gameplay is written in Lua or C++: see the [scripting guide](scripting.md)
+and the [gameplay guide](gameplay.md).
 
 ## Story content: dialogues, quests, variables
 
@@ -203,8 +210,9 @@ leave the field (a mistake is shown under it in red, and nothing changes):
 | `gems >= 3 and (a or not b)` | `startDialogue elder`, `changeScene cave` |
 | *(empty: always)* | `setActive Door off`, `destroy this` |
 | | `emit door_opened`, `log "Hi {name}"`, `wait 1.5`, `saveGame quick` |
+| | `playSound door_creak`, `playMusic theme`, `stopMusic` |
 
-Quests, dialogues and scenes are named by file name (`gems` for
+Quests, dialogues, scenes and sounds are named by file name (`gems` for
 `content/gems.lquest`); objects by their name in the scene, or `this`.
 Files store the full form, so renaming a file or an object never breaks
 anything.

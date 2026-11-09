@@ -35,6 +35,8 @@ public:
     void addQuest(AssetId id, std::string label, Quest quest);
     /// A scene that exists (for checking "change scene" actions).
     void addScene(AssetId id, std::string label);
+    /// A sound that exists (for checking "play sound" and "play music" actions).
+    void addSound(AssetId id, std::string label);
 
     // --- Looking things up -----------------------------------------------------------------
     const VariableDefinition* variable(std::string_view id) const;
@@ -43,6 +45,7 @@ public:
     const Dialogue* dialogue(AssetId id) const;
     const Quest* quest(AssetId id) const;
     bool hasScene(AssetId id) const;
+    bool hasSound(AssetId id) const;
     std::vector<AssetId> questIds() const;
     std::vector<AssetId> dialogueIds() const;
     /// The label given for an asset (its path), or its ID as text.
@@ -68,6 +71,7 @@ private:
     std::map<AssetId, std::pair<std::string, Dialogue>> m_dialogues;
     std::map<AssetId, std::pair<std::string, Quest>> m_quests;
     std::map<AssetId, std::string> m_scenes;
+    std::map<AssetId, std::string> m_sounds;
 };
 
 } // namespace rolo

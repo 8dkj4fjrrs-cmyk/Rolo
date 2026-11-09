@@ -12,6 +12,7 @@
 #include "../model/SceneDocument.hpp"
 #include "../panels/Panels.hpp"
 
+#include "rolo/audio/AudioEngine.hpp"
 #include "rolo/core/Engine.hpp"
 #include "rolo/gameplay/Game.hpp"
 #include "rolo/runtime/Application.hpp"
@@ -92,6 +93,8 @@ public:
     bool isPlaying() const override { return m_game != nullptr; }
     bool isPaused() const override { return m_game != nullptr && m_paused; }
     Input* gameInput() override { return m_game != nullptr ? &m_game->input() : nullptr; }
+    void previewSound(AssetId sound) override;
+    void stopSoundPreview() override;
 
     // --- Play mode ---------------------------------------------------------------------------
     /// Plays the open scene in the Scene view (a copy of it: stopping
@@ -144,6 +147,7 @@ private:
     void showGuide(const std::string& file);
     void openExampleCopy();
     static constexpr const char* kShowWelcomeKey = "welcome.show";
+    static constexpr const char* kMuteKey = "sound.muted";   // Game > Mute Sound
     void exportNow(const std::string& name, const std::filesystem::path& folder);
     void reportIssues(const std::filesystem::path& file, const std::vector<FileIssue>& issues);
     /// Re-reads the project's assets (also every few seconds) and reports problems.
@@ -182,6 +186,13 @@ private:
     std::uint64_t m_documentGeneration = 1;
     std::shared_ptr<const Scene> m_shownScene;   // what the runtime is drawing
     std::string m_shownTitle;
+
+    // Sound: made the first time something plays (declared before the game,
+    // so the game, which stops its sounds when it goes, goes first).
+    std::unique_ptr<AudioEngine> m_audio;
+    const AssetDatabase* m_audioAssets = nullptr;   // what m_audio reads sounds from
+    SoundHandle m_soundPreview = 0;                 // the sound file being listened to
+    AudioEngine& audio();
 
     // Play mode.
     std::unique_ptr<Game> m_game;   // non-null while playing

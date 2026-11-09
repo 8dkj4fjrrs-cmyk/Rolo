@@ -74,6 +74,8 @@ ParseResult parseCommandLine(std::span<const std::string_view> args)
         } else if (arg == "--no-stats" || arg == "--stats") {
             opt.showStats = arg == "--stats";
             opt.statsChosen = true;
+        } else if (arg == "--mute") {
+            opt.sound = false;
         } else if (arg == "--fixed-step") {
             opt.fixedStep = true;
         } else if (arg == "--save-dir") {
@@ -181,6 +183,7 @@ std::string helpText()
            "  --height N         Window height in points (default: 720)\n"
            "  --no-stats         Hide the frame-rate overlay\n"
            "  --stats            Show it (exported games hide it by default)\n"
+           "  --mute             Play without sound\n"
            "  --frames N         Quit automatically after N frames (used by tests)\n"
            "  --screenshot FILE  Save the last frame as a PNG (needs --frames)\n"
            "  --hold KEY         Hold a key down for the whole run, e.g. Right (tests)\n"

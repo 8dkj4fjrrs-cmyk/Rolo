@@ -5,6 +5,7 @@
 #include "support/TempFolder.hpp"
 #include "KeeperBehaviours.hpp"
 
+#include "rolo/audio/AudioEngine.hpp"
 #include "rolo/content/ContentLibrary.hpp"
 #include "rolo/content/Notation.hpp"
 #include "rolo/gameplay/Components.hpp"
@@ -33,6 +34,7 @@ struct KeeperGame {
     AssetDatabase assets{kKeeper, AssetDatabase::Access::ReadOnly};
     ContentLibrary content;
     FolderSaveStore saves{rolo::test::uniqueTempFolder("keeper-saves")};
+    AudioEngine audio{log, {.device = false}};   // decodes the game's sounds for real, without a sound card
     std::unique_ptr<Game> game;
 
     KeeperGame()
@@ -57,6 +59,8 @@ struct KeeperGame {
         setup.assets = &assets;
         setup.content = &content;
         setup.saves = &saves;
+        audio.setAssets(&assets);
+        setup.sound = &audio;
         setup.gameName = "The Lantern Keeper";
         setup.loadScene = [this](AssetId id, std::string& error) { return load(id, error); };
         game = std::make_unique<Game>(log, std::move(setup));
@@ -223,6 +227,8 @@ TEST_CASE("The Lantern Keeper can be played from the first line to the ending", 
     k.start();
     Game& game = *k.game;
     REQUIRE(game.scene().name() == "Village");
+    const auto soundFile = [&](const char* name) { return k.assets.findByPath(std::string("assets/sounds/") + name)->id; };
+    CHECK(k.audio.music() == soundFile("night.ogg"));
 
     // The story opens by itself.
     REQUIRE(game.isInDialogue());
@@ -249,6 +255,7 @@ TEST_CASE("The Lantern Keeper can be played from the first line to the ending", 
 
     // To Whisperwood, arriving by the road.
     k.goThrough("Road to Whisperwood", "Whisperwood");
+    CHECK(k.audio.music() == soundFile("night.ogg"));   // the same music carries on
     const Vec2 arrived = game.worldPosition(k.player());
     CHECK(arrived.x == Catch::Approx(game.worldPosition(game.find("From Village")).x));
 
@@ -262,8 +269,10 @@ TEST_CASE("The Lantern Keeper can be played from the first line to the ending", 
     k.frames(2);
     CHECK(game.find("Biscuit").isNull());
 
-    // The first lost flame, by the pond.
+    // The first lost flame, by the pond (with a sparkle).
+    const std::size_t sounds = k.audio.playingCount();
     k.stand(game.colliderBox(game.find("Lost Flame"))->center());
+    CHECK(k.audio.playingCount() == sounds + 1);
     CHECK(contains(k.readDialogue(), "You found a lost flame! It's warm"));
     CHECK(k.variable<int>("flames") == 1);
     CHECK(k.text("Flame Count") == "Flames  1 / 3");
@@ -290,6 +299,7 @@ TEST_CASE("The Lantern Keeper can be played from the first line to the ending", 
     k.frames(120);
     game.input().release(Key::Right);
     REQUIRE(game.scene().name() == "Old Mine");
+    CHECK(k.audio.music() == soundFile("mine.ogg"));
 
     // Two flames in the mine.
     k.stand(game.colliderBox(game.find("Lost Flame North"))->center());
@@ -301,6 +311,7 @@ TEST_CASE("The Lantern Keeper can be played from the first line to the ending", 
 
     // Back out and home; the gate stays open.
     k.goThrough("Way Out", "Whisperwood");
+    CHECK(k.audio.music() == soundFile("night.ogg"));
     CHECK(game.find("Mine Gate").isNull());
     k.goThrough("Road to Emberwick", "Village");
     CHECK(contains(k.use("Keeper Maren"), "You found all three!"));

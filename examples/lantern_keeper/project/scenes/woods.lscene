@@ -208,6 +208,10 @@
             "condition": null,
             "actions": [
               {
+                "type": "playSound",
+                "sound": "4b45455000000027"
+              },
+              {
                 "type": "add",
                 "variable": "flames",
                 "value": 1
@@ -315,6 +319,10 @@
           "data": {
             "condition": null,
             "actions": [
+              {
+                "type": "playSound",
+                "sound": "4b45455000000029"
+              },
               {
                 "type": "destroy",
                 "entity": "4b45020000000006"
@@ -738,6 +746,29 @@
               }
             ]
           }
+        }
+      ]
+    },
+    {
+      "id": "4b4502000000001a",
+      "name": "Music",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 0],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Sound",
+          "sound": "4b4545500000002b",
+          "volume": 0.7,
+          "pitch": 1,
+          "loop": false,
+          "playOnStart": true,
+          "music": true,
+          "fade": 2
         }
       ]
     }

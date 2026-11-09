@@ -167,6 +167,21 @@ void ContentRunner::runOne(const Action& a, EntityId self)
             m_host->loadGame(a.text);
         }
         return;
+    case Action::Kind::PlaySound:
+        if (needHost()) {
+            m_host->soundAction(a.asset);
+        }
+        return;
+    case Action::Kind::PlayMusic:
+        if (needHost()) {
+            m_host->musicAction(a.asset);
+        }
+        return;
+    case Action::Kind::StopMusic:
+        if (needHost()) {
+            m_host->stopMusicAction();
+        }
+        return;
     }
 }
 

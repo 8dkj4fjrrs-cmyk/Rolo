@@ -8,7 +8,7 @@ Large dependencies are not copied into this repository: Axmol is downloaded
 by CMake into `external/` at a pinned commit (see `cmake/RoloAxmol.cmake`).
 Small ones are kept in the repository, unmodified and with their license
 files: `third_party/stb/stb_truetype.h`, `third_party/stb/stb_image.h`, Lua's
-sources in `third_party/lua/` and the Inter fonts in `assets/fonts/`.
+sources in `third_party/lua/`, miniaudio and stb_vorbis in `third_party/miniaudio/` and the Inter fonts in `assets/fonts/`.
 
 ## Runtime backend
 
@@ -95,6 +95,19 @@ core and the base, coroutine, string, table, math and utf8 libraries are
 copied and built; the io, os, debug and package libraries are left out on
 purpose (see `third_party/lua/README.md` and ADR 0013). Its MIT notice goes
 with every game in `licenses/lua.txt`.
+
+## Sound (`engine/audio`)
+
+| Component | Version | License | Shipped? |
+|---|---|---|---|
+| [miniaudio](https://github.com/mackron/miniaudio) (`third_party/miniaudio/`) | 0.11.26 (`877ea4a`) | public domain (Unlicense) or MIT No Attribution | Yes: plays sounds in the editor and in games |
+| [stb_vorbis](https://github.com/nothings/stb) (miniaudio's copy, `third_party/miniaudio/stb_vorbis.c`) | 1.22 | MIT or public domain | Yes: reads OGG sounds |
+
+Kept in this repository, unmodified, with their license texts (see
+`third_party/miniaudio/README.md` and ADR 0015). miniaudio was chosen over
+Axmol's own audio, which needs the LGPL-licensed OpenAL Soft. Neither license
+requires a notice in games; `licenses/miniaudio.txt` and
+`licenses/stb-vorbis.txt` go with every game anyway.
 
 ## Rolo UI (the editor's interface toolkit, `engine/ui`)
 

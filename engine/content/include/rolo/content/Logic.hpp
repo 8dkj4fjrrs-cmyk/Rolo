@@ -87,13 +87,16 @@ struct Action {
         Wait,               // pause the action list for `seconds` (timed sequences)
         SaveGame,           // save to the slot named `text`
         LoadGame,           // load the slot named `text`
+        PlaySound,          // play the sound effect `asset`
+        PlayMusic,          // play `asset` as the music (fading from what played before)
+        StopMusic,          // fade the music out
     };
     Kind kind = Kind::Log;
     std::string variable;   // Set, Add
     Value value;
     AssetId quest;          // StartQuest, CompleteObjective, FailQuest
     std::string objective;  // CompleteObjective
-    AssetId asset;          // StartDialogue, ChangeScene
+    AssetId asset;          // StartDialogue, ChangeScene, PlaySound, PlayMusic
     EntityId entity;        // SetActive, Destroy
     bool active = true;     // SetActive
     std::string text;       // Emit, Log, SaveGame, LoadGame

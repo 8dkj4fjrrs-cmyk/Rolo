@@ -55,7 +55,7 @@ add_executable(rolo_editor
 
 # The runtime gives the editor Rolo's own headers only — never Axmol's —
 # so editor code cannot reach into the backend by accident.
-target_link_libraries(rolo_editor PRIVATE rolo_editor_core rolo::runtime)
+target_link_libraries(rolo_editor PRIVATE rolo_editor_core rolo::runtime rolo::audio)
 rolo_set_warnings(rolo_editor)
 rolo_link_game_modules(rolo_editor)   # behaviours for the Inspector and play mode
 # Where a build of the editor (not an installed copy) finds templates,

@@ -47,6 +47,10 @@ ContentLibrary ContentLibrary::load(const AssetDatabase& assets, std::vector<Fil
             library.addScene(record->id, record->path);
             continue;
         }
+        if (record->type == AssetType::Audio) {
+            library.addSound(record->id, record->path);
+            continue;
+        }
         if (record->type != AssetType::Variables && record->type != AssetType::Dialogue
             && record->type != AssetType::Quest) {
             continue;
@@ -109,6 +113,11 @@ void ContentLibrary::addScene(AssetId id, std::string label)
     m_scenes[id] = std::move(label);
 }
 
+void ContentLibrary::addSound(AssetId id, std::string label)
+{
+    m_sounds[id] = std::move(label);
+}
+
 const VariableDefinition* ContentLibrary::variable(std::string_view id) const
 {
     for (const auto& [file, set] : m_variableSets) {
@@ -149,6 +158,11 @@ bool ContentLibrary::hasScene(AssetId id) const
     return m_scenes.count(id) > 0;
 }
 
+bool ContentLibrary::hasSound(AssetId id) const
+{
+    return m_sounds.count(id) > 0;
+}
+
 std::vector<AssetId> ContentLibrary::questIds() const
 {
     std::vector<AssetId> out;
@@ -176,6 +190,9 @@ std::string ContentLibrary::labelOf(AssetId id) const
         return q->second.first;
     }
     if (const auto s = m_scenes.find(id); s != m_scenes.end()) {
+        return s->second;
+    }
+    if (const auto s = m_sounds.find(id); s != m_sounds.end()) {
         return s->second;
     }
     for (const auto& [file, set] : m_variableSets) {
@@ -269,6 +286,12 @@ void ContentLibrary::checkActions(const std::vector<Action>& actions, const std:
                 error(issues, at, "The scene " + a.asset.toString() + " does not exist (was it deleted?).");
             }
             break;
+        case Action::Kind::PlaySound:
+        case Action::Kind::PlayMusic:
+            if (!hasSound(a.asset)) {
+                error(issues, at, "The sound " + a.asset.toString() + " does not exist (was it deleted?).");
+            }
+            break;
         case Action::Kind::Emit:
         case Action::Kind::SaveGame:
         case Action::Kind::LoadGame:
@@ -279,7 +302,8 @@ void ContentLibrary::checkActions(const std::vector<Action>& actions, const std:
         case Action::Kind::SetActive:
         case Action::Kind::Destroy:
         case Action::Kind::Log:
-        case Action::Kind::Wait: break;
+        case Action::Kind::Wait:
+        case Action::Kind::StopMusic: break;
         }
     }
 }

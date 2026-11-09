@@ -16,6 +16,24 @@ All notable changes to Rolo Engine. Versions follow the milestones in
   - Game modules written for Lantern need their includes, namespace and
     module macro renamed. Lua scripts need no changes.
   - The demo game keeps its name: *The Lantern Keeper*.
+- **Sound and music** ([sound guide](docs/sound.md), [ADR 0015](docs/adr/0015-sound.md)).
+  - WAV, OGG and MP3 files play in play mode and in exported games, on
+    macOS, Windows and Linux, with nothing to install.
+  - The **Sound** component: a sound when an object appears, a loop while
+    it is there, or the scene's music. Music fades from one piece to the
+    next, and carries on when the next scene has the same piece.
+  - Actions for triggers, dialogues and quests: `playSound`, `playMusic`,
+    `stopMusic`.
+  - Lua: the `audio` table (`audio.play`, `audio.playMusic`,
+    `audio.setVolume`...) and `object:playSound()`. C++: `game.playSound()`,
+    `game.playMusic()` and `game.sound()`.
+  - The editor: **Play** and **Stop** for sound files in the Inspector, drag
+    a sound into the scene, Pause holds the game's sounds, and
+    **Game > Mute Sound**.
+  - `rolo_player --mute`.
+  - *The Lantern Keeper* has original music and sound effects.
+  - Built on miniaudio and stb_vorbis (both public domain or MIT), not
+    Axmol's audio, which needs the LGPL-licensed OpenAL Soft.
 
 ## 0.9.1-alpha — Rolo opens on downloaded Macs
 

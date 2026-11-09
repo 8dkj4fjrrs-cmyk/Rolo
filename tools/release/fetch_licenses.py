@@ -26,6 +26,10 @@ LIBRARIES = {
     "lua": ("Lua 5.4.9 (gameplay scripts)", "MIT", ["third_party/lua/LICENSE"]),
     "nlohmann-json": ("nlohmann/json 3.12.0", "MIT", [GH + "nlohmann/json/v3.12.0/LICENSE.MIT"]),
     "stb": ("stb_image, stb_truetype", "MIT or public domain", [GH + "nothings/stb/master/LICENSE"]),
+    "miniaudio": ("miniaudio 0.11.26 (sound)", "public domain (Unlicense) or MIT No Attribution",
+                  ["third_party/miniaudio/LICENSE"]),
+    "stb-vorbis": ("stb_vorbis 1.22 (OGG sounds)", "MIT or public domain",
+                   ["footer:third_party/miniaudio/stb_vorbis.c"]),
     "astcenc": ("astc-encoder 5.3.0", "Apache-2.0", [GH + "ARM-software/astc-encoder/5.3.0/LICENSE.txt"]),
     "clipper2": ("Clipper2 2.0.1", "BSL-1.0", [GH + "AngusJohnson/Clipper2/Clipper2_2.0.1/LICENSE"]),
     "concurrentqueue": ("moodycamel::ConcurrentQueue 1.0.4", "BSL-1.0 or Simplified BSD",
@@ -67,10 +71,20 @@ def header_comment(path):
     return text[start:end + 2] if start >= 0 and end > start else ""
 
 
+def footer_comment(path):
+    """The license at the end of a single-file library (stb style)."""
+    text = path.read_text(errors="replace")
+    start = text.rfind("This software is available under 2 licenses")
+    end = text.rfind("*/")
+    return text[start:end].strip() if 0 <= start < end else ""
+
+
 def fetch(source):
     if source.startswith("http"):
         with urllib.request.urlopen(source, timeout=30) as r:
             return r.read().decode("utf-8", errors="replace")
+    if source.startswith("footer:"):
+        return footer_comment(ROOT / source[len("footer:"):])
     if source.startswith("header:"):
         return header_comment(ROOT / source[len("header:"):])
     return (ROOT / source).read_text(errors="replace")

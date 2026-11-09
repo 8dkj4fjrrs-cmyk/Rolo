@@ -1,4 +1,4 @@
-// What Lua scripts can call: the `game` and `input` tables, print, require,
+// What Lua scripts can call: the `game`, `input` and `audio` tables, print, require,
 // and the methods of objects (self.object, game.find(...)).
 //
 // docs/scripting.md lists all of it for script writers; keep the two in step.
@@ -29,6 +29,7 @@
 #include <cmath>
 #include <cstdint>
 #include <exception>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -613,6 +614,179 @@ int scriptRequire(lua_State* L)
     return 1;
 }
 
+// --- Sound ---------------------------------------------------------------------------------------------
+
+// A sound asset by the name the editor shows ("coin", or a path).
+AssetId checkSound(lua_State* L, int index, const char* function)
+{
+    Game& game = gameOf(L);
+    const std::string_view name = checkText(L, index);
+    std::string error;
+    const NotationNames names = namesFor(game);
+    const auto sound = names.findAsset ? names.findAsset(name, "audio", error) : std::nullopt;
+    if (!sound) {
+        luaL_error(L, "%s: %s", function, error.empty() ? "no project is open" : error.c_str());
+    }
+    return *sound;
+}
+
+float checkRange(lua_State* L, int index, const char* what, float low, float high)
+{
+    const float value = checkFloat(L, index);
+    if (value < low || value > high) {
+        const auto text = [](float number) {
+            std::ostringstream out;   // 0.5, 2: as people write them
+            out << number;
+            return out.str();
+        };
+        luaL_error(L, "%s must be from %s to %s, not %s", what, text(low).c_str(), text(high).c_str(),
+                   text(value).c_str());
+    }
+    return value;
+}
+
+// The options table of audio.play and audio.playMusic: { volume = 0.5, ... }.
+// `fade` is set only if the table has it (music only).
+SoundOptions checkSoundOptions(lua_State* L, int index, bool music, float* fade)
+{
+    SoundOptions options;
+    if (lua_isnoneornil(L, index)) {
+        return options;
+    }
+    index = lua_absindex(L, index);
+    luaL_checktype(L, index, LUA_TTABLE);
+    lua_pushnil(L);
+    while (lua_next(L, index) != 0) {
+        const std::string key = lua_type(L, -2) == LUA_TSTRING ? lua_tostring(L, -2) : std::string();
+        const int value = lua_gettop(L);
+        if (key == "volume") {
+            options.volume = checkRange(L, value, "volume", 0.0f, 2.0f);
+        } else if (key == "pitch" && !music) {
+            options.pitch = checkRange(L, value, "pitch", 0.1f, 4.0f);
+        } else if (key == "pan" && !music) {
+            options.pan = checkRange(L, value, "pan", -1.0f, 1.0f);
+        } else if (key == "loop" && !music) {
+            luaL_checktype(L, value, LUA_TBOOLEAN);
+            options.loop = lua_toboolean(L, value) != 0;
+        } else if (key == "fade" && music && fade != nullptr) {
+            *fade = checkRange(L, value, "fade", 0.0f, 30.0f);
+        } else {
+            luaL_error(L, "unknown option '%s' (known: %s)", key.c_str(),
+                       music ? "volume, fade" : "volume, pitch, pan, loop");
+        }
+        lua_pop(L, 1);
+    }
+    return options;
+}
+
+SoundHandle checkHandle(lua_State* L, int index)
+{
+    const lua_Integer handle = luaL_checkinteger(L, index);
+    return handle > 0 && handle <= 0xffffffff ? static_cast<SoundHandle>(handle) : 0;
+}
+
+// audio.play("coin", { volume = 0.5, pitch = 1.2, pan = 0, loop = false }) -> handle or nil
+int audioPlay(lua_State* L)
+{
+    const AssetId sound = checkSound(L, 1, "audio.play");
+    const SoundOptions options = checkSoundOptions(L, 2, false, nullptr);
+    const SoundHandle handle = gameOf(L).playSound(sound, options);
+    if (handle == 0) {
+        lua_pushnil(L);
+    } else {
+        lua_pushinteger(L, static_cast<lua_Integer>(handle));
+    }
+    return 1;
+}
+
+int audioStop(lua_State* L)
+{
+    if (!lua_isnil(L, 1)) {   // stopping nil (a sound that never played) is fine
+        gameOf(L).sound().stop(checkHandle(L, 1));
+    }
+    return 0;
+}
+
+int audioIsPlaying(lua_State* L)
+{
+    lua_pushboolean(L, !lua_isnil(L, 1) && gameOf(L).sound().isPlaying(checkHandle(L, 1)));
+    return 1;
+}
+
+// audio.playMusic("theme", { fade = 2, volume = 0.8 })
+int audioPlayMusic(lua_State* L)
+{
+    const AssetId music = checkSound(L, 1, "audio.playMusic");
+    float fade = 1.0f;
+    const SoundOptions options = checkSoundOptions(L, 2, true, &fade);
+    gameOf(L).playMusic(music, fade, options.volume);
+    return 0;
+}
+
+int audioStopMusic(lua_State* L)
+{
+    const float fade = lua_isnoneornil(L, 1) ? 1.0f : checkRange(L, 1, "fade", 0.0f, 30.0f);
+    gameOf(L).stopMusic(fade);
+    return 0;
+}
+
+// audio.music() -> the music's name, or nil
+int audioMusic(lua_State* L)
+{
+    Game& game = gameOf(L);
+    const AssetId music = game.sound().music();
+    if (music.isNull()) {
+        lua_pushnil(L);
+        return 1;
+    }
+    const NotationNames names = namesFor(game);
+    const auto name = names.assetName ? names.assetName(music) : std::nullopt;
+    pushText(L, name ? *name : music.toString());
+    return 1;
+}
+
+SoundChannel checkChannel(lua_State* L, int index)
+{
+    static const char* const names[] = {"master", "music", "effects", nullptr};
+    return static_cast<SoundChannel>(luaL_checkoption(L, index, nullptr, names));
+}
+
+// audio.setVolume("music", 0.5) — "master", "music" or "effects"
+int audioSetVolume(lua_State* L)
+{
+    const SoundChannel channel = checkChannel(L, 1);
+    gameOf(L).sound().setChannelVolume(channel, checkRange(L, 2, "volume", 0.0f, 1.0f));
+    return 0;
+}
+
+int audioVolume(lua_State* L)
+{
+    lua_pushnumber(L, static_cast<lua_Number>(gameOf(L).sound().channelVolume(checkChannel(L, 1))));
+    return 1;
+}
+
+// object:playSound() / object:stopSound(): the object's Sound component.
+int objectPlaySound(lua_State* L)
+{
+    const Entity& entity = objectEntity(L, 1);
+    if (entity.get<Sound>() == nullptr) {
+        return luaL_error(L, "this object has no Sound component");
+    }
+    const SoundHandle handle = gameOf(L).playSound(entity.id());
+    if (handle == 0) {
+        lua_pushnil(L);
+    } else {
+        lua_pushinteger(L, static_cast<lua_Integer>(handle));
+    }
+    return 1;
+}
+
+int objectStopSound(lua_State* L)
+{
+    gameOf(L).stopSound(objectEntity(L, 1).id());
+    return 0;
+}
+
 void setFunctions(lua_State* L, const luaL_Reg* functions)
 {
     luaL_setfuncs(L, functions, 0);
@@ -660,6 +834,8 @@ void openScriptApi(ScriptHost& host)
         {"text", guarded<objectText>},
         {"setText", guarded<objectSetText>},
         {"setFlipX", guarded<objectSetFlipX>},
+        {"playSound", guarded<objectPlaySound>},
+        {"stopSound", guarded<objectStopSound>},
         {nullptr, nullptr},
     };
     luaL_newmetatable(L, kObjectType);
@@ -705,6 +881,21 @@ void openScriptApi(ScriptHost& host)
     lua_newtable(L);
     setFunctions(L, inputFunctions);
     lua_setglobal(L, "input");
+
+    static const luaL_Reg audioFunctions[] = {
+        {"play", guarded<audioPlay>},
+        {"stop", guarded<audioStop>},
+        {"isPlaying", guarded<audioIsPlaying>},
+        {"playMusic", guarded<audioPlayMusic>},
+        {"stopMusic", guarded<audioStopMusic>},
+        {"music", guarded<audioMusic>},
+        {"setVolume", guarded<audioSetVolume>},
+        {"volume", guarded<audioVolume>},
+        {nullptr, nullptr},
+    };
+    lua_newtable(L);
+    setFunctions(L, audioFunctions);
+    lua_setglobal(L, "audio");
 
     lua_pushcfunction(L, guarded<scriptPrint>);
     lua_setglobal(L, "print");

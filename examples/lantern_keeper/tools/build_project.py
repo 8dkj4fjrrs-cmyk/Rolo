@@ -4,7 +4,8 @@
     python3 build_project.py "<folder>"          # 2. this script
 
 Starting from the fresh project the editor makes, this adds the art (drawn
-by make_art.py), the tileset and animations, the story content (variables,
+by make_art.py), the sounds and music (made by make_sounds.py), the tileset
+and animations, the story content (variables,
 dialogues, quests) and the three scenes, and makes the village the start
 scene. It writes exactly the files the editor writes when you do the same
 work by hand; docs/making-the-lantern-keeper.md walks through doing it in
@@ -30,7 +31,8 @@ _ASSETS = ["tiles.png", "hero_walk.png", "maren.png", "wren.png", "nell.png", "b
            "keeper.lvars", "lantern.lquest", "biscuit.lquest",
            "intro.ldialogue", "maren.ldialogue", "wren.ldialogue", "nell.ldialogue", "biscuit_found.ldialogue",
            "biscuit_home.ldialogue", "flame.ldialogue", "lantern.ldialogue", "gate.ldialogue",
-           "shrine.ldialogue", "village_sign.ldialogue", "mine_sign.ldialogue"]
+           "shrine.ldialogue", "village_sign.ldialogue", "mine_sign.ldialogue",
+           "flame.wav", "rest.wav", "gate.wav", "lantern_lit.ogg", "night.ogg", "mine.ogg"]
 IDS = {name: f"4b45455000{i + 1:06x}" for i, name in enumerate(_ASSETS)}
 
 # --- Tiles (the order of make_art.py's TILES) -------------------------------------------------------
@@ -88,6 +90,12 @@ def text(words, size=18, colour="#ffffffff", align="left", width=0, source="text
             "color": colour, "align": align, "width": width}
 
 
+def sound(name, music=False, volume=1.0, fade=1.0):
+    """A Sound component: plays when its object appears (music: one piece at a time)."""
+    return {"type": "rolo.Sound", "sound": IDS[name], "volume": volume, "pitch": 1, "loop": False,
+            "playOnStart": True, "music": music, "fade": fade}
+
+
 # Conditions and actions (the JSON form; the editor shows them as one line each).
 def var_is(name, value, op="=="):
     return {"type": "compare", "variable": name, "op": op, "value": value}
@@ -107,6 +115,10 @@ def quest_is(quest, state):
 
 def say(dialogue):
     return {"type": "startDialogue", "dialogue": IDS[dialogue]}
+
+
+def play_sound(name):
+    return {"type": "playSound", "sound": IDS[name]}
 
 
 def set_var(name, value):
@@ -174,7 +186,8 @@ def flame(scene, name, col, row):
     x, y = scene.at(col, row)
     scene.add(name, [transform(x, y, (SCALE, SCALE)), sprite("flame.png", (16, 16)), animator("flame.lanim", "flicker"),
                      collider((12, 12), solid=False),
-                     trigger("enterArea", [{"type": "add", "variable": "flames", "value": 1},
+                     trigger("enterArea", [play_sound("flame.wav"),
+                                           {"type": "add", "variable": "flames", "value": 1},
                                            {"type": "log", "text": "Found a lost flame ({flames}/3)"},
                                            say("flame.ldialogue"),
                                            {"type": "destroy", "entity": None}])])
@@ -407,7 +420,8 @@ def village():
     shrine = s.add("Wayshrine", [transform(x, y, (SCALE, SCALE)), sprite("shrine.png", (16, 24)),
                                  animator("shrine.lanim", "idle"), collider((10, 4), (0, -10))])
     s.add("Rest Area", [transform(0, -8), collider((24, 18), solid=False),
-                        trigger("interact", [{"type": "saveGame", "slot": "quick"}, say("shrine.ldialogue")],
+                        trigger("interact", [play_sound("rest.wav"), {"type": "saveGame", "slot": "quick"},
+                                             say("shrine.ldialogue")],
                                 prompt="Rest (save)")], parent=shrine)
     sign(s, "Signpost", 33, 6.5, "village_sign.ldialogue")
 
@@ -419,6 +433,7 @@ def village():
     s.add("Biscuit Comes Home", [transform(), trigger("conditionMet", [{"type": "setActive", "entity": cat, "active": True}],
                                                       condition=var_is("cat_found", True))])
     s.add("Lantern Lights Up", [transform(), trigger("conditionMet", [
+        play_sound("lantern_lit.ogg"),
         {"type": "setActive", "entity": lit, "active": True},
         {"type": "setActive", "entity": "NIGHT", "active": False},
     ], condition=var_is("lantern_lit", True))])
@@ -442,6 +457,9 @@ def village():
                         a["entity"] = ui["Night"]
                     if a.get("entity") == "BANNER":
                         a["entity"] = banner
+    # Music (added last, so the objects above keep their IDs from before
+    # the game had sound). Whisperwood plays the same piece: it carries on.
+    s.add("Music", [transform(), sound("night.ogg", music=True, volume=0.7, fade=2.0)])
     return s
 
 
@@ -458,13 +476,15 @@ def woods():
     gate = s.add("Mine Gate", [transform(x, y, (SCALE, SCALE)), sprite("gate.png", (32, 32)), collider((32, 32))])
     s.add("Lock", [transform(-18, 0), collider((12, 24), solid=False),
                    trigger("interact", [say("gate.ldialogue")], prompt="Open")], parent=gate)
-    s.add("Opens", [transform(), trigger("gameEvent", [{"type": "destroy", "entity": gate}], event="gate_open")],
+    s.add("Opens", [transform(), trigger("gameEvent", [play_sound("gate.wav"), {"type": "destroy", "entity": gate}],
+                                         event="gate_open")],
           parent=gate)
     spawn(s, "From Village", 2.5, 12.5)
     spawn(s, "From Mine", 36.5, 16.5)
     door(s, "Road to Emberwick", -0.5, 12.5, "village.lscene", "From Woods")
     door(s, "Into the Mine", 39.5, 16.5, "mine.lscene", "From Woods")
     player(s, 2.5, 12.5, DUSK)
+    s.add("Music", [transform(), sound("night.ogg", music=True, volume=0.7, fade=2.0)])
     return s
 
 
@@ -477,6 +497,7 @@ def mine():
     spawn(s, "From Woods", 2.5, 10.5)
     door(s, "Way Out", -0.5, 10.5, "woods.lscene", "From Mine")
     player(s, 2.5, 10.5, MINE_DARK)
+    s.add("Music", [transform(), sound("mine.ogg", music=True, volume=0.8, fade=2.0)])
     return s
 
 
@@ -778,6 +799,11 @@ def main():
                                            "tileSize": [PIXEL, PIXEL], "margin": 0, "spacing": 0,
                                            "solid": SOLID_TILES})
     write(root / "assets/tiles.ltileset.meta", meta("tiles.ltileset", "tileset"))
+    # Sounds and music (made by make_sounds.py).
+    sounds = root / "assets" / "sounds"
+    subprocess.run([sys.executable, str(HERE / "make_sounds.py"), str(sounds)], check=True)
+    for file in sorted(sounds.iterdir()):
+        write(file.with_name(file.name + ".meta"), meta(file.name, "audio"))
     for name, data in ANIMATIONS.items():
         write(root / "assets/animations" / name, data)
         write(root / "assets/animations" / (name + ".meta"), meta(name, "animation"))

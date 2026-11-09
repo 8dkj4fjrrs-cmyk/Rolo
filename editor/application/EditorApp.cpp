@@ -303,9 +303,14 @@ void EditorApp::placeAsset(AssetId id, Vec2 worldPosition)
         map->cellSize = {static_cast<float>(asset->tileset->tileWidth), static_cast<float>(asset->tileset->tileHeight)};
         components.push_back(std::move(map));
         m_tileLayer = 0;
+    } else if (asset->type == AssetType::Audio) {
+        // An object that plays the sound when the scene starts.
+        auto sound = std::make_unique<Sound>();
+        sound->sound = id;
+        components.push_back(std::move(sound));
     } else {
-        showMessage("Cannot Place This Asset", asset->fileName() + " cannot be placed in a scene. Drag an image "
-                                                                   "or a tileset into the Scene view.");
+        showMessage("Cannot Place This Asset", asset->fileName() + " cannot be placed in a scene. Drag an image, "
+                                                                   "a tileset or a sound into the Scene view.");
         return;
     }
     auto command = std::make_unique<CreateEntity>(name, EntityId{}, std::nullopt, std::move(components));
@@ -555,7 +560,13 @@ void EditorApp::play()
     if (!m_configDir.empty()) {
         m_playSaves = std::make_unique<FolderSaveStore>(m_configDir / "play-saves" / gameName);
     }
+    // Sounds are read again for each run, so edited files are heard as they are now.
+    stopSoundPreview();
+    audio().setAssets(m_assetDb.get());
+    m_audioAssets = m_assetDb.get();
+    audio().setPaused(false);
     GameSetup setup;
+    setup.sound = m_audio.get();
     setup.assets = m_assetDb.get();
     setup.content = m_playContent.get();
     setup.saves = m_playSaves.get();
@@ -584,15 +595,48 @@ void EditorApp::play()
     }
 }
 
+AudioEngine& EditorApp::audio()
+{
+    if (!m_audio) {
+        m_audio = std::make_unique<AudioEngine>(m_engine.logger());
+        m_audio->setChannelVolume(SoundChannel::Master, m_preferences.getBool(kMuteKey, false) ? 0.0f : 1.0f);
+    }
+    return *m_audio;
+}
+
+void EditorApp::previewSound(AssetId sound)
+{
+    stopSoundPreview();
+    if (m_assetDb == nullptr) {
+        return;
+    }
+    if (m_audioAssets != m_assetDb.get() && !m_game) {
+        audio().setAssets(m_assetDb.get());
+        m_audioAssets = m_assetDb.get();
+    }
+    m_soundPreview = audio().play(sound);
+}
+
+void EditorApp::stopSoundPreview()
+{
+    if (m_audio && m_soundPreview != 0) {
+        m_audio->stop(m_soundPreview);
+    }
+    m_soundPreview = 0;
+}
+
 void EditorApp::stopPlaying()
 {
     if (!m_game) {
         return;
     }
     const std::uint64_t frames = m_game->frameCount();
-    m_game.reset();   // the game's copy of the scene goes with it
+    m_game.reset();   // the game's copy of the scene (and its sounds) go with it
     m_playContent.reset();
     m_paused = false;
+    if (m_audio) {
+        m_audio->setPaused(false);
+    }
     log().info(kCategory, "Stopped playing after " + std::to_string(frames)
                               + " frames. The scene is back as it was before playing.");
 }
@@ -601,6 +645,7 @@ void EditorApp::togglePause()
 {
     if (m_game) {
         m_paused = !m_paused;
+        audio().setPaused(m_paused);   // sounds hold too
         log().info(kCategory, m_paused ? "Paused." : "Resumed.");
     }
 }
@@ -610,11 +655,15 @@ void EditorApp::stepFrame()
     if (m_game) {
         m_paused = true;
         m_stepPending = true;
+        audio().setPaused(true);
     }
 }
 
 void EditorApp::updateGame(UiFrame& frame)
 {
+    if (m_audio) {
+        m_audio->update();   // frees finished sounds (the game's and previews)
+    }
     if (!m_game) {
         return;
     }
@@ -1469,10 +1518,20 @@ void EditorApp::buildMenus(ui::Widget& root)
     ui::MenuItem pauseItem = menuItem("Pause", platform.macConventions ? "⇧⌘P" : "Ctrl+Shift+P",
                                       [this] { togglePause(); }, [this] { return m_game != nullptr; });
     pauseItem.dynamicLabel = [this] { return m_paused && m_game ? std::string("Resume") : std::string("Pause"); };
+    ui::MenuItem muteItem = menuItem("Mute Sound", "", [this] {
+        const bool mute = !m_preferences.getBool(kMuteKey, false);
+        m_preferences.setBool(kMuteKey, mute);
+        if (m_audio) {
+            m_audio->setChannelVolume(SoundChannel::Master, mute ? 0.0f : 1.0f);
+        }
+        log().info(kCategory, mute ? "Sound muted." : "Sound on.");
+    });
+    muteItem.isChecked = [this] { return m_preferences.getBool(kMuteKey, false); };
     menuBar.addMenu({"Game",
                      {std::move(playItem), std::move(pauseItem),
                       menuItem("Step One Frame", platform.macConventions ? "⌥⌘P" : "Ctrl+Alt+P",
                                [this] { stepFrame(); }, [this] { return m_game != nullptr; }),
+                      muteItem,
                       ui::MenuItem::divider(),
                       menuItem("Check Content", "", [this] {
                           checkContent();

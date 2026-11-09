@@ -51,13 +51,15 @@ Project…**) and press ▶.
   - `SceneDoor` and `SpawnPoint`: arriving at the right place in the next scene.
   - `CameraLimits`: keeps the view inside the map.
   - `KeeperGame.cpp`: registers them with Rolo.
-- **`project/`**: the game itself: scenes, art, tileset, animations,
-  variables, dialogues and quests. Open it in the editor to change anything.
+- **`project/`**: the game itself: scenes, art, sounds and music, tileset,
+  animations, variables, dialogues and quests. Open it in the editor to change anything.
 - **`tools/`**: how `project/` was produced. It starts from a fresh project
   made by the editor (`rolo_editor --new-project`).
   - `make_art.py` draws the pixel art.
+  - `make_sounds.py` synthesises the sounds and music.
   - `build_project.py` adds everything else.
-  - They need Python 3 with Pillow, but not to build or play the game.
+  - They need Python 3 with Pillow and NumPy, and ffmpeg (for the OGG
+    files), but not to build or play the game.
 
 The guide [Making The Lantern Keeper](../../docs/making-the-lantern-keeper.md)
 walks through making the same game in the editor, step by step.
@@ -75,5 +77,5 @@ The module is built into the editor and the player with the other example
 plays the whole story, from the first line to the ending, on every test
 run.
 
-All art and writing here are original and, like the rest of Rolo,
+All art, sound, music and writing here are original and, like the rest of Rolo,
 MIT-licensed.

@@ -143,6 +143,20 @@ with `.assetType = "scene"` and choose the scene in the Inspector (see
 `SceneDoor` in the sample). The new scene starts fresh: objects of the old
 one, and their behaviours, are gone.
 
+### Sound
+
+```cpp
+game.playSound(entity());                          // this object's Sound component
+rolo::SoundHandle h = game.playSound(coinSound, {.volume = 0.5f, .pitch = 1.2f});
+game.sound().stop(h);
+game.playMusic(themeSound, 2.0f);                  // fades over 2 seconds
+game.sound().setChannelVolume(rolo::SoundChannel::Music, 0.5f);
+```
+
+Give your behaviour an `AssetId` property with `.assetType = "audio"` to
+choose a sound in the Inspector. Everything about sound is in the
+[sound guide](sound.md).
+
 ### Animation
 
 An object with an **Animator** (and usually a Sprite) plays flipbook clips

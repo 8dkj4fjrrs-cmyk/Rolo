@@ -1,6 +1,7 @@
 #include "rolo/gameplay/Components.hpp"
 
 #include "rolo/gameplay/BuiltinBehaviours.hpp"
+#include "rolo/gameplay/Sound.hpp"
 
 namespace rolo {
 
@@ -78,11 +79,50 @@ const ComponentType& DialogueView::componentType()
     return type;
 }
 
+const ComponentType& Sound::componentType()
+{
+    static const ComponentType type =
+        ComponentTypeBuilder<Sound>("rolo.Sound", "Sound")
+            .category("Audio")
+            .description("Plays a sound when this object appears, or the scene's music. Scripts and gameplay code "
+                         "can play it again.")
+            .property("sound", "Sound", &Sound::sound,
+                      {.help = "A sound file from the project: WAV, OGG or MP3.", .assetType = "audio"})
+            .property("volume", "Volume", &Sound::volume,
+                      {.min = 0.0f, .max = 2.0f, .step = 0.05f, .help = "0 silent, 1 as recorded."})
+            .property("pitch", "Pitch", &Sound::pitch,
+                      {.min = 0.1f, .max = 4.0f, .step = 0.05f,
+                       .help = "1 as recorded; 2 an octave higher (and faster), 0.5 an octave lower."})
+            .property("loop", "Loop", &Sound::loop,
+                      {.help = "Start again at the end, until the object is removed or switched off."})
+            .property("playOnStart", "Play On Start", &Sound::playOnStart,
+                      {.help = "Play when the object appears. Off: only when code or a script plays it."})
+            .property("music", "Music", &Sound::music,
+                      {.help = "Play as the music: one piece at a time, fading between them. Scenes with the "
+                               "same music carry it on without restarting it."})
+            .property("fade", "Music Fade", &Sound::fade,
+                      {.min = 0.0f, .max = 30.0f, .step = 0.25f,
+                       .help = "Music: seconds to fade in, while the music before fades out.", .unit = "s"})
+            .build();
+    return type;
+}
+
+void SilentSoundPlayer::setChannelVolume(SoundChannel channel, float volume)
+{
+    m_volumes[static_cast<int>(channel)] = volume;
+}
+
+float SilentSoundPlayer::channelVolume(SoundChannel channel) const
+{
+    return m_volumes[static_cast<int>(channel)];
+}
+
 void registerGameplayComponents(ComponentRegistry& registry)
 {
     static_cast<void>(registry.add(Interactor::componentType()));
     static_cast<void>(registry.add(Trigger::componentType()));
     static_cast<void>(registry.add(DialogueView::componentType()));
+    static_cast<void>(registry.add(Sound::componentType()));
     registerBuiltinBehaviours(registry);
 }
 

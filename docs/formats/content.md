@@ -88,6 +88,13 @@ Actions are lists of objects with a `"type"`, run in order:
 | `wait` | `seconds` (0–3600) | pauses the rest of the list (timed sequences) |
 | `saveGame` | `slot` | saves the game to the named slot |
 | `loadGame` | `slot` | loads the named slot |
+| `playSound` | `sound` | plays a sound effect (an audio asset) |
+| `playMusic` | `sound` | plays an audio asset as the music, fading from the music before over one second; the same music already playing carries on |
+| `stopMusic` | — | fades the music out over one second |
+
+`playSound`, `playMusic` and `stopMusic` were added after Rolo 0.9.1 without
+changing the version: files without them read as before, and Rolo 0.9.1
+and earlier report them as unknown action types.
 
 `entity: null` means the object the actions belong to (e.g. the object with
 the trigger). Object IDs only make sense inside a scene, so `setActive` and
