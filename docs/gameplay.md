@@ -97,7 +97,14 @@ in.wasReleased(rolo::Key::Space);  // went up this frame
 in.moveDirection();                   // arrows or W A S D, length at most 1
 in.isDown(rolo::MouseButton::Left);
 in.pointer();                         // the mouse, in world coordinates
+in.wasPressed(rolo::GamepadButton::A);  // any gamepad (or pass 0-3 for one)
+in.leftStick();                       // y up, dead zone applied, at most 1 long
+in.trigger(rolo::GamepadAxis::RightTrigger);   // 0 to 1
+in.isGamepadConnected();
 ```
+
+`moveDirection()` includes the left stick and the d-pad, so behaviours that
+use it work with gamepads unchanged.
 
 **Objects:**
 

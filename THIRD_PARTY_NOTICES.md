@@ -42,7 +42,7 @@ copy of Rolo, carries that folder.
 | {fmt} | 11.2.0 | MIT |
 | FreeType | 2.14.1 | FreeType License (BSD-style) |
 | Glad | 2.0.8 | MIT |
-| GLFW (modified by Axmol) | 3.4 | zlib |
+| GLFW (modified by Axmol), with SDL_GameControllerDB's gamepad layouts (Rolo reads gamepads with it, ADR 0017) | 3.4 | zlib |
 | libjpeg-turbo | 3.1.3 | IJG / BSD-3-Clause / zlib |
 | mio (header-only) | git 8b6b7d8 | MIT |
 | OpenSSL (Axmol's core uses its digests and AES) | 3.0.18 | Apache-2.0 |

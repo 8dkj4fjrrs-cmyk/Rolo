@@ -7,6 +7,7 @@
 add_library(rolo_runtime STATIC
     src/Application.cpp
     src/AxmolLogBridge.cpp
+    src/Gamepads.cpp
     src/SceneRenderer.cpp
     src/TextureStore.cpp
     src/UiHost.cpp)

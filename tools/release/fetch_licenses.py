@@ -43,7 +43,8 @@ LIBRARIES = {
     "freetype": ("FreeType 2.14.1", "FreeType License (FTL)",
                  ["external/axmol/3rdparty/freetype/LICENSE.TXT", GH + "freetype/freetype/VER-2-14-1/docs/FTL.TXT"]),
     "glad": ("Glad 2.0.8", "MIT", [GH + "Dav1dde/glad/v2.0.8/LICENSE"]),
-    "glfw": ("GLFW 3.4 (modified by Axmol)", "zlib", [GH + "glfw/glfw/3.4/LICENSE.md"]),
+    "glfw": ("GLFW 3.4 (modified by Axmol), with SDL_GameControllerDB's gamepad layouts", "zlib",
+             [GH + "glfw/glfw/3.4/LICENSE.md", "sdlmappings:external/axmol/3rdparty/glfw/src/mappings.h"]),
     "libjpeg-turbo": ("libjpeg-turbo 3.1.3", "IJG, BSD-3-Clause, zlib",
                       [GH + "libjpeg-turbo/libjpeg-turbo/3.1.3/LICENSE.md",
                        GH + "libjpeg-turbo/libjpeg-turbo/3.1.3/README.ijg"]),
@@ -80,10 +81,23 @@ def footer_comment(path):
     return text[start:end].strip() if 0 <= start < end else ""
 
 
+def sdl_mappings_notice(path):
+    """The licence of the gamepad layouts GLFW copies from SDL_GameControllerDB
+    (the // comment above the list in mappings.h)."""
+    text = path.read_text(errors="replace")
+    start = text.find("// All gamepad mappings not labeled GLFW")
+    end = text.find("const char* _glfwDefaultMappings")
+    if start < 0 or end <= start:
+        return ""
+    return "\n".join(line[3:] if line.startswith("// ") else line.lstrip("/") for line in text[start:end].strip().splitlines())
+
+
 def fetch(source):
     if source.startswith("http"):
         with urllib.request.urlopen(source, timeout=30) as r:
             return r.read().decode("utf-8", errors="replace")
+    if source.startswith("sdlmappings:"):
+        return sdl_mappings_notice(ROOT / source[len("sdlmappings:"):])
     if source.startswith("footer:"):
         return footer_comment(ROOT / source[len("footer:"):])
     if source.startswith("header:"):

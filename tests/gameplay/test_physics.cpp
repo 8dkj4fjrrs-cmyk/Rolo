@@ -347,6 +347,55 @@ TEST_CASE("Scripts push bodies, ask if they are on the ground, and hear collisio
     CHECK(positionOf(game, hero).x > 10.0f);   // moved sideways by setVelocity
 }
 
+TEST_CASE("Scripts read gamepads", "[gameplay][gamepad][script]")
+{
+    ScriptFolder p;
+    const AssetId script = p.write(R"(
+        function update(self, dt)
+            local x, y = input.stick("left")
+            print("pad " .. tostring(input.gamepad()) .. " " .. tostring(input.gamepad(2))
+                  .. " a " .. tostring(input.isDown("pad a")) .. " " .. tostring(input.wasPressed("Gamepad A", 1))
+                  .. " start " .. tostring(input.isDown("pad start"))
+                  .. " stick " .. string.format("%.2f %.2f", x, y)
+                  .. " trigger " .. string.format("%.2f", input.trigger("right")))
+        end
+    )");
+    Scene scene;
+    const EntityId thing = scene.create("Thing")->id();
+    auto component = std::make_unique<Script>();
+    component->script = script;
+    scene.addComponent(thing, std::move(component));
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    GamepadState pad;
+    pad.connected = true;
+    pad.buttons[static_cast<std::size_t>(GamepadButton::A)] = true;
+    pad.axes[static_cast<std::size_t>(GamepadAxis::LeftY)] = 0.6f;
+    pad.axes[static_cast<std::size_t>(GamepadAxis::RightTrigger)] = 0.5f;
+    game.input().setGamepad(0, pad);
+    frames(game, 1);
+    INFO((p.problems.empty() ? std::string() : p.problems.front()));
+    CHECK(p.problems.empty());
+    CHECK(std::find(p.printed.begin(), p.printed.end(),
+                    "scripts/test.lua: pad true false a true true start false stick 0.00 0.50 trigger 0.50")
+          != p.printed.end());
+
+    for (const char* bad : {"input.isDown('pad z')", "input.isDown('pad a', 5)", "input.stick('middle')"}) {
+        INFO(bad);
+        ScriptFolder q;
+        const AssetId wrong = q.write(std::string("function start(self) ") + bad + " end");
+        Scene s2;
+        const EntityId t = s2.create("T")->id();
+        auto c = std::make_unique<Script>();
+        c->script = wrong;
+        s2.addComponent(t, std::move(c));
+        Game g(q.log, &q.assets);
+        g.start(s2);
+        frames(g, 1);
+        CHECK(q.problems.size() == 1);
+    }
+}
+
 TEST_CASE("Physics in scripts needs a RigidBody, and says so", "[gameplay][physics][script]")
 {
     ScriptFolder p;

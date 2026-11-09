@@ -677,6 +677,12 @@ void EditorApp::updateGame(UiFrame& frame)
     if (m_game->input().wasPressed(Key::F9)) {
         m_game->load("quick");
     }
+    // Gamepads go to the game whenever it plays (unlike the keyboard, they
+    // cannot be typing into a panel).
+    if (!m_gamepads) {
+        m_gamepads = std::make_unique<GamepadReader>(m_engine.logger());
+    }
+    m_gamepads->read(m_game->input());
     if (!m_paused) {
         m_game->update(dt);
     } else if (m_stepPending) {

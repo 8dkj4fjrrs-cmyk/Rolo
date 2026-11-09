@@ -190,8 +190,12 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `input.isDown("space")` | the key is held down |
 | `input.wasPressed("space")` | it went down this frame |
 | `input.wasReleased("space")` | it went up this frame |
-| `input.direction()` | the arrow keys or W A S D as `x, y`, each -1, 0 or 1 (up is +1) |
+| `input.direction()` | where the player steers, `x, y` (up is +1): the arrow keys or W A S D (each -1, 0 or 1), or else a gamepad's d-pad or left stick (values in between too). Never longer than 1 |
 | `input.pointer()` | the mouse position in the world: `x, y` |
+| `input.isDown("pad a")` (and `wasPressed`, `wasReleased`) | a gamepad button, on any gamepad; `input.isDown("pad a", 2)` asks gamepad 2 only (1 to 4) |
+| `input.stick("left")`, `input.stick("right")` | a gamepad stick, `x, y`, each -1 to 1 (up is +1), with a small dead zone; `0, 0` without a gamepad |
+| `input.trigger("left")`, `input.trigger("right")` | a gamepad trigger, 0 (released) to 1 |
+| `input.gamepad()`, `input.gamepad(2)` | true if a gamepad (or gamepad 2) is plugged in |
 
 Key names, in any case:
 - letters `"a"` to `"z"` and digits `"0"` to `"9"`;
@@ -201,7 +205,19 @@ Key names, in any case:
   `"left alt"`, `"right alt"`, or `"shift"`, `"control"` and `"alt"` for
   either side;
 - `"f1"` to `"f12"`;
-- `"mouse left"`, `"mouse right"`, `"mouse middle"`.
+- `"mouse left"`, `"mouse right"`, `"mouse middle"`;
+- gamepad buttons, named by position as on an Xbox pad: `"pad a"` (the
+  bottom button: Cross on PlayStation, B on Nintendo), `"pad b"` (right),
+  `"pad x"` (left), `"pad y"` (top), `"pad lb"`, `"pad rb"` (bumpers),
+  `"pad start"`, `"pad back"`, `"pad guide"`, `"pad ls"`, `"pad rs"` (pressing
+  a stick in), and the d-pad `"pad up"`, `"pad down"`, `"pad left"`,
+  `"pad right"`.
+
+Gamepads are plugged in and out while the game runs; up to four work at
+once. Games without code are playable with one too: the Top-Down
+Controller and `input.direction()` follow the left stick and d-pad, and A
+talks, goes on in dialogue and picks a choice (the stick or d-pad moves
+between choices).
 
 ### Physics
 

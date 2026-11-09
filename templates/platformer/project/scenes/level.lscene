@@ -1215,7 +1215,7 @@
         },
         {
           "type": "rolo.Text",
-          "text": "Arrows / A D run · Space jump · push the crates!",
+          "text": "Arrows / A D or a gamepad run · Space or (A) jump · push the crates!",
           "source": "text",
           "font": null,
           "size": 15,

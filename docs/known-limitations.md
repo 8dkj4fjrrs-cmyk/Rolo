@@ -43,8 +43,10 @@ Please report what you find.
   no filters or reverb, and no options menu for players to change volumes
   (a script can, with `audio.setVolume`). MP3 files do not loop seamlessly;
   use OGG for music.
-- **Keyboard only**: no gamepads or touch. The mouse position is available
-  to C++ behaviours.
+- **Gamepads**: up to four, with the button layouts GLFW knows (most
+  pads). No rumble, no remapping of buttons by players, and prompts show
+  button names ("[A] Talk"), not pictures. No touch input. The mouse
+  position is available to C++ behaviours and scripts.
 - The window is 1280 × 720 points. There is no fullscreen
   setting, title screen, pause menu or options menu. Escape quits at once,
   and **F5 / F9 save and load** in every game.

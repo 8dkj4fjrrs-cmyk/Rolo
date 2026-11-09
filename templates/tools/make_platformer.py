@@ -94,15 +94,17 @@ function start(self)
 end
 
 function update(self, dt)
-    local dx = input.direction()          -- -1 left, 0, 1 right
+    local dx = input.direction()          -- -1 left to 1 right (keys, d-pad or stick)
     local vx, vy = self.object:velocity()
     local onGround = self.object:isOnGround()
 
     -- Run: set the sideways speed and keep the up-and-down speed (falling).
     self.object:setVelocity(dx * SPEED, vy)
 
-    -- Jump: only from the ground.
-    if onGround and (input.wasPressed("space") or input.wasPressed("up") or input.wasPressed("w")) then
+    -- Jump: only from the ground. Space, up, W, or A on a gamepad.
+    local jump = input.wasPressed("space") or input.wasPressed("up") or input.wasPressed("w")
+                 or input.wasPressed("pad a")
+    if onGround and jump then
         self.object:setVelocity(dx * SPEED, JUMP)
         audio.play("jump")
     end
@@ -436,7 +438,7 @@ def level():
     left, top = -VIEW[0] / 2 + 24, VIEW[1] / 2 - 20
     s.add("Coins", [transform(left, top), text("Coins  {coins} / " + str(len(things["C"])), 22, "#1a2a44ff")],
           parent=cam)
-    s.add("Help", [transform(-left, top), text("Arrows / A D run · Space jump · push the crates!", 15, "#1a2a44c0",
+    s.add("Help", [transform(-left, top), text("Arrows / A D or a gamepad run · Space or (A) jump · push the crates!", 15, "#1a2a44c0",
                                                 align="right")], parent=cam)
     win = s.add("Well Done", [transform(0, 120), shape((620, 110), "#1a2a44e0")], parent=cam, active=False)
     s.add("Words", [transform(0, 34), text("Well done!\nYou found {coins} coins.", 30, "#ffd84aff", align="center")],

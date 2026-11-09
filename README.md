@@ -123,6 +123,9 @@ Some highlights:
   circle and capsule colliders, solid tiles as floors and walls, and gravity
   per scene (down for platformers, none for top-down games). Scripts set
   velocities, jump and hear collisions.
+- **Gamepads**: up to four, Xbox, PlayStation, Switch Pro and most others,
+  plugged in and out while playing. Games made without code work with
+  them too.
 - **Sound and music**: WAV, OGG and MP3, from a Sound component, trigger
   actions or scripts. Music fades between scenes, and carries on when the
   next scene has the same piece.

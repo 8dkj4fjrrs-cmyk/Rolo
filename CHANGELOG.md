@@ -16,6 +16,19 @@ All notable changes to Rolo Engine. Versions follow the milestones in
   - Game modules written for Lantern need their includes, namespace and
     module macro renamed. Lua scripts need no changes.
   - The demo game keeps its name: *The Lantern Keeper*.
+- **Gamepads** ([ADR 0017](docs/adr/0017-gamepads.md)).
+  - Up to four, plugged in and out while playing; Xbox, PlayStation,
+    Nintendo Switch Pro and most other pads, with buttons named by position
+    (A is the bottom one).
+  - Games without code play with them: walking follows the left stick and
+    d-pad, and A talks, goes on and picks dialogue choices. Prompts say
+    "[A] Talk" while a gamepad is plugged in.
+  - Lua: `input.isDown("pad a")`, `input.stick("left")`,
+    `input.trigger("right")`, `input.gamepad()`; C++: `GamepadButton`,
+    `leftStick()`, `trigger()`.
+  - The Platformer Starter's hero jumps with A.
+  - Read with GLFW's gamepad support, already inside Rolo: nothing new to
+    install or license.
 - **2D physics** ([physics guide](docs/physics.md), [ADR 0016](docs/adr/0016-physics.md)).
   - The **Rigid Body** component: dynamic, kinematic or static, with mass,
     friction, bounciness, drag, gravity scale and lock rotation.

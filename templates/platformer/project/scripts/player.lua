@@ -14,15 +14,17 @@ function start(self)
 end
 
 function update(self, dt)
-    local dx = input.direction()          -- -1 left, 0, 1 right
+    local dx = input.direction()          -- -1 left to 1 right (keys, d-pad or stick)
     local vx, vy = self.object:velocity()
     local onGround = self.object:isOnGround()
 
     -- Run: set the sideways speed and keep the up-and-down speed (falling).
     self.object:setVelocity(dx * SPEED, vy)
 
-    -- Jump: only from the ground.
-    if onGround and (input.wasPressed("space") or input.wasPressed("up") or input.wasPressed("w")) then
+    -- Jump: only from the ground. Space, up, W, or A on a gamepad.
+    local jump = input.wasPressed("space") or input.wasPressed("up") or input.wasPressed("w")
+                 or input.wasPressed("pad a")
+    if onGround and jump then
         self.object:setVelocity(dx * SPEED, JUMP)
         audio.play("jump")
     end

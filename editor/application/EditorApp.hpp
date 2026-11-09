@@ -16,6 +16,7 @@
 #include "rolo/core/Engine.hpp"
 #include "rolo/gameplay/Game.hpp"
 #include "rolo/runtime/Application.hpp"
+#include "rolo/runtime/Gamepads.hpp"
 #include "rolo/scene/Project.hpp"
 #include "rolo/ui/DockLayout.hpp"
 
@@ -195,6 +196,7 @@ private:
     AudioEngine& audio();
 
     // Play mode.
+    std::unique_ptr<GamepadReader> m_gamepads;   // read into the game while it plays
     std::unique_ptr<Game> m_game;   // non-null while playing
     std::unique_ptr<ContentLibrary> m_playContent;   // the content the game plays
     std::unique_ptr<FolderSaveStore> m_playSaves;

@@ -257,13 +257,15 @@ void Game::handleDialogueInput()
     if (const EntityId player = firstPlayer(); !player.isNull()) {
         interact = toKey(m_scene->find(player)->get<Interactor>()->key);
     }
-    const bool confirm = m_input.wasPressed(interact) || m_input.wasPressed(Key::Enter) || m_input.wasPressed(Key::Space);
+    // On a gamepad: A goes on, the d-pad or the left stick picks.
+    const bool confirm = m_input.wasPressed(interact) || m_input.wasPressed(Key::Enter) || m_input.wasPressed(Key::Space)
+                         || m_input.wasPressed(GamepadButton::A);
     if (!line->choices.empty()) {
         const std::size_t count = line->choices.size();
-        if (m_input.wasPressed(Key::Down) || m_input.wasPressed(Key::S)) {
+        if (m_input.wasPressed(Key::Down) || m_input.wasPressed(Key::S) || m_input.wasNudged(GamepadButton::Down)) {
             m_choice = (m_choice + 1) % count;
         }
-        if (m_input.wasPressed(Key::Up) || m_input.wasPressed(Key::W)) {
+        if (m_input.wasPressed(Key::Up) || m_input.wasPressed(Key::W) || m_input.wasNudged(GamepadButton::Up)) {
             m_choice = (m_choice + count - 1) % count;
         }
         if (confirm) {
@@ -334,9 +336,10 @@ void Game::runTriggers(bool talkedThisFrame)
             const bool inside = area && playerInside(*area);
             const bool allowed = !trigger.reaction.condition || m_runner->evaluate(*trigger.reaction.condition);
             if (inside && canInteract && allowed && m_prompt.empty() && !interacted) {
-                m_prompt = trigger.prompt.empty() ? std::string()
-                                                  : "[" + std::string(keyName(interactKey)) + "] " + trigger.prompt;
-                if (m_input.wasPressed(interactKey)) {
+                // With a gamepad plugged in, the prompt names its button.
+                const std::string_view button = m_input.isGamepadConnected() ? std::string_view("A") : keyName(interactKey);
+                m_prompt = trigger.prompt.empty() ? std::string() : "[" + std::string(button) + "] " + trigger.prompt;
+                if (m_input.wasPressed(interactKey) || m_input.wasPressed(GamepadButton::A)) {
                     fire = true;
                     interacted = true;   // one interaction per key press
                 }

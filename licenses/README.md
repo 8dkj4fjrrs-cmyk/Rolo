@@ -23,7 +23,7 @@ Their license texts are in this folder; games carry a copy of it.
 | `fmt.txt` | {fmt} 11.2.0 | MIT |
 | `freetype.txt` | FreeType 2.14.1 | FreeType License (FTL) |
 | `glad.txt` | Glad 2.0.8 | MIT |
-| `glfw.txt` | GLFW 3.4 (modified by Axmol) | zlib |
+| `glfw.txt` | GLFW 3.4 (modified by Axmol), with SDL_GameControllerDB's gamepad layouts | zlib |
 | `libjpeg-turbo.txt` | libjpeg-turbo 3.1.3 | IJG, BSD-3-Clause, zlib |
 | `mio.txt` | mio | MIT |
 | `openssl.txt` | OpenSSL 3.0.18 | Apache-2.0 |

@@ -1,6 +1,6 @@
 #pragma once
 
-// Input: the keyboard and mouse as gameplay code sees them.
+// Input: the keyboard, mouse and gamepads as gameplay code sees them.
 //
 // Gameplay asks questions about the current frame:
 //
@@ -13,6 +13,18 @@
 // calls endFrame() after each game update, which clears the "this frame"
 // flags. Rolo's Key names do not depend on the window library, so game
 // code never sees GLFW or Axmol key codes.
+//
+// Gamepads (up to four) work the same way:
+//
+//     if (game.input().wasPressed(GamepadButton::A)) { jump(); }   // any gamepad
+//     Vec2 stick = game.input().leftStick();                      // y up, at most 1 long
+//
+// Buttons are named by position, as on an Xbox pad: A is the bottom button
+// (Cross on PlayStation, B on Nintendo), B the right one, X the left, Y the
+// top. The program reads the pads once a frame and reports them with
+// setGamepad(). moveDirection() includes the left stick and the d-pad, and
+// the dialogue box and triggers accept the A button, so a game made without
+// code is playable with a gamepad too.
 
 #include "rolo/scene/Types.hpp"
 
@@ -38,6 +50,30 @@ std::string_view keyName(Key key);
 
 enum class MouseButton { Left, Right, Middle, Count };
 
+/// Gamepad buttons, by position (see above).
+enum class GamepadButton {
+    A, B, X, Y,
+    LeftBumper, RightBumper,
+    Back, Start, Guide,
+    LeftStick, RightStick,   // pressing a stick in
+    Up, Right, Down, Left,   // the d-pad
+    Count                    // not a button: the number of buttons
+};
+
+/// "A", "LB", "Start", "Up"...
+std::string_view gamepadButtonName(GamepadButton button);
+
+/// Gamepad axes. Sticks go from -1 to 1 (y up); triggers from 0 to 1.
+enum class GamepadAxis { LeftX, LeftY, RightX, RightY, LeftTrigger, RightTrigger, Count };
+
+/// One gamepad as the program reads it. Values are raw (no dead zone).
+struct GamepadState {
+    bool connected = false;
+    std::array<bool, static_cast<std::size_t>(GamepadButton::Count)> buttons{};
+    std::array<float, static_cast<std::size_t>(GamepadAxis::Count)> axes{};
+    std::string_view name;   // e.g. "Xbox Controller" (only for messages)
+};
+
 class Input {
 public:
     // --- Asked by gameplay ---------------------------------------------------------------
@@ -54,9 +90,30 @@ public:
     /// Where the mouse pointer is, in world coordinates (as last reported).
     Vec2 pointer() const noexcept { return m_pointer; }
 
-    /// The direction the arrow keys or W A S D point in, each axis -1, 0 or 1
-    /// and the whole at most 1 long (moving diagonally is not faster).
+    /// The direction the player is steering in: the arrow keys or W A S D
+    /// (each axis -1, 0 or 1), or else a gamepad's d-pad or left stick (the
+    /// stick gives values in between, for walking slowly). Never longer than
+    /// 1: moving diagonally is not faster.
     Vec2 moveDirection() const noexcept;
+
+    // --- Gamepads ---------------------------------------------------------------------------
+    static constexpr int kMaxGamepads = 4;
+    /// Without `pad`: any gamepad (the usual case: one player). With `pad`
+    /// (0 to 3): that one, for games with several players.
+    bool isDown(GamepadButton button, int pad = -1) const noexcept;
+    bool wasPressed(GamepadButton button, int pad = -1) const noexcept;
+    bool wasReleased(GamepadButton button, int pad = -1) const noexcept;
+    /// A stick, with a small dead zone in the middle (worn sticks never rest
+    /// at exactly 0), at most 1 long, y up. Without `pad`: the first
+    /// connected gamepad.
+    Vec2 leftStick(int pad = -1) const noexcept;
+    Vec2 rightStick(int pad = -1) const noexcept;
+    /// A trigger, 0 (released) to 1 (pressed fully).
+    float trigger(GamepadAxis trigger, int pad = -1) const noexcept;
+    bool isGamepadConnected(int pad = -1) const noexcept;
+    /// For menus: the d-pad or the left stick was just pushed this way
+    /// (`direction` is Up, Down, Left or Right).
+    bool wasNudged(GamepadButton direction) const noexcept;
 
     // --- Reported by the program running the game -------------------------------------------
     void press(Key key) noexcept;
@@ -64,6 +121,9 @@ public:
     void press(MouseButton button) noexcept;
     void release(MouseButton button) noexcept;
     void setPointer(Vec2 worldPosition) noexcept { m_pointer = worldPosition; }
+    /// A gamepad's state this frame (`pad` 0 to 3). Buttons that changed
+    /// since the last report count as pressed or released this frame.
+    void setGamepad(int pad, const GamepadState& state) noexcept;
     /// Lets go of everything, e.g. when the window or game view loses focus
     /// (otherwise a key released elsewhere would stay "down").
     void releaseAll() noexcept;
@@ -89,6 +149,17 @@ private:
     std::array<State, static_cast<std::size_t>(Key::Count)> m_keys{};
     std::array<State, static_cast<std::size_t>(MouseButton::Count)> m_buttons{};
     Vec2 m_pointer;
+
+    struct Pad {
+        bool connected = false;
+        std::array<State, static_cast<std::size_t>(GamepadButton::Count)> buttons{};
+        std::array<float, static_cast<std::size_t>(GamepadAxis::Count)> axes{};
+        Vec2 previousStick;   // the left stick at the last endFrame (for wasNudged)
+    };
+    // The pad to read: `pad` if valid, else the first connected one (null if none).
+    const Pad* padFor(int pad) const noexcept;
+    Vec2 stick(GamepadAxis x, GamepadAxis y, int pad) const noexcept;
+    std::array<Pad, kMaxGamepads> m_pads{};
 };
 
 } // namespace rolo

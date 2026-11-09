@@ -18,6 +18,7 @@
 //
 // Axmol types never appear outside this folder.
 
+#include "rolo/runtime/Gamepads.hpp"
 #include "rolo/runtime/Application.hpp"
 
 #include "AxmolLogBridge.hpp"
@@ -158,6 +159,7 @@ struct Application::Impl {
     RunOptions options;
     std::function<void(const FrameInfo&)> frameCallback;
     Input* gameInput = nullptr;   // filled from the window's keyboard and mouse (not owned)
+    std::unique_ptr<GamepadReader> gamepads;   // ...and from gamepads, while there is a game input
     RunReport report;
 
     bool hasRun = false;
@@ -504,6 +506,12 @@ void Application::Impl::logDiagnostics(ax::RenderView& view)
 void Application::Impl::onFrame(float deltaSeconds)
 {
     realClock += static_cast<double>(deltaSeconds);
+    if (gameInput != nullptr) {
+        if (!gamepads) {
+            gamepads = std::make_unique<GamepadReader>(log());
+        }
+        gamepads->read(*gameInput);   // before the game's update reads them
+    }
     if (frameCallback) {
         frameCallback(FrameInfo{report.framesRendered, static_cast<double>(deltaSeconds)});
     }

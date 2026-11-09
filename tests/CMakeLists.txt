@@ -84,6 +84,7 @@ endif()
 add_executable(rolo_runtime_tests
     player/test_command_line.cpp
     runtime/test_axmol_compat.cpp
+    runtime/test_gamepads.cpp
     runtime/test_log_bridge.cpp
     runtime/test_scene_renderer.cpp)
 target_link_libraries(rolo_runtime_tests PRIVATE

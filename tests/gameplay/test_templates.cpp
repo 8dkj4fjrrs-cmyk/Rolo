@@ -114,6 +114,61 @@ TEST_CASE("A project made from the Top-Down Starter plays without any C++", "[te
     CHECK(p.errors.empty());
 }
 
+TEST_CASE("The Top-Down Starter plays with a gamepad", "[templates][gamepad]")
+{
+    const auto list = listProjectTemplates(findRoloResources("/x/rolo_editor", HostOs::Linux, kSource, {}));
+    NewProject made;
+    std::string error;
+    REQUIRE(createProjectFromTemplate(find(list, "topdown"), made.folder, "My Game", &error));
+    test::PlayProject p(made.folder);
+    REQUIRE(p.start());
+    Game& game = *p.game;
+    const auto setPad = [&](std::initializer_list<GamepadButton> down, Vec2 stick = {}) {
+        GamepadState s;
+        s.connected = true;
+        for (const GamepadButton b : down) {
+            s.buttons[static_cast<std::size_t>(b)] = true;
+        }
+        s.axes[static_cast<std::size_t>(GamepadAxis::LeftX)] = stick.x;
+        s.axes[static_cast<std::size_t>(GamepadAxis::LeftY)] = stick.y;
+        game.input().setGamepad(0, s);
+    };
+    const auto pressA = [&] {
+        setPad({GamepadButton::A});
+        p.frames(1);
+        setPad({});
+        p.frames(1);
+    };
+
+    // The left stick walks the hero (the Top-Down Controller reads moveDirection).
+    const float x0 = game.worldPosition(p.player()).x;
+    setPad({}, {1.0f, 0.0f});
+    p.frames(20);
+    CHECK(game.worldPosition(p.player()).x > x0 + 20.0f);
+    CHECK(game.currentClip(p.player()) == "walk_right");
+    setPad({});
+    p.frames(1);
+
+    // At the friend, the prompt names the A button, and A talks.
+    const EntityId friendArea = game.scene().childrenOf(game.find("Friend")).front();
+    p.stand(game.colliderBox(friendArea)->center());
+    CHECK(game.interactionPrompt() == "[A] Talk");
+    pressA();
+    REQUIRE(game.isInDialogue());
+    pressA();   // past the first line, to the question
+    // Down three times with the stick (each push and let go is one step) picks "Bye!".
+    for (int i = 0; i < 3; ++i) {
+        setPad({}, {0.0f, -1.0f});
+        p.frames(1);
+        setPad({});
+        p.frames(1);
+    }
+    pressA();
+    CHECK_FALSE(game.isInDialogue());
+    INFO(all(p.errors));
+    CHECK(p.errors.empty());
+}
+
 TEST_CASE("A project made from the Platformer Starter runs, jumps and pushes with physics", "[templates][physics]")
 {
     const auto list = listProjectTemplates(findRoloResources("/x/rolo_editor", HostOs::Linux, kSource, {}));
@@ -151,6 +206,17 @@ TEST_CASE("A project made from the Platformer Starter runs, jumps and pushes wit
     CHECK(game.worldPosition(hero).y == Catch::Approx(groundY).margin(2.0f));
     CHECK(game.isOnGround(hero));
 
+    // A gamepad's A button jumps too (scripts/player.lua).
+    GamepadState pad;
+    pad.connected = true;
+    pad.buttons[static_cast<std::size_t>(GamepadButton::A)] = true;
+    game.input().setGamepad(0, pad);
+    p.frames(1);
+    game.input().setGamepad(0, GamepadState{});
+    p.frames(14);
+    CHECK(game.worldPosition(hero).y > groundY + 80.0f);
+    p.frames(90);
+
     // Pushing a crate: walk into it from the left.
     const EntityId crate = game.find("Crate 3");   // alone on flat ground
     REQUIRE_FALSE(crate.isNull());
@@ -171,9 +237,14 @@ TEST_CASE("A project made from the Platformer Starter runs, jumps and pushes wit
 
     // The lift goes up and down by itself (scripts/lift.lua).
     const EntityId lift = game.find("Lift 1");
-    const float liftY = game.worldPosition(lift).y;
-    p.frames(60);
-    CHECK(game.worldPosition(lift).y > liftY + 50.0f);
+    float lowest = game.worldPosition(lift).y;
+    float highest = lowest;
+    for (int i = 0; i < 300; ++i) {   // over five seconds: at least one whole trip
+        p.frames(1);
+        lowest = std::min(lowest, game.worldPosition(lift).y);
+        highest = std::max(highest, game.worldPosition(lift).y);
+    }
+    CHECK(highest - lowest > 180.0f);
 
     INFO(all(p.errors));
     CHECK(p.errors.empty());

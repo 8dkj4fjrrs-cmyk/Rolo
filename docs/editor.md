@@ -153,6 +153,8 @@ border.
 - **Keyboard:** the game gets the keys while the Scene view has focus.
   Click the game first if the view says so. ⌘/Ctrl shortcuts still go to
   the editor.
+- **Gamepads:** a plugged-in gamepad plays the game too (also while
+  another panel has the keyboard). The Console says when one is plugged in.
 - **Sound:** the game's sounds and music play; Pause holds them and Stop
   stops them. **Game > Mute Sound** silences the editor (remembered).
 - **⏸ Pause** (⇧⌘P) freezes the game; press again to resume. **⏭ Step**

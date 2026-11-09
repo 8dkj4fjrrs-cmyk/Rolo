@@ -511,11 +511,28 @@ std::string normalizedKey(std::string_view name)
 struct KeySet {
     std::array<Key, 2> keys{Key::Unknown, Key::Unknown};
     std::optional<MouseButton> button;
+    std::optional<GamepadButton> pad;
 };
 
 KeySet checkKey(lua_State* L, int index)
 {
-    const std::string wanted = normalizedKey(checkText(L, index));
+    std::string wanted = normalizedKey(checkText(L, index));
+    // Gamepad buttons: "pad a", "pad start", "pad up"... ("gamepad a" works too).
+    if (wanted.rfind("gamepad", 0) == 0) {
+        wanted.erase(0, 4);   // "gamepad" -> "pad"
+    }
+    if (wanted.rfind("pad", 0) == 0) {
+        const std::string button = wanted.substr(3);
+        for (int b = 0; b < static_cast<int>(GamepadButton::Count); ++b) {
+            if (normalizedKey(gamepadButtonName(static_cast<GamepadButton>(b))) == button) {
+                return {{}, {}, static_cast<GamepadButton>(b)};
+            }
+        }
+        luaL_error(L,
+                   "unknown gamepad button \"%s\"; use \"pad a\", \"pad b\", \"pad x\", \"pad y\", \"pad lb\", "
+                   "\"pad rb\", \"pad start\", \"pad back\", \"pad ls\", \"pad rs\" or \"pad up\" (down, left, right)",
+                   lua_tostring(L, index));
+    }
     if (wanted == "shift") {
         return {{Key::LeftShift, Key::RightShift}, {}};
     }
@@ -547,19 +564,35 @@ KeySet checkKey(lua_State* L, int index)
         }
     }
     luaL_error(L,
-               "unknown key \"%s\"; use names like \"a\", \"space\", \"left\", \"left shift\", \"f1\" or "
-               "\"mouse left\"",
+               "unknown key \"%s\"; use names like \"a\", \"space\", \"left\", \"left shift\", \"f1\", "
+               "\"mouse left\" or \"pad a\"",
                lua_tostring(L, index));
     return {};
 }
 
-template <bool (Input::*KeyQuery)(Key) const noexcept, bool (Input::*ButtonQuery)(MouseButton) const noexcept>
+// Which gamepad: an optional number 1 to 4 (nothing: any).
+int checkPad(lua_State* L, int index)
+{
+    if (lua_isnoneornil(L, index)) {
+        return -1;
+    }
+    const lua_Integer pad = luaL_checkinteger(L, index);
+    if (pad < 1 || pad > Input::kMaxGamepads) {
+        luaL_argerror(L, index, "a gamepad number from 1 to 4 expected");
+    }
+    return static_cast<int>(pad - 1);
+}
+
+template <bool (Input::*KeyQuery)(Key) const noexcept, bool (Input::*ButtonQuery)(MouseButton) const noexcept,
+          bool (Input::*PadQuery)(GamepadButton, int) const noexcept>
 int inputQuery(lua_State* L)
 {
     const KeySet set = checkKey(L, 1);
     const Input& input = std::as_const(gameOf(L)).input();
     bool result = false;
-    if (set.button) {
+    if (set.pad) {
+        result = (input.*PadQuery)(*set.pad, checkPad(L, 2));
+    } else if (set.button) {
         result = (input.*ButtonQuery)(*set.button);
     } else {
         for (const Key key : set.keys) {
@@ -567,6 +600,37 @@ int inputQuery(lua_State* L)
         }
     }
     lua_pushboolean(L, result);
+    return 1;
+}
+
+// input.stick("left") -> x, y (dead zone applied; y up)
+int inputStick(lua_State* L)
+{
+    static const char* const names[] = {"left", "right", nullptr};
+    const int which = luaL_checkoption(L, 1, nullptr, names);
+    const Input& input = std::as_const(gameOf(L)).input();
+    const int pad = checkPad(L, 2);
+    const Vec2 v = which == 0 ? input.leftStick(pad) : input.rightStick(pad);
+    lua_pushnumber(L, static_cast<lua_Number>(v.x));
+    lua_pushnumber(L, static_cast<lua_Number>(v.y));
+    return 2;
+}
+
+// input.trigger("right") -> 0 to 1
+int inputTrigger(lua_State* L)
+{
+    static const char* const names[] = {"left", "right", nullptr};
+    const int which = luaL_checkoption(L, 1, nullptr, names);
+    const Input& input = std::as_const(gameOf(L)).input();
+    lua_pushnumber(L, static_cast<lua_Number>(
+                          input.trigger(which == 0 ? GamepadAxis::LeftTrigger : GamepadAxis::RightTrigger, checkPad(L, 2))));
+    return 1;
+}
+
+// input.gamepad() -> true if a gamepad is plugged in (or gamepad n, 1 to 4)
+int inputGamepad(lua_State* L)
+{
+    lua_pushboolean(L, std::as_const(gameOf(L)).input().isGamepadConnected(checkPad(L, 1)));
     return 1;
 }
 
@@ -968,10 +1032,13 @@ void openScriptApi(ScriptHost& host)
     lua_setglobal(L, "game");
 
     static const luaL_Reg inputFunctions[] = {
-        {"isDown", guarded<inputQuery<&Input::isDown, &Input::isDown>>},
-        {"wasPressed", guarded<inputQuery<&Input::wasPressed, &Input::wasPressed>>},
-        {"wasReleased", guarded<inputQuery<&Input::wasReleased, &Input::wasReleased>>},
+        {"isDown", guarded<inputQuery<&Input::isDown, &Input::isDown, &Input::isDown>>},
+        {"wasPressed", guarded<inputQuery<&Input::wasPressed, &Input::wasPressed, &Input::wasPressed>>},
+        {"wasReleased", guarded<inputQuery<&Input::wasReleased, &Input::wasReleased, &Input::wasReleased>>},
         {"direction", guarded<inputDirection>},
+        {"stick", guarded<inputStick>},
+        {"trigger", guarded<inputTrigger>},
+        {"gamepad", guarded<inputGamepad>},
         {"pointer", guarded<inputPointer>},
         {nullptr, nullptr},
     };
