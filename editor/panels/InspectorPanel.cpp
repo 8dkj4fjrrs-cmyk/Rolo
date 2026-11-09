@@ -218,6 +218,34 @@ void InspectorPanel::buildScene(ui::Column& content)
         file.setText(where + (doc.isDirty() ? "  (unsaved changes)" : ""));
     });
 
+    // The project's game options: the keys every Rolo game has unless it turns them off.
+    auto& game = content.emplace<ui::Section>("Game (whole project)");
+    const auto addOption = [this, &game](const char* label, const char* tip, SetGameOption::Option option) {
+        auto& row = game.body().emplace<ui::PropertyField>(label);
+        row.setTooltip(tip);
+        auto& box = row.addValue(std::make_unique<ui::Checkbox>(""));
+        box.setOnChange([this, option](bool on) {
+            m_editor.endEdit();
+            if (!m_editor.execute(std::make_unique<SetGameOption>(option, on))) {
+                m_editor.showMessage("Could Not Change the Setting",
+                                     "Rolo could not write project.rolo. Check that it is not read-only.");
+            }
+            m_editor.endEdit();
+        });
+        m_refresh.push_back([this, &box, option] {
+            const Project* project = m_editor.project();
+            box.setEnabled(project != nullptr);
+            ProjectSettings settings = project != nullptr ? project->settings() : ProjectSettings{};
+            box.setChecked(SetGameOption::in(settings, option));
+        });
+    };
+    addOption("Escape Quits", "Escape closes the game at once (in the editor: stops playing). Turn off to use Escape "
+                              "yourself, e.g. for a pause menu; quit with game.quit().",
+              SetGameOption::Option::EscapeQuits);
+    addOption("F5 / F9 Saves", "F5 saves to the \"quick\" slot and F9 loads it. Turn off if your game saves in its "
+                               "own way.",
+              SetGameOption::Option::QuickSaveKeys);
+
     // Physics: only Rigid Bodies feel gravity, so it matters only once the scene has one.
     auto& physics = content.emplace<ui::Section>("Physics");
     auto& gravityRow = physics.body().emplace<ui::PropertyField>("Gravity");

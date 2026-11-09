@@ -146,6 +146,13 @@ int main(int argc, char** argv)
         }
     }
     std::unique_ptr<rolo::AssetDatabase> assets;
+    // The project's game options (Escape, F5 and F9); the defaults without a project.
+    rolo::ProjectSettings gameOptions;
+    if (!projectFolder.empty()) {
+        if (const auto project = rolo::Project::open(projectFolder)) {
+            gameOptions = project->settings();
+        }
+    }
     if (!projectFolder.empty()) {
         assets = std::make_unique<rolo::AssetDatabase>(projectFolder, rolo::AssetDatabase::Access::ReadOnly);
         for (const rolo::FileIssue& issue : assets->refresh()) {
@@ -244,11 +251,17 @@ int main(int argc, char** argv)
                     game.input().release(tap.key);
                 }
             }
-            // F5 saves to the "quick" slot, F9 loads it.
-            if (game.input().wasPressed(rolo::Key::F5)) {
+            // Escape quits, unless the project turned that off. (Read from the
+            // game's input, so the Escape that cancels remapping a control does not quit.)
+            if (gameOptions.escapeQuits && game.input().wasPressed(rolo::Key::Escape)) {
+                engine.logger().info("player", "Escape pressed; closing.");
+                app.requestQuit();
+            }
+            // F5 saves to the "quick" slot, F9 loads it (unless the project turned that off).
+            if (gameOptions.quickSaveKeys && game.input().wasPressed(rolo::Key::F5)) {
                 game.save("quick");
             }
-            if (game.input().wasPressed(rolo::Key::F9)) {
+            if (gameOptions.quickSaveKeys && game.input().wasPressed(rolo::Key::F9)) {
                 game.load("quick");
             }
             const float dt = opt.fixedStep ? 1.0f / 60.0f : static_cast<float>(frame.deltaSeconds);
@@ -261,12 +274,17 @@ int main(int argc, char** argv)
                 shown = game.sharedScene();
                 app.showScene(shown);
             }
+            if (game.quitRequested()) {   // game.quit()
+                app.requestQuit();
+            }
         });
     }
     const rolo::Status runStatus = app.run({
         .maxFrames = opt.maxFrames,
         .screenshotPath = opt.screenshotPath,
         .showStats = opt.showStats,
+        // With a game, Escape is handled above; without one, the window closes on it.
+        .escapeQuits = !game.isRunning(),
     });
 
     if (!runStatus) {

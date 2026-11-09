@@ -28,7 +28,7 @@ HERO = ROOT / "examples" / "lantern_keeper" / "project" / "assets" / "art" / "he
 
 _NAMES = ["tiles.png", "hero_walk.png", "crate.png", "ball.png", "coin.png", "flag.png", "tiles.ltileset",
           "hero.lanim", "coin.lanim", "level.lscene", "platformer.lvars", "player.lua", "lift.lua",
-          "jump.wav", "coin.wav", "win.wav", "controls.lua"]
+          "jump.wav", "coin.wav", "win.wav", "controls.lua", "pause.lua"]
 IDS = {n: f"504c4154{i + 1:08x}" for i, n in enumerate(_NAMES)}     # "PLAT..."
 PIXEL, SCALE = 16, 3
 CELL = PIXEL * SCALE      # 48 points
@@ -107,8 +107,8 @@ function update(self, dt)
     end
     self.fallSpeed = vy
 
-    -- While the Controls screen is open, the hero stands still.
-    if game.get("menu_open") then
+    -- While a menu is open (pause or controls), the hero stands still.
+    if game.get("menu") ~= "" then
         self.object:setVelocity(0, vy)
         self.object:play("idle_" .. self.facing)
         return
@@ -143,11 +143,15 @@ end
 
 CONTROLS = """-- controls.lua: a Controls screen where players change their keys and buttons.
 --
--- Tab (or Start on a gamepad) opens and closes it. Up and down choose an
--- action, Enter (or A) changes it: the next key or gamepad button pressed
--- becomes its key or button. R (or Y) puts everything back as it was.
--- Players' choices are kept on their computer, beside their saved games.
+-- Tab (or Back on a gamepad) opens and closes it; so does Controls in the
+-- pause menu (scripts/pause.lua). Up and down choose an action, Enter (or A)
+-- changes it: the next key or gamepad button pressed becomes its key or
+-- button. R (or Y) puts everything back as it was. Players' choices are kept
+-- on their computer, beside their saved games.
 -- Copy this script into your own game and list your own actions below.
+--
+-- Which menu is open is the text variable "menu": "" (none), "pause" or
+-- "controls" (content/platformer.lvars).
 
 local ACTIONS = {
     {"jump", "Jump"},
@@ -157,11 +161,11 @@ local ACTIONS = {
 }
 
 function start(self)
-    input.action("controls", {"tab", "pad start"})
+    input.action("controls", {"tab", "pad back"})
     self.panel = game.find("Controls Panel")
     self.words = game.find("Controls Text")
     self.choice = 1
-    game.set("menu_open", false)
+    game.set("menu", "")
 end
 
 -- The pictures of an action's keys and buttons: "{button:space} {button:pad a}".
@@ -190,12 +194,13 @@ local function show(self)
 end
 
 function update(self, dt)
-    local open = game.get("menu_open")
+    local menu = game.get("menu")
     if input.wasPressed("controls") and not input.isRebinding() then
-        open = not open
-        game.set("menu_open", open)
-        self.panel:setActive(open)
+        if menu == "" then menu = "controls" elseif menu == "controls" then menu = "" end
+        game.set("menu", menu)
     end
+    local open = menu == "controls"
+    self.panel:setActive(open)
     if not open then
         return
     end
@@ -206,6 +211,71 @@ function update(self, dt)
             input.rebind(ACTIONS[self.choice][1])
         elseif input.wasPressed("r") or input.wasPressed("pad y") then
             input.resetControls()
+        end
+    end
+    show(self)
+end
+"""
+
+PAUSE = """-- pause.lua: a pause menu. Escape (or Start on a gamepad) opens and closes it.
+--
+-- Rolo games quit when Escape is pressed, unless the project turns that off.
+-- This one does (the scene's Inspector, Game section: Escape Quits), so
+-- Escape is free for this menu, and its Quit closes the game with
+-- game.quit(). In the editor, Quit stops playing.
+--
+-- Up and down choose, Enter (or A) picks. The hero waits while it is open
+-- (scripts/player.lua checks the "menu" variable).
+
+local ITEMS = {"Resume", "Controls", "Quit"}
+
+function start(self)
+    input.action("pause", {"escape", "pad start"})
+    self.panel = game.find("Pause Panel")
+    self.words = game.find("Pause Text")
+    self.choice = 1
+end
+
+local function show(self)
+    local lines = {"PAUSED", ""}
+    for i, item in ipairs(ITEMS) do
+        lines[#lines + 1] = ((i == self.choice) and "> " or "   ") .. item
+    end
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "{button:move up} {button:move down} choose   {button:enter} / {button:pad a} pick   "
+                        .. "{button:pause} resume"
+    self.words:setText(table.concat(lines, "\\n"))
+end
+
+function update(self, dt)
+    local menu = game.get("menu")
+    -- (The Escape that cancels changing a control is not a press, so it does not pause.)
+    if input.wasPressed("pause") then
+        if menu == "" then
+            menu = "pause"
+            self.choice = 1
+        elseif menu == "pause" then
+            menu = ""        -- resume
+        elseif menu == "controls" then
+            menu = "pause"   -- back from the Controls screen
+        end
+        game.set("menu", menu)
+    end
+    local open = menu == "pause"
+    self.panel:setActive(open)
+    if not open then
+        return
+    end
+    if input.wasPressed("move down") then self.choice = self.choice % #ITEMS + 1 end
+    if input.wasPressed("move up") then self.choice = (self.choice - 2) % #ITEMS + 1 end
+    if input.wasPressed("enter") or input.wasPressed("pad a") then
+        local item = ITEMS[self.choice]
+        if item == "Resume" then
+            game.set("menu", "")
+        elseif item == "Controls" then
+            game.set("menu", "controls")
+        else
+            game.quit()
         end
     end
     show(self)
@@ -524,7 +594,7 @@ def level():
     left, top = -VIEW[0] / 2 + 24, VIEW[1] / 2 - 20
     s.add("Coins", [transform(left, top), text("Coins  {coins} / " + str(len(things["C"])), 22, "#1a2a44ff")],
           parent=cam)
-    s.add("Help", [transform(-left, top), text("{button:move left} {button:move right} run   {button:jump} jump   {button:controls} controls", 18, "#1a2a44e0",
+    s.add("Help", [transform(-left, top), text("{button:move left} {button:move right} run   {button:jump} jump   {button:pause} menu", 18, "#1a2a44e0",
                                                 align="right")], parent=cam)
     win = s.add("Well Done", [transform(0, 120), shape((620, 110), "#1a2a44e0")], parent=cam, active=False)
     s.add("Words", [transform(0, 34), text("Well done!\nYou found {coins} coins.", 30, "#ffd84aff", align="center")],
@@ -533,6 +603,10 @@ def level():
     controls = s.add("Controls", [transform(), {"type": "rolo.Script", "script": IDS["controls.lua"]}], parent=cam)
     panel = s.add("Controls Panel", [transform(0, 70), shape((860, 300), "#141c30f0")], parent=controls, active=False)
     s.add("Controls Text", [transform(-400, 120), text("", 24, "#ffffffff")], parent=panel)
+    # The pause menu (scripts/pause.lua).
+    pause = s.add("Pause", [transform(), {"type": "rolo.Script", "script": IDS["pause.lua"]}], parent=cam)
+    panel = s.add("Pause Panel", [transform(0, 70), shape((560, 260), "#141c30f0")], parent=pause, active=False)
+    s.add("Pause Text", [transform(-240, 100), text("", 26, "#ffffffff")], parent=panel)
     for e in s.entities:
         for comp in e["components"]:
             if comp["type"] == "rolo.Trigger":
@@ -582,12 +656,12 @@ def main():
     content = root / "content"
     write(content / "platformer.lvars", {"format": "rolo.variables", "version": 1, "variables": [
         {"id": "coins", "type": "int", "initial": 0, "description": "Coins collected"},
-        {"id": "menu_open", "type": "bool", "initial": False, "description": "The Controls screen is open"}]})
+        {"id": "menu", "type": "text", "initial": "", "description": "The menu open: \"\", \"pause\" or \"controls\""}]})
     write(content / "platformer.lvars.meta", meta("platformer.lvars", "variables"))
 
     scripts = root / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
-    for name, code in (("player.lua", PLAYER), ("lift.lua", LIFT), ("controls.lua", CONTROLS)):
+    for name, code in (("player.lua", PLAYER), ("lift.lua", LIFT), ("controls.lua", CONTROLS), ("pause.lua", PAUSE)):
         (scripts / name).write_text(code, encoding="utf-8")
         write(scripts / (name + ".meta"), meta(name, "script"))
 
@@ -597,6 +671,7 @@ def main():
     write(root / "scenes" / "level.lscene.meta", meta("level.lscene", "scene"))
     project["name"] = "Platformer Starter"   # the wizard renames copies after the new project
     project["startScene"] = "scenes/level.lscene"
+    project["escapeQuits"] = False           # Escape opens the pause menu (scripts/pause.lua)
     write(project_file, project)
 
 

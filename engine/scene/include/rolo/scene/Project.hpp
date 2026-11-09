@@ -25,6 +25,12 @@ namespace rolo {
 struct ProjectSettings {
     std::string name = "My Game";
     std::string startScene = "scenes/main.lscene";   // relative to the project folder
+    /// Escape closes the game at once. Off: Escape is an ordinary key the
+    /// game can use (e.g. for a pause menu with a Quit button: game.quit()).
+    bool escapeQuits = true;
+    /// F5 saves to the "quick" slot and F9 loads it. Off: the game handles
+    /// saving itself, and F5 and F9 are ordinary keys.
+    bool quickSaveKeys = true;
 };
 
 namespace ProjectFormat {

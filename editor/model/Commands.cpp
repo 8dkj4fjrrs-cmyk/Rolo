@@ -780,4 +780,46 @@ void SetStartScene::revert(Scene&)
     static_cast<void>(write(m_before));
 }
 
+// --- SetGameOption ---------------------------------------------------------------------------------
+
+std::string SetGameOption::label() const
+{
+    return m_option == Option::EscapeQuits ? "Escape Quits the Game" : "F5 / F9 Quick Save";
+}
+
+bool& SetGameOption::in(ProjectSettings& settings, Option option)
+{
+    return option == Option::EscapeQuits ? settings.escapeQuits : settings.quickSaveKeys;
+}
+
+bool SetGameOption::write(bool on) const
+{
+    auto project = m_assets != nullptr ? Project::open(m_assets->projectFolder()) : std::nullopt;
+    if (!project) {
+        return false;
+    }
+    ProjectSettings settings = project->settings();
+    in(settings, m_option) = on;
+    project->setSettings(std::move(settings));
+    return static_cast<bool>(project->save());
+}
+
+bool SetGameOption::apply(Scene&)
+{
+    auto project = m_assets != nullptr ? Project::open(m_assets->projectFolder()) : std::nullopt;
+    if (!project) {
+        return false;
+    }
+    ProjectSettings settings = project->settings();
+    if (in(settings, m_option) == m_after) {
+        return false;
+    }
+    return write(m_after);
+}
+
+void SetGameOption::revert(Scene&)
+{
+    static_cast<void>(write(!m_after));
+}
+
 } // namespace rolo::editor

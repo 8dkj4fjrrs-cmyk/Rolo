@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <utility>
 
 namespace rolo {
 
@@ -89,6 +90,16 @@ std::optional<ProjectSettings> Project::parseSettings(std::string_view text, std
             return std::nullopt;
         }
     }
+    for (const auto& [key, flag] : {std::pair{"escapeQuits", &settings.escapeQuits},
+                                     std::pair{"quickSaveKeys", &settings.quickSaveKeys}}) {
+        if (j.contains(key)) {
+            if (!j[key].is_boolean()) {
+                setError(error, std::string("The project's \"") + key + "\" must be true or false.");
+                return std::nullopt;
+            }
+            *flag = j[key].get<bool>();
+        }
+    }
     return settings;
 }
 
@@ -99,6 +110,13 @@ std::string Project::serializeSettings(const ProjectSettings& settings)
     j["version"] = ProjectFormat::kVersion;
     j["name"] = settings.name;
     j["startScene"] = settings.startScene;
+    // Written only when changed, so most project files stay as they were.
+    if (!settings.escapeQuits) {
+        j["escapeQuits"] = false;
+    }
+    if (!settings.quickSaveKeys) {
+        j["quickSaveKeys"] = false;
+    }
     return j.dump(2) + "\n";
 }
 

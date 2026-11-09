@@ -5,8 +5,9 @@ PlayStation, Nintendo Switch Pro and most others). This guide covers what
 makes controls feel finished: named **actions** that players can **remap**,
 **button pictures** in text that always show the right button, and **rumble**.
 
-The **Platformer Starter** (File › New Project…) has all of it: press Tab, or
-Start on a gamepad, for its Controls screen.
+The **Platformer Starter** (File › New Project…) has all of it: press Escape,
+or Start on a gamepad, for its pause menu, and choose Controls (or press Tab,
+or Back on a gamepad).
 
 ## Actions
 
@@ -58,7 +59,31 @@ was. The press that chooses is used up: it does not also jump.
 In the editor they are kept with play mode's saves, apart from players'.
 
 `scripts/controls.lua` in the Platformer Starter is a complete Controls
-screen in about 60 lines: copy it, and list your own actions at the top.
+screen in about 70 lines: copy it, and list your own actions at the top.
+`scripts/pause.lua` is its pause menu (Resume, Controls, Quit).
+
+## Escape, quitting and the quick-save keys
+
+Every Rolo game quits when **Escape** is pressed, and **F5** and **F9** save
+to and load the "quick" slot, unless the project turns them off. Select the
+scene (click empty space in the Hierarchy) and look in the Inspector's
+**Game (whole project)** section:
+
+| Setting | On (the default) | Off |
+|---|---|---|
+| **Escape Quits** | Escape closes the game at once (in the editor: stops playing) | Escape is an ordinary key: use it for a pause menu |
+| **F5 / F9 Saves** | F5 saves to the "quick" slot, F9 loads it | F5 and F9 are ordinary keys: save your own way |
+
+They are kept in `project.rolo` (`"escapeQuits": false`,
+`"quickSaveKeys": false`), so exported games follow them too.
+
+With Escape Quits off, give players a way out: **`game.quit()`** (C++:
+`game.quit()` on `rolo::Game`) ends the game this frame. The player
+closes its window; in the editor, playing stops. Save first if progress
+should be kept. Closing the window always quits.
+
+The Escape that cancels changing a control (`input.rebind`) never also
+quits or pauses.
 
 ## Button pictures
 

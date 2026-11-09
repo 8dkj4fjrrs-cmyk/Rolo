@@ -192,8 +192,8 @@ std::string helpText()
            "  --save-dir FOLDER  Keep save slots in FOLDER\n"
            "  --fixed-step       Count every frame as 1/60 s, for repeatable runs (tests)\n"
            "\n"
-           "In the game: F5 saves to the quick slot, F9 loads it. Escape or closing\n"
-           "the window quits.\n";
+           "In the game: F5 saves to the quick slot, F9 loads it, and Escape quits,\n"
+           "unless the project turned these off. Closing the window always quits.\n";
 }
 
 std::optional<std::filesystem::path> bundledGameFolder(const std::filesystem::path& executable)

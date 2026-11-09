@@ -676,11 +676,18 @@ void EditorApp::updateGame(UiFrame& frame)
     const double now = frame.ui().time();
     const float dt = m_lastFrameTime < 0.0 ? 1.0f / 60.0f : static_cast<float>(now - m_lastFrameTime);
     m_lastFrameTime = now;
-    // F5 saves to the "quick" slot, F9 loads it (as in the player).
-    if (m_game->input().wasPressed(Key::F5)) {
+    // The project's game options, as in the player: Escape (here: stop
+    // playing, the editor's version of closing the game), F5 and F9.
+    const ProjectSettings options = m_project ? m_project->settings() : ProjectSettings{};
+    if (options.escapeQuits && m_game->input().wasPressed(Key::Escape)) {
+        log().info(kCategory, "Escape pressed: stopping (the game would close here).");
+        stopPlaying();
+        return;
+    }
+    if (options.quickSaveKeys && m_game->input().wasPressed(Key::F5)) {
         m_game->save("quick");
     }
-    if (m_game->input().wasPressed(Key::F9)) {
+    if (options.quickSaveKeys && m_game->input().wasPressed(Key::F9)) {
         m_game->load("quick");
     }
     // Gamepads go to the game whenever it plays (unlike the keyboard, they
@@ -694,6 +701,10 @@ void EditorApp::updateGame(UiFrame& frame)
     } else if (m_stepPending) {
         m_stepPending = false;
         m_game->update(1.0f / 60.0f);
+    }
+    if (m_game->quitRequested()) {   // game.quit(): the game would close here
+        stopPlaying();
+        return;
     }
     // Animations follow game time, so pausing freezes them too. (While
     // editing, the runtime's own clock plays them in the Scene view.)

@@ -27,8 +27,8 @@ function update(self, dt)
     end
     self.fallSpeed = vy
 
-    -- While the Controls screen is open, the hero stands still.
-    if game.get("menu_open") then
+    -- While a menu is open (pause or controls), the hero stands still.
+    if game.get("menu") ~= "" then
         self.object:setVelocity(0, vy)
         self.object:play("idle_" .. self.facing)
         return

@@ -98,9 +98,19 @@ std::string readme(const ExportOptions& o, const std::string& gameName, const st
                                 ? "Open " + gameName + ".app. (The first time, macOS may say it cannot check the app: "
                                   "right-click it and choose Open.)"
                                 : "Run " + program + ".";
+    // The keys every Rolo game has, unless the project turned them off.
+    ProjectSettings settings;
+    if (const auto project = Project::open(o.project)) {
+        settings = project->settings();
+    }
+    std::string keys = "Arrow keys or W A S D walk (in most Rolo games)";
+    if (settings.quickSaveKeys) {
+        keys += ", F5 saves, F9 loads";
+    }
+    keys += settings.escapeQuits ? ", Escape quits." : ".";
     return gameName + "\n" + std::string(gameName.size(), '=') + "\n\n"
            + "To play: " + how + "\n\n"
-           + "Arrow keys or W A S D walk (in most Rolo games), F5 saves, F9 loads, Escape quits.\n"
+           + keys + "\n"
              "Saved games are kept in your user folder, not here.\n\n"
            + "Made with Rolo Engine " + o.version + " (MIT License).\n"
            + "This game contains Rolo and the libraries it is built on; their licenses are in the\n"

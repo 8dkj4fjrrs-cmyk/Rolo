@@ -1,10 +1,14 @@
 -- controls.lua: a Controls screen where players change their keys and buttons.
 --
--- Tab (or Start on a gamepad) opens and closes it. Up and down choose an
--- action, Enter (or A) changes it: the next key or gamepad button pressed
--- becomes its key or button. R (or Y) puts everything back as it was.
--- Players' choices are kept on their computer, beside their saved games.
+-- Tab (or Back on a gamepad) opens and closes it; so does Controls in the
+-- pause menu (scripts/pause.lua). Up and down choose an action, Enter (or A)
+-- changes it: the next key or gamepad button pressed becomes its key or
+-- button. R (or Y) puts everything back as it was. Players' choices are kept
+-- on their computer, beside their saved games.
 -- Copy this script into your own game and list your own actions below.
+--
+-- Which menu is open is the text variable "menu": "" (none), "pause" or
+-- "controls" (content/platformer.lvars).
 
 local ACTIONS = {
     {"jump", "Jump"},
@@ -14,11 +18,11 @@ local ACTIONS = {
 }
 
 function start(self)
-    input.action("controls", {"tab", "pad start"})
+    input.action("controls", {"tab", "pad back"})
     self.panel = game.find("Controls Panel")
     self.words = game.find("Controls Text")
     self.choice = 1
-    game.set("menu_open", false)
+    game.set("menu", "")
 end
 
 -- The pictures of an action's keys and buttons: "{button:space} {button:pad a}".
@@ -47,12 +51,13 @@ local function show(self)
 end
 
 function update(self, dt)
-    local open = game.get("menu_open")
+    local menu = game.get("menu")
     if input.wasPressed("controls") and not input.isRebinding() then
-        open = not open
-        game.set("menu_open", open)
-        self.panel:setActive(open)
+        if menu == "" then menu = "controls" elseif menu == "controls" then menu = "" end
+        game.set("menu", menu)
     end
+    local open = menu == "controls"
+    self.panel:setActive(open)
     if not open then
         return
     end

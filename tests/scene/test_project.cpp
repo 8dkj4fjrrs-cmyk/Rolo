@@ -81,3 +81,26 @@ TEST_CASE("Project files are validated", "[project]")
     CHECK_FALSE(Project::open(std::filesystem::temp_directory_path() / "no_such_rolo_project", &error));
     CHECK(error.find("project.rolo") != std::string::npos);
 }
+
+TEST_CASE("A project's game options are read and written only when changed", "[project]")
+{
+    const ProjectSettings defaults;
+    CHECK(defaults.escapeQuits);
+    CHECK(defaults.quickSaveKeys);
+    // Default options are not written, so existing project files stay as they were.
+    const std::string plain = Project::serializeSettings(defaults);
+    CHECK(plain.find("escapeQuits") == std::string::npos);
+    CHECK(plain.find("quickSaveKeys") == std::string::npos);
+
+    ProjectSettings changed;
+    changed.escapeQuits = false;
+    changed.quickSaveKeys = false;
+    const auto back = Project::parseSettings(Project::serializeSettings(changed));
+    REQUIRE(back);
+    CHECK_FALSE(back->escapeQuits);
+    CHECK_FALSE(back->quickSaveKeys);
+
+    std::string error;
+    CHECK_FALSE(Project::parseSettings(R"({"format": "rolo.project", "version": 1, "escapeQuits": "no"})", &error));
+    CHECK(error.find("escapeQuits") != std::string::npos);
+}

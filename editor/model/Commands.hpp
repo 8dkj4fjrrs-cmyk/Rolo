@@ -337,6 +337,32 @@ private:
     AssetDatabase* m_assets = nullptr;   // the project's folder comes from here; not owned
 };
 
+/// Turns one of the project's game options on or off (project.rolo's
+/// escapeQuits or quickSaveKeys). Saved straight away.
+class SetGameOption final : public Command {
+public:
+    enum class Option { EscapeQuits, QuickSaveKeys };
+    SetGameOption(Option option, bool on)
+        : m_option(option)
+        , m_after(on)
+    {
+    }
+    std::string label() const override;
+    bool apply(Scene& scene) override;
+    void revert(Scene& scene) override;
+    bool changesScene() const override { return false; }
+    void useAssets(AssetDatabase* assets) override { m_assets = assets; }
+
+    /// The option's value in `settings`.
+    static bool& in(ProjectSettings& settings, Option option);
+
+private:
+    bool write(bool on) const;
+    Option m_option;
+    bool m_after;
+    AssetDatabase* m_assets = nullptr;   // the project's folder comes from here; not owned
+};
+
 class RenameScene final : public Command {
 public:
     explicit RenameScene(std::string name)

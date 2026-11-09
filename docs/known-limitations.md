@@ -49,11 +49,11 @@ Please report what you find.
   rumble (one strength, not two motors), and on Linux with force-feedback
   drivers. It was written without a real gamepad to try it on. No touch
   input. The mouse position is available to C++ behaviours and scripts.
-- Text with button pictures is not wrapped; Escape quits a game at once,
-  so Controls screens should use Backspace to cancel.
-- The window is 1280 × 720 points. There is no fullscreen
-  setting, title screen, pause menu or options menu. Escape quits at once,
-  and **F5 / F9 save and load** in every game.
+- Text with button pictures is not wrapped.
+- The window is 1280 × 720 points. There is no fullscreen setting, and no
+  built-in title screen or options menu (games make their own; the
+  Platformer Starter has a pause menu). Escape quitting and the F5 / F9
+  keys can be turned off per project ([controls guide](controls.md#escape-quitting-and-the-quick-save-keys)).
 - **Physics** ([guide](physics.md)) has no joints, one-way platforms, ray
   casts or collision layers yet. Tilemaps changed while playing keep their
   old collision for physics. `Game::move` and overlap queries use boxes (a

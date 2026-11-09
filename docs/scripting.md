@@ -182,6 +182,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `game.changeScene("woods", "From Village")` | ...with the player placed at the object of that name |
 | `game.inDialogue()` | true while a dialogue is shown |
 | `game.save("slot1")`, `game.load("slot1")` | saves or loads the player's progress |
+| `game.quit()` | ends the game, e.g. from a menu's Quit (in the editor: stops playing). See [Escape and quitting](controls.md#escape-quitting-and-the-quick-save-keys) |
 
 ### `input`
 

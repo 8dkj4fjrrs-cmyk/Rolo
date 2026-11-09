@@ -482,6 +482,12 @@ int gameLoad(lua_State* L)
     return 0;
 }
 
+int gameQuit(lua_State* L)
+{
+    gameOf(L).quit();
+    return 0;
+}
+
 int gameInDialogue(lua_State* L)
 {
     lua_pushboolean(L, gameOf(L).isInDialogue());
@@ -1128,6 +1134,7 @@ void openScriptApi(ScriptHost& host)
         {"changeScene", guarded<gameChangeScene>},
         {"save", guarded<gameSave>},
         {"load", guarded<gameLoad>},
+        {"quit", guarded<gameQuit>},
         {"inDialogue", guarded<gameInDialogue>},
         {"gravity", guarded<gameGravity>},
         {"setGravity", guarded<gameSetGravity>},

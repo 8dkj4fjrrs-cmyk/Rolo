@@ -5,6 +5,16 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Escape and quitting are the game's choice**
+  ([controls guide](docs/controls.md#escape-quitting-and-the-quick-save-keys)).
+  - Per project, in the scene's Inspector (**Game (whole project)**):
+    **Escape Quits** and **F5 / F9 Saves**, both on by default. Off, they
+    are ordinary keys, e.g. for a pause menu. Exported games follow them.
+  - **`game.quit()`** (Lua and C++) ends the game from a menu. In the
+    editor, it and Escape stop playing.
+  - The Platformer Starter has a pause menu (Escape or Start: Resume,
+    Controls, Quit). Its Controls screen opens with Tab or Back.
+  - Fixed: the Escape that cancels changing a control also closed the game.
 - **Lantern Engine is now Rolo Engine**, with a new logo: Rolo, a smiling
   orange on a red tile ([ADR 0014](docs/adr/0014-rename-to-rolo.md)).
   - Programs, the package and the C++ namespace are renamed (`rolo_editor`,
@@ -26,8 +36,8 @@ All notable changes to Rolo Engine. Versions follow the milestones in
     PlayStation, Nintendo) or keyboard. Prompts show the button's picture.
   - **Rumble** (`input.rumble(0.5, 0.3)`): Rolo's own code on each system's
     controller API (XInput, Game Controller, Linux force feedback).
-  - The Platformer Starter has a Controls screen (Tab or Start), button
-    pictures, and rumbles on hard landings.
+  - The Platformer Starter has a Controls screen, button pictures, and
+    rumbles on hard landings.
   - Fixed: text set by a script (`obj:setText`) was put back to the text
     written in the editor in the next frame.
 - **Gamepads** ([ADR 0017](docs/adr/0017-gamepads.md)).

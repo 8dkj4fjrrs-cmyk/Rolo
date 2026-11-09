@@ -172,6 +172,11 @@ border.
 - **F5** saves the game to the "quick" slot and **F9** loads it. Saves made
   in Play mode are kept in the editor's settings folder (`play-saves`),
   never with the real game's saves.
+- **Escape** stops playing, as it would close the exported game, and
+  `game.quit()` stops it too. Both F5 / F9 and Escape can be turned off for
+  the project in the scene's Inspector (**Game (whole project)**; see the
+  [controls guide](controls.md#escape-quitting-and-the-quick-save-keys)).
+  With Escape off, stop with ■ or ⌘P / Ctrl+P.
 
 Gameplay is written in Lua or C++: see the [scripting guide](scripting.md)
 and the [gameplay guide](gameplay.md).

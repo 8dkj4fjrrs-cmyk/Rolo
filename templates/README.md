@@ -15,7 +15,9 @@ holds `template.json` (the name and description the wizard shows) and the
 - `platformer/`: the **Platformer Starter**, a side-view level with
   physics (ADR 0016): a hero who runs and jumps (`scripts/player.lua`, a
   Rigid Body moved by its velocity), crates, bouncy balls, a lift
-  (`scripts/lift.lua`), coins (Triggers) and a flag. It is made by
+  (`scripts/lift.lua`), coins (Triggers), a flag, a Controls screen
+  (`scripts/controls.lua`) and a pause menu (`scripts/pause.lua`; the
+  project turns Escape Quits off for it). It is made by
   `tools/make_platformer.py` from a fresh project; its art and sounds are
   drawn and synthesised by that script (original, MIT), and the hero is The
   Lantern Keeper's.

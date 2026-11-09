@@ -265,7 +265,9 @@ if (game.wasEmitted("door_opened")) { ... }      // sent last frame
 removed for good, one-time triggers that ran, the scene and where the
 player stands) and `game.load("slot")` brings it back. The `saveGame` and
 `loadGame` actions do the same from content. In the player and in Play
-mode, **F5** saves to the slot "quick" and **F9** loads it.
+mode, **F5** saves to the slot "quick" and **F9** loads it (unless the
+project turns that off). `game.quit()` ends the game, e.g. from a menu
+([Escape and quitting](controls.md#escape-quitting-and-the-quick-save-keys)).
 
 Saves made by the player go to the user's data folder (macOS
 `~/Library/Application Support/<game>/Saves`, Windows

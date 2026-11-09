@@ -9,10 +9,10 @@
       "description": "Coins collected"
     },
     {
-      "id": "menu_open",
-      "type": "bool",
-      "initial": false,
-      "description": "The Controls screen is open"
+      "id": "menu",
+      "type": "text",
+      "initial": "",
+      "description": "The menu open: \"\", \"pause\" or \"controls\""
     }
   ]
 }

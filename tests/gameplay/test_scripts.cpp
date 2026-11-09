@@ -600,3 +600,25 @@ TEST_CASE("Text set by a script stays and fills in variables", "[gameplay][scrip
     CHECK(game.scene().find(label)->get<Text>()->text == "Frames {ticks}");
     CHECK(p.problems.empty());
 }
+
+TEST_CASE("game.quit asks the program to close the game", "[gameplay][script]")
+{
+    ScriptProject p;
+    const AssetId menu = p.write("scripts/menu.lua", R"(
+        function update(self, dt)
+            if game.time() > 0.5 then game.quit() end
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Menu", menu);
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 20);
+    CHECK_FALSE(game.quitRequested());
+    frames(game, 20);
+    CHECK(game.quitRequested());
+    CHECK(p.problems.empty());
+    game.start(scene);   // a new game starts fresh
+    CHECK_FALSE(game.quitRequested());
+}

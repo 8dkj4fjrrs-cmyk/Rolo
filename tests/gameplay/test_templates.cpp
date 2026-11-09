@@ -1,6 +1,7 @@
 // The New Project wizard's templates (templates/) and example games: listed,
 // copied into a new project as the wizard does, and played.
 
+#include "rolo/scene/Project.hpp"
 #include "support/PlayProject.hpp"
 #include "RoloResources.hpp"
 
@@ -286,6 +287,59 @@ TEST_CASE("The Platformer Starter's Controls screen remaps the jump, and keeps i
     const auto saved = p.saves.read(std::string(Game::kControlsSlot));
     REQUIRE(saved);
     CHECK(saved->find("jump=J,Pad A") != std::string::npos);
+    INFO(all(p.errors));
+    CHECK(p.errors.empty());
+}
+
+TEST_CASE("The Platformer Starter's pause menu uses Escape, opens the Controls and quits", "[templates][actions]")
+{
+    const auto list = listProjectTemplates(findRoloResources("/x/rolo_editor", HostOs::Linux, kSource, {}));
+    NewProject made;
+    std::string error;
+    REQUIRE(createProjectFromTemplate(find(list, "platformer"), made.folder, "My Game", &error));
+    // The project turned Escape-quits off, so the game can use Escape (kept in the copy).
+    const auto project = Project::open(made.folder);
+    REQUIRE(project);
+    CHECK(project->settings().name == "My Game");
+    CHECK_FALSE(project->settings().escapeQuits);
+    CHECK(project->settings().quickSaveKeys);
+
+    test::PlayProject p(made.folder);
+    REQUIRE(p.start());
+    Game& game = *p.game;
+    p.frames(30);
+    const auto active = [&](const char* name) { return game.scene().find(game.find(name))->isActive(); };
+    const EntityId hero = p.player();
+
+    p.tap(Key::Escape);   // pause
+    CHECK(active("Pause Panel"));
+    CHECK(p.text("Pause Text").find("> Resume") != std::string::npos);
+    const float x = game.worldPosition(hero).x;
+    game.input().press(Key::Right);   // the hero waits while the menu is open
+    p.frames(20);
+    game.input().release(Key::Right);
+    CHECK(game.worldPosition(hero).x == Catch::Approx(x).margin(1.0f));
+
+    p.tap(Key::Down);    // Controls
+    p.tap(Key::Enter);
+    p.frames(1);
+    CHECK(active("Controls Panel"));
+    CHECK_FALSE(active("Pause Panel"));
+    p.tap(Key::Escape);   // back to the pause menu
+    p.frames(1);
+    CHECK(active("Pause Panel"));
+    CHECK_FALSE(active("Controls Panel"));
+    p.tap(Key::Escape);   // resume
+    p.frames(1);
+    CHECK_FALSE(active("Pause Panel"));
+    CHECK_FALSE(game.quitRequested());
+
+    p.tap(Key::Escape);   // pause again, and Quit
+    p.tap(Key::Down);
+    p.tap(Key::Down);
+    CHECK(p.text("Pause Text").find("> Quit") != std::string::npos);
+    p.tap(Key::Enter);
+    CHECK(game.quitRequested());
     INFO(all(p.errors));
     CHECK(p.errors.empty());
 }

@@ -103,6 +103,10 @@ public:
     std::uint64_t frameCount() const noexcept { return m_frames; }
     /// Where the program reports keys and the mouse.
     Input& input() noexcept { return m_input; }
+    /// True once gameplay asked to quit (quit()). The program running the
+    /// game closes it: the player closes its window, the editor stops
+    /// playing.
+    bool quitRequested() const noexcept { return m_quitRequested; }
 
     // --- For behaviours -----------------------------------------------------------------------
     /// The scene being played (a copy; see above). Must be running.
@@ -193,6 +197,10 @@ public:
     bool save(std::string_view slot);
     /// Loads a slot at the end of this frame (its scene, progress, player position).
     void load(std::string_view slot);
+    /// Asks to end the game, e.g. from a menu's Quit button. The game
+    /// finishes this frame; then the player closes (in the editor, playing
+    /// stops). Save first if progress should be kept.
+    void quit();
     /// Changes what a Text says. Like the text written in the editor, it may
     /// contain {variable} and {button:action}, filled in every frame. (Setting
     /// Text::text directly is undone by that filling in: use this.)
@@ -292,6 +300,7 @@ private:
     double m_time = 0.0;
     float m_dt = 0.0f;
     std::uint64_t m_frames = 0;
+    bool m_quitRequested = false;
 
     std::vector<EntityId> m_toDestroy;
     std::optional<AssetId> m_nextScene;

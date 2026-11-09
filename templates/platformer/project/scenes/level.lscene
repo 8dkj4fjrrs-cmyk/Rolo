@@ -1215,7 +1215,7 @@
         },
         {
           "type": "rolo.Text",
-          "text": "{button:move left} {button:move right} run   {button:jump} jump   {button:controls} controls",
+          "text": "{button:move left} {button:move right} run   {button:jump} jump   {button:pause} menu",
           "source": "text",
           "font": null,
           "size": 18,
@@ -1329,6 +1329,70 @@
           "source": "text",
           "font": null,
           "size": 24,
+          "color": "#ffffffff",
+          "align": "left",
+          "width": 0
+        }
+      ]
+    },
+    {
+      "id": "504c010000000025",
+      "parent": "504c01000000001d",
+      "name": "Pause",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 0],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Script",
+          "script": "504c415400000012"
+        }
+      ]
+    },
+    {
+      "id": "504c010000000026",
+      "parent": "504c010000000025",
+      "name": "Pause Panel",
+      "active": false,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 70],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "rectangle",
+          "size": [560, 260],
+          "color": "#141c30f0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000027",
+      "parent": "504c010000000026",
+      "name": "Pause Text",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [-240, 100],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Text",
+          "text": "",
+          "source": "text",
+          "font": null,
+          "size": 26,
           "color": "#ffffffff",
           "align": "left",
           "width": 0

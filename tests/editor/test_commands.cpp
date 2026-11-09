@@ -478,6 +478,31 @@ TEST_CASE("The start scene is changed as an undoable step", "[editor][commands]"
     CHECK_FALSE(f.doc.execute(std::make_unique<SetStartScene>("../outside.lscene")));       // not in the project
 }
 
+TEST_CASE("The project's game options are changed through undoable steps", "[editor][commands]")
+{
+    AssetFixture a;
+    Fixture f;
+    f.doc.history().setAssets(a.db.get());
+    std::ofstream(a.folder / "project.rolo")
+        << R"({"format": "rolo.project", "version": 1, "name": "T", "startScene": "scenes/main.lscene"})";
+    const auto settings = [&] { return Project::open(a.folder)->settings(); };
+    REQUIRE(f.doc.execute(std::make_unique<SetGameOption>(SetGameOption::Option::EscapeQuits, false)));
+    CHECK_FALSE(settings().escapeQuits);
+    CHECK(settings().quickSaveKeys);
+    CHECK(settings().name == "T");   // the rest is kept
+    CHECK_FALSE(f.doc.isDirty());    // a project change, not a scene change
+    REQUIRE(f.doc.execute(std::make_unique<SetGameOption>(SetGameOption::Option::QuickSaveKeys, false)));
+    CHECK_FALSE(settings().quickSaveKeys);
+    REQUIRE(f.doc.undo());
+    CHECK(settings().quickSaveKeys);
+    CHECK_FALSE(settings().escapeQuits);
+    REQUIRE(f.doc.undo());
+    CHECK(settings().escapeQuits);
+    REQUIRE(f.doc.redo());
+    CHECK_FALSE(settings().escapeQuits);
+    CHECK_FALSE(f.doc.execute(std::make_unique<SetGameOption>(SetGameOption::Option::EscapeQuits, false)));   // already
+}
+
 TEST_CASE("Content files are edited through undoable steps", "[editor][commands][assets]")
 {
     AssetFixture a;

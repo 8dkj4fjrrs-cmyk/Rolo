@@ -49,6 +49,7 @@ void Game::start(const Scene& scene, AssetId sceneId)
     m_time = 0.0;
     m_dt = 0.0f;
     m_frames = 0;
+    m_quitRequested = false;
     m_toDestroy.clear();
     m_nextScene.reset();
     m_arriveAt.clear();
@@ -668,6 +669,14 @@ bool Game::save(std::string_view slot)
 void Game::load(std::string_view slot)
 {
     m_loadSlot = std::string(slot);
+}
+
+void Game::quit()
+{
+    if (!m_quitRequested) {
+        m_log.info(kCategory, "The game asked to quit.");
+    }
+    m_quitRequested = true;
 }
 
 // --- Collision ---------------------------------------------------------------------------------------

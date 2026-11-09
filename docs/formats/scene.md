@@ -36,6 +36,12 @@ My Game/
 | `version` | Format version (an integer). |
 | `name` | The game's name. |
 | `startScene` | The scene the player opens first. |
+| `escapeQuits` | Optional, `true` when left out. `false`: Escape does not close the game (it is an ordinary key; quit with `game.quit()`). |
+| `quickSaveKeys` | Optional, `true` when left out. `false`: F5 and F9 do not save and load the "quick" slot. |
+
+The two options are written only when `false`, so they need no new format
+version: files without them mean what they always did. (Rolo before 0.10
+ignores them: Escape quits and F5 / F9 save there.)
 
 **Paths inside a project are always relative to the project folder and use
 forward slashes** (`scenes/main.lscene`), on every operating system. Absolute

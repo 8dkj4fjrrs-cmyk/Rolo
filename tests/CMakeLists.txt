@@ -161,6 +161,30 @@ if(TARGET sample_game)
         FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|\\[WARN"
         TIMEOUT 120)
 
+    # Escape quits a game (the project's default), read from the game's own
+    # input so the Escape that cancels remapping does not quit.
+    add_test(NAME player.escape_quits
+        COMMAND rolo_player --project "${PROJECT_SOURCE_DIR}/examples/sample_game/project" --frames 600
+                --fixed-step --no-stats --save-dir "${CMAKE_CURRENT_BINARY_DIR}/player-test-escape-saves"
+                --tap Escape@20)
+    set_tests_properties(player.escape_quits PROPERTIES
+        PASS_REGULAR_EXPRESSION "Escape pressed; closing"
+        TIMEOUT 120)
+
+    # A project that turned Escape off: Escape is an ordinary key and the game plays on.
+    set(_escape_off "${CMAKE_CURRENT_BINARY_DIR}/escape-off")
+    file(REMOVE_RECURSE "${_escape_off}")
+    file(COPY "${PROJECT_SOURCE_DIR}/examples/sample_game/project/" DESTINATION "${_escape_off}"
+         PATTERN ".rolo-cache" EXCLUDE)
+    file(WRITE "${_escape_off}/project.rolo" "{\n  \"format\": \"rolo.project\",\n  \"version\": 1,\n  \"name\": \"Rolo Sample\",\n  \"startScene\": \"scenes/meadow.lscene\",\n  \"escapeQuits\": false\n}\n")
+    add_test(NAME player.escape_off
+        COMMAND rolo_player --project "${_escape_off}" --frames 60 --fixed-step --no-stats
+                --save-dir "${CMAKE_CURRENT_BINARY_DIR}/player-test-escape-off-saves" --tap Escape@20)
+    set_tests_properties(player.escape_off PROPERTIES
+        PASS_REGULAR_EXPRESSION "Showing scene 'Meadow'"
+        FAIL_REGULAR_EXPRESSION "Escape pressed|\\[ERROR\\]"
+        TIMEOUT 120)
+
     # The Lantern Keeper, with keys only: read the opening (five lines), walk
     # left and up to Keeper Maren, talk, and accept her request.
     add_test(NAME player.plays_lantern_keeper
