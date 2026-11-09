@@ -53,6 +53,8 @@ class ScriptHost {
     std::optional<std::string> start(Script& script, EntityId object);
     /// Runs the script's update(self, dt).
     std::optional<std::string> update(Script& script, EntityId object, float dt);
+    /// Runs the script's collide(self, other) (physics: its object started touching `other`).
+    std::optional<std::string> collide(Script& script, EntityId object, EntityId other);
     /// Frees a `self` table (its object is gone).
     void release(int self) noexcept;
 
@@ -85,10 +87,11 @@ class ScriptHost {
     // Calls the function on the stack below `arguments` arguments with the
     // instruction limit and an error handler. Nothing, or the error.
     std::optional<std::string> call(int arguments, const std::string& file);
-    // Calls the script's function `name` (start or update) with self (and
-    // dt); nothing to do if the script does not define it.
+    // Calls the script's function `name` (start, update or collide) with
+    // self (and dt, or the other object); nothing to do if the script does
+    // not define it.
     std::optional<std::string> call(Script& script, EntityId object, const char* name,
-                                    std::optional<float> dt);
+                                    std::optional<float> dt, EntityId other = {});
     void ensureSelf(Script& script, EntityId object);
 
     static void* allocate(void* ud, void* block, std::size_t oldSize, std::size_t newSize) noexcept;

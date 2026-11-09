@@ -1,0 +1,16 @@
+{
+  "format": "rolo.animations",
+  "version": 1,
+  "image": "504c415400000005",
+  "frameSize": [12, 12],
+  "margin": 0,
+  "spacing": 0,
+  "clips": [
+    {
+      "id": "spin",
+      "frames": [0, 1, 2, 3],
+      "fps": 8,
+      "loop": true
+    }
+  ]
+}

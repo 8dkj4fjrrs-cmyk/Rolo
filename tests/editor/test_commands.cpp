@@ -235,6 +235,20 @@ TEST_CASE("The scene can be renamed and renamed back", "[editor][commands]")
     CHECK(f.doc.scene().name() == "Test");
 }
 
+TEST_CASE("The scene's gravity changes as one undo step while dragging", "[editor][commands][physics]")
+{
+    Fixture f;
+    REQUIRE(f.doc.execute(std::make_unique<SetSceneGravity>(Vec2{0, -900})));
+    REQUIRE(f.doc.execute(std::make_unique<SetSceneGravity>(Vec2{0, -500})));
+    f.doc.history().breakMerge();
+    CHECK(f.doc.scene().gravity() == Vec2{0, -500});
+    CHECK(f.doc.isDirty());
+    CHECK(f.doc.history().undoLabel() == "Change Gravity");
+    f.doc.undo();
+    CHECK(f.doc.scene().gravity() == Scene::kDefaultGravity);
+    CHECK_FALSE(f.doc.execute(std::make_unique<SetSceneGravity>(Scene::kDefaultGravity)));   // no change
+}
+
 TEST_CASE("A tool drag changing several properties is one undo step", "[editor][commands]")
 {
     Fixture f;

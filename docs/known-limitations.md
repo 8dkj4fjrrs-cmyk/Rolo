@@ -48,8 +48,11 @@ Please report what you find.
 - The window is 1280 × 720 points. There is no fullscreen
   setting, title screen, pause menu or options menu. Escape quits at once,
   and **F5 / F9 save and load** in every game.
-- Collision uses axis-aligned boxes and tiles; there is no physics engine.
-  Rotated colliders use the box around them.
+- **Physics** ([guide](physics.md)) has no joints, one-way platforms, ray
+  casts or collision layers yet. Tilemaps changed while playing keep their
+  old collision for physics. `Game::move` and overlap queries use boxes (a
+  circle collider counts as the square around it; rotated colliders as the
+  box around them).
 - No lighting: the night in The Lantern Keeper is a dark overlay.
 - Text is one font size per Text object. There is no localisation.
 - Desktop only: no mobile or web.

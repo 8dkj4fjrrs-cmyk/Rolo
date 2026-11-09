@@ -142,6 +142,7 @@ ComponentRegistry ComponentRegistry::withBuiltins()
     static_cast<void>(registry.add(Camera::componentType()));
     static_cast<void>(registry.add(Tilemap::componentType()));
     static_cast<void>(registry.add(Collider::componentType()));
+    static_cast<void>(registry.add(RigidBody::componentType()));
     static_cast<void>(registry.add(Text::componentType()));
     static_cast<void>(registry.add(Animator::componentType()));
     return registry;
@@ -246,6 +247,41 @@ const ComponentType& Collider::componentType()
                       {.help = "Moves the box away from the object's centre, e.g. to cover only a character's feet."})
             .property("solid", "Solid", &Collider::solid,
                       {.help = "Solid colliders block movement. Turn off for areas such as doors and triggers."})
+            .property("shape", "Shape", &Collider::shape,
+                      {.choices = {"box", "circle", "capsule"},
+                       .help = "Box, the largest circle inside the box, or a capsule (the box with round ends: good "
+                               "for characters). The shape matters to physics; other collision uses the box."})
+            .build();
+    return type;
+}
+
+const ComponentType& RigidBody::componentType()
+{
+    static const ComponentType type =
+        ComponentTypeBuilder<RigidBody>("rolo.RigidBody", "Rigid Body")
+            .category("Physics")
+            .description("Physics moves this object: it falls with the scene's gravity, collides, is pushed and "
+                         "bounces. Needs a Collider (its shape). Set the gravity on the scene (select the scene "
+                         "in the Hierarchy).")
+            .property("bodyType", "Type", &RigidBody::type,
+                      {.choices = {"dynamic", "kinematic", "static"},
+                       .help = "Dynamic: physics moves it. Kinematic: only code moves it (setVelocity), and it "
+                               "pushes dynamic bodies, like a moving platform. Static: never moves."})
+            .property("mass", "Mass", &RigidBody::mass,
+                      {.min = 0.001f, .step = 0.1f, .help = "How heavy it is: heavy things push light things.", .unit = "kg"})
+            .property("gravityScale", "Gravity Scale", &RigidBody::gravityScale,
+                      {.step = 0.1f, .help = "1: the scene's gravity. 0: floats. Negative: falls upwards."})
+            .property("friction", "Friction", &RigidBody::friction,
+                      {.min = 0.0f, .max = 2.0f, .step = 0.05f, .help = "0: slides like ice. 1: grips like rubber."})
+            .property("bounciness", "Bounciness", &RigidBody::bounciness,
+                      {.min = 0.0f, .max = 1.0f, .step = 0.05f, .help = "0: lands with a thud. 1: bounces back as high."})
+            .property("drag", "Drag", &RigidBody::drag,
+                      {.min = 0.0f, .step = 0.1f, .help = "Slows it down as it moves, like air or water."})
+            .property("lockRotation", "Lock Rotation", &RigidBody::lockRotation,
+                      {.help = "Never turns over: for characters."})
+            .property("fast", "Fast Moving", &RigidBody::fast,
+                      {.help = "For small, fast things (bullets): checked continuously so they never pass "
+                               "through walls. Costs a little more."})
             .build();
     return type;
 }

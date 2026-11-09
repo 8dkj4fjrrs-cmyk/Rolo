@@ -92,6 +92,12 @@ public:
     const std::string& name() const noexcept { return m_name; }
     void setName(std::string name);
 
+    /// The pull of gravity on RigidBodies, in points per second per second
+    /// (y up). Platformers keep the default; top-down games set {0, 0}.
+    static constexpr Vec2 kDefaultGravity{0.0f, -980.0f};
+    Vec2 gravity() const noexcept { return m_gravity; }
+    void setGravity(Vec2 gravity);
+
     /// Increases with every change.
     std::uint64_t revision() const noexcept { return m_revision; }
     /// Increases with every change except moving, rotating or scaling
@@ -195,6 +201,7 @@ private:
     bool isEffectivelyActive(const Entity& entity) const;
 
     std::string m_name;
+    Vec2 m_gravity = kDefaultGravity;
     std::unordered_map<EntityId, std::unique_ptr<Entity>> m_entities;
     std::vector<EntityId> m_roots;
     EntityIdGenerator m_ids;

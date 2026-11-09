@@ -8,7 +8,7 @@ Large dependencies are not copied into this repository: Axmol is downloaded
 by CMake into `external/` at a pinned commit (see `cmake/RoloAxmol.cmake`).
 Small ones are kept in the repository, unmodified and with their license
 files: `third_party/stb/stb_truetype.h`, `third_party/stb/stb_image.h`, Lua's
-sources in `third_party/lua/`, miniaudio and stb_vorbis in `third_party/miniaudio/` and the Inter fonts in `assets/fonts/`.
+sources in `third_party/lua/`, miniaudio and stb_vorbis in `third_party/miniaudio/`, Box2D in `third_party/box2d/` and the Inter fonts in `assets/fonts/`.
 
 ## Runtime backend
 
@@ -108,6 +108,16 @@ Kept in this repository, unmodified, with their license texts (see
 Axmol's own audio, which needs the LGPL-licensed OpenAL Soft. Neither license
 requires a notice in games; `licenses/miniaudio.txt` and
 `licenses/stb-vorbis.txt` go with every game anyway.
+
+## Physics (`engine/physics`)
+
+| Component | Version | License | Shipped? |
+|---|---|---|---|
+| [Box2D](https://github.com/erincatto/box2d) (`third_party/box2d/`) | 3.2.0 (`178495b`) | MIT | Yes: physics in the editor's play mode and in games |
+
+Kept in this repository, unmodified, with its license file; only the
+library (`include/`, `src/`) is copied (see `third_party/box2d/README.md`
+and ADR 0016). Its MIT notice goes with every game in `licenses/box2d.txt`.
 
 ## Rolo UI (the editor's interface toolkit, `engine/ui`)
 

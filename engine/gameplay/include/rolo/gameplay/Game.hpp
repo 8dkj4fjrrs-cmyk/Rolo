@@ -47,6 +47,7 @@
 
 namespace rolo {
 
+class PhysicsSync;
 class ScriptHost;
 struct Script;
 
@@ -193,6 +194,31 @@ public:
     /// The prompt for what the player can interact with now, e.g. "[E] Talk".
     const std::string& interactionPrompt() const noexcept { return m_prompt; }
 
+    // --- Physics (RigidBody; see docs/physics.md) -----------------------------------------------------
+    // These work on objects with a body: a RigidBody (and a Collider), in a
+    // scene with physics. Elsewhere they do nothing (and return 0 or false).
+    /// Speed in points per second.
+    Vec2 velocity(EntityId id) const;
+    void setVelocity(EntityId id, Vec2 velocity);
+    /// Turning speed in degrees per second, clockwise.
+    float spin(EntityId id) const;
+    void setSpin(EntityId id, float degreesPerSecond);
+    /// A sudden push (a jump, a hit), in kg·points per second: a 1 kg body
+    /// pushed by {0, 500} gains 500 points per second upwards.
+    void applyImpulse(EntityId id, Vec2 impulse);
+    /// A steady push for this frame (wind, a thruster), in kg·points/s².
+    void applyForce(EntityId id, Vec2 force);
+    /// True if the object rests on something: it touches a surface below it
+    /// (against the scene's gravity).
+    bool isOnGround(EntityId id) const;
+    /// The objects the object's body touches now (tiles are not objects).
+    std::vector<EntityId> touching(EntityId id) const;
+    /// The scene's gravity, in points per second per second (y up).
+    Vec2 gravity() const;
+    void setGravity(Vec2 gravity);
+    /// True once physics runs (the scene has a RigidBody).
+    bool hasPhysics() const noexcept;
+
     // --- Sound (see Sound.hpp) ---------------------------------------------------------------------
     /// The program's audio: channel volumes, stopping effects. Silent if the
     /// program has none (the game works the same, without sound).
@@ -237,6 +263,7 @@ private:
     std::shared_ptr<ScriptHost> scriptHost();
     void beginScene(Scene scene, AssetId id);
     void handleDialogueInput();
+    void deliverCollisions();
     void updateSounds();
     void stopObjectSounds();
     void runBehaviours();
@@ -273,6 +300,7 @@ private:
     std::string m_shownLine;                          // to notice a new line (resets the choice)
     std::shared_ptr<ScriptHost> m_scripts;            // Lua scripts' state; dropped when the game stops
     SilentSoundPlayer m_silence;                      // sound() when the program has no audio
+    std::unique_ptr<PhysicsSync> m_physics;           // physics of the scene being played
     std::set<EntityId> m_soundObjects;                // objects whose Sound has started (active ones)
     struct ObjectSound {
         SoundHandle handle = 0;

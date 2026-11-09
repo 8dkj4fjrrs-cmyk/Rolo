@@ -1,0 +1,5 @@
+{
+  "name": "Platformer Starter",
+  "description": "A side-view level with physics: run and jump, push crates, bounce balls, ride a lift, collect coins and reach the flag. The hero is a Lua script.",
+  "order": 3
+}

@@ -110,15 +110,54 @@ struct Text : ComponentBase<Text> {
     static const ComponentType& componentType();
 };
 
-/// A box used for collision, centred on the entity (moved by `offset`), in
+/// The outline of a Collider, always fitted inside its box (`size`):
+///   Box      the box itself;
+///   Circle   the largest circle inside it (its diameter is the smaller of
+///            the width and the height);
+///   Capsule  the box with fully rounded ends: a pill, upright when the box is
+///            taller than wide. Good for characters: it slides over the
+///            seams between tiles and up small steps.
+/// The shape matters to physics (RigidBody). Overlap queries and Game::move
+/// use the box around it (for a circle, the square around the circle).
+enum class ColliderShape { Box, Circle, Capsule };
+
+/// A shape used for collision, centred on the entity (moved by `offset`), in
 /// the entity's own coordinates. Gameplay code asks about colliders through
 /// rolo::Game: solid colliders block movement (Game::move), and every
 /// collider is found by overlap queries (e.g. a door or a pickup area).
 /// Rotated objects use the box that encloses their rotated collider.
+/// With a RigidBody, physics moves the object and the collider is its shape.
 struct Collider : ComponentBase<Collider> {
     Vec2 size{32.0f, 32.0f};
     Vec2 offset;
     bool solid = true;
+    ColliderShape shape = ColliderShape::Box;
+
+    static const ComponentType& componentType();
+};
+
+/// How physics treats a RigidBody.
+///   Dynamic    falls, is pushed, bounces: physics moves it (a crate, a ball,
+///              a platformer's hero);
+///   Kinematic  moves only as code or scripts say (setVelocity), and pushes
+///              dynamic bodies out of its way (a moving platform);
+///   Static     never moves (a wall). Colliders without a RigidBody are
+///              static too; this type gives one a friction and bounciness.
+enum class BodyType { Dynamic, Kinematic, Static };
+
+/// Makes an object take part in physics (2D rigid bodies, built on Box2D;
+/// see rolo/physics). Needs a Collider on the same object: its shape is the
+/// body's shape. Physics only runs in scenes that have at least one RigidBody,
+/// so games that do not use it work exactly as before.
+struct RigidBody : ComponentBase<RigidBody> {
+    BodyType type = BodyType::Dynamic;
+    float mass = 1.0f;            // kilograms, for the whole body
+    float gravityScale = 1.0f;    // 0: floats; 2: falls twice as fast
+    float friction = 0.4f;        // 0 ice to 1 rubber
+    float bounciness = 0.0f;      // 0 thuds to 1 bounces back as high
+    float drag = 0.0f;            // slows it down in the air (linear damping)
+    bool lockRotation = false;    // never turns (characters)
+    bool fast = false;            // fast and small: checked continuously so it never passes through walls
 
     static const ComponentType& componentType();
 };

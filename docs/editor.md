@@ -226,6 +226,15 @@ the Console; Play does the same each time it starts.
 A **Trigger** on an object shows *Only If* and its *Actions* the same way,
 below its other settings.
 
+## Physics
+
+Add a **Rigid Body** (**Add Component › Physics**) to an object with a
+**Collider** and press Play: it falls, lands, and pushes and is pushed. A
+Collider's **Shape** can be a box, a circle or a capsule; the Scene view
+draws each as its shape (orange for objects with a Rigid Body). Select the
+scene in the Hierarchy to set its **Gravity** in the Inspector, or press
+**Platformer** (down) or **Top-Down** (none). See the [physics guide](physics.md).
+
 ## Tilemaps
 
 1. Make a **tileset**: select an image of tiles in Assets and click **Create

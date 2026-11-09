@@ -1080,22 +1080,56 @@ private:
 
     // Colliders as outlines: green blocks movement, blue is an area (a door,
     // a pick-up) that gameplay code notices.
+    // Each collider is drawn as its shape (box, circle or capsule), turned with
+    // its object; objects with a Rigid Body are drawn in orange.
     void paintColliders(ui::DrawList& draw) const
     {
         const Scene& scene = m_editor.document().scene();
         scene.forEach([&](const Entity& entity, int) {
             const Collider* collider = entity.get<Collider>();
-            const auto box = collider != nullptr ? colliderBox(scene, entity.id()) : std::nullopt;
-            if (!box) {
-                return;
+            if (collider == nullptr || !colliderBox(scene, entity.id())) {
+                return;   // none, or switched off
             }
-            const ui::Vec2 a = toScreen(box->min);
-            const ui::Vec2 c = toScreen(box->max);
-            const ui::Rect r{std::round(a.x) + 0.5f, std::round(c.y) + 0.5f, std::round(c.x - a.x), std::round(a.y - c.y)};
-            const ui::Color color = collider->solid ? ui::Color{111, 207, 79, 200} : ui::Color{86, 168, 245, 200};
-            draw.fillRect(r, color.fade(0.12f));
-            draw.strokeRoundedRect(r, 0.0f, color, 1.0f);
+            const Affine2 world = scene.worldTransform(entity.id());
+            const std::vector<Vec2> outline = colliderOutline(*collider);
+            std::vector<ui::Vec2> points;
+            points.reserve(outline.size());
+            for (const Vec2 p : outline) {
+                points.push_back(toScreen(world.apply(p)));
+            }
+            const ui::Color color = entity.get<RigidBody>() != nullptr ? ui::Color{242, 169, 59, 220}
+                                    : collider->solid                  ? ui::Color{111, 207, 79, 200}
+                                                                       : ui::Color{86, 168, 245, 200};
+            draw.fillConvexPolygon(points, color.fade(0.12f));
+            draw.polyline(points, color, 1.0f, true);
         });
+    }
+
+    // A collider's outline in its object's own coordinates (see ColliderShape).
+    static std::vector<Vec2> colliderOutline(const Collider& c)
+    {
+        const float hw = c.size.x * 0.5f;
+        const float hh = c.size.y * 0.5f;
+        const Vec2 o = c.offset;
+        std::vector<Vec2> out;
+        if (c.shape == ColliderShape::Box) {
+            return {{o.x - hw, o.y - hh}, {o.x + hw, o.y - hh}, {o.x + hw, o.y + hh}, {o.x - hw, o.y + hh}};
+        }
+        const float r = std::min(hw, hh);
+        // A capsule's two end circles sit along its long side; a circle's coincide.
+        const Vec2 reach = c.shape == ColliderShape::Circle ? Vec2{} : hh >= hw ? Vec2{0.0f, hh - r} : Vec2{hw - r, 0.0f};
+        constexpr int kSteps = 16;   // per half circle
+        for (int end = 0; end < 2; ++end) {
+            const Vec2 centre = end == 0 ? o + reach : o - reach;
+            // Each end draws the half circle facing away from the other.
+            const float start = std::atan2(reach.y, reach.x) - 1.5707963f + (end == 0 ? 0.0f : 3.1415927f);
+            const float startAngle = (reach.x == 0.0f && reach.y == 0.0f) ? (end == 0 ? 0.0f : 3.1415927f) : start;
+            for (int i = 0; i <= kSteps; ++i) {
+                const float a = startAngle + 3.1415927f * static_cast<float>(i) / kSteps;
+                out.push_back({centre.x + std::cos(a) * r, centre.y + std::sin(a) * r});
+            }
+        }
+        return out;
     }
 
     void paintGameFrame(ui::Context& ctx, ui::DrawList& draw) const

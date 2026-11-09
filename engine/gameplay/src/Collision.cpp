@@ -115,8 +115,11 @@ std::optional<Box> colliderBox(const Scene& scene, EntityId id)
         return std::nullopt;
     }
     const Affine2 world = scene.worldTransform(id);
-    const float hw = c->size.x * 0.5f;
-    const float hh = c->size.y * 0.5f;
+    float hw = c->size.x * 0.5f;
+    float hh = c->size.y * 0.5f;
+    if (c->shape == ColliderShape::Circle) {
+        hw = hh = std::min(hw, hh);   // the square around the circle
+    }
     const Vec2 o = c->offset;
     return boundsOf({world.apply({o.x - hw, o.y - hh}), world.apply({o.x + hw, o.y - hh}),
                      world.apply({o.x + hw, o.y + hh}), world.apply({o.x - hw, o.y + hh})});

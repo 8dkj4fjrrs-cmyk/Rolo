@@ -41,6 +41,7 @@ Scene::Scene(std::string name, EntityIdGenerator generator)
 
 Scene::Scene(const Scene& other)
     : m_name(other.m_name)
+    , m_gravity(other.m_gravity)
     , m_roots(other.m_roots)
     , m_ids(other.m_ids)
     , m_revision(other.m_revision)
@@ -73,6 +74,14 @@ void Scene::setName(std::string name)
 {
     m_name = std::move(name);
     markChanged();
+}
+
+void Scene::setGravity(Vec2 gravity)
+{
+    if (std::isfinite(gravity.x) && std::isfinite(gravity.y) && gravity != m_gravity) {
+        m_gravity = gravity;
+        markChanged();
+    }
 }
 
 // --- Reading ---------------------------------------------------------------------------

@@ -62,6 +62,7 @@ project to a game you can share in half an hour.
 * [Getting started](docs/getting-started.md): your first game, step by step
 * [Editor guide](docs/editor.md): every panel and tool
 * [Scripting in Lua](docs/scripting.md): gameplay code without a compiler, with the full API
+* [Physics](docs/physics.md): rigid bodies, colliders, gravity, and scripts that move them
 * [Sound and music](docs/sound.md): effects, music and volumes, with or without code
 * [Gameplay in C++](docs/gameplay.md): behaviours and game modules (Rolo built from source)
 * [Exporting games](docs/exporting.md): making a program to share
@@ -118,6 +119,10 @@ Some highlights:
   - sandboxed, so scripts cannot reach files or programs;
   - errors point at the file and line;
   - endless loops are stopped.
+- **2D physics** (Box2D): Rigid Bodies that fall, bounce and push, box,
+  circle and capsule colliders, solid tiles as floors and walls, and gravity
+  per scene (down for platformers, none for top-down games). Scripts set
+  velocities, jump and hear collisions.
 - **Sound and music**: WAV, OGG and MP3, from a Sound component, trigger
   actions or scripts. Music fades between scenes, and carries on when the
   next scene has the same piece.
@@ -126,6 +131,7 @@ Some highlights:
 - **New Project wizard**:
   - an Empty project;
   - a **Top-Down Starter** that plays at once;
+  - a **Platformer Starter** with physics;
   - a copy of the demo game.
 - **Exporting**: **Build** checks the whole project, then makes a
   stand-alone game with the license texts it must carry (an app bundle on

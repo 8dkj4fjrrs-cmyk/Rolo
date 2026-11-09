@@ -12,6 +12,14 @@ holds `template.json` (the name and description the wizard shows) and the
   (`scripts/firefly.lua`). It is made by `tools/make_starter.py` from a
   fresh project, using art from The Lantern Keeper (original, MIT).
 
+- `platformer/`: the **Platformer Starter**, a side-view level with
+  physics (ADR 0016): a hero who runs and jumps (`scripts/player.lua`, a
+  Rigid Body moved by its velocity), crates, bouncy balls, a lift
+  (`scripts/lift.lua`), coins (Triggers) and a flag. It is made by
+  `tools/make_platformer.py` from a fresh project; its art and sounds are
+  drawn and synthesised by that script (original, MIT), and the hero is The
+  Lantern Keeper's.
+
 To add a template, put a Rolo project in `<name>/project/` and describe it
 in `<name>/template.json`:
 

@@ -226,7 +226,7 @@ void ScriptHost::ensureSelf(Script& script, EntityId object)
 }
 
 std::optional<std::string> ScriptHost::call(Script& script, EntityId object, const char* name,
-                                            std::optional<float> dt)
+                                            std::optional<float> dt, EntityId other)
 {
     std::string error;
     if (!pushEnvironment(script.script, error)) {
@@ -244,6 +244,9 @@ std::optional<std::string> ScriptHost::call(Script& script, EntityId object, con
     if (dt) {
         lua_pushnumber(m_L, static_cast<lua_Number>(*dt));
         arguments = 2;
+    } else if (!other.isNull()) {
+        pushObjectForScripts(m_L, other);
+        arguments = 2;
     }
     return call(arguments, m_files.at(script.script).path);
 }
@@ -256,6 +259,11 @@ std::optional<std::string> ScriptHost::start(Script& script, EntityId object)
 std::optional<std::string> ScriptHost::update(Script& script, EntityId object, float dt)
 {
     return call(script, object, "update", dt);
+}
+
+std::optional<std::string> ScriptHost::collide(Script& script, EntityId object, EntityId other)
+{
+    return call(script, object, "collide", std::nullopt, other);
 }
 
 void ScriptHost::release(int self) noexcept
@@ -388,6 +396,14 @@ void Script::update(Game& game, float dt)
 {
     const std::shared_ptr<ScriptHost> host = game.scriptHost();
     if (auto error = host->update(*this, entity(), dt)) {
+        throw std::runtime_error(*error);
+    }
+}
+
+void Script::collide(Game& game, EntityId other)
+{
+    const std::shared_ptr<ScriptHost> host = game.scriptHost();
+    if (auto error = host->collide(*this, entity(), other)) {
         throw std::runtime_error(*error);
     }
 }

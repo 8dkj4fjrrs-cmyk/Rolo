@@ -5,9 +5,11 @@
 #include "rolo/gameplay/Behaviour.hpp"
 #include "rolo/gameplay/Components.hpp"
 
+#include "PhysicsSync.hpp"
 #include "ScriptHost.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <exception>
 
 namespace rolo {
@@ -26,6 +28,7 @@ Game::Game(const Logger& log, GameSetup setup)
     }
     m_runner = std::make_unique<ContentRunner>(*m_setup.content, m_log);
     m_runner->setHost(this);
+    m_physics = std::make_unique<PhysicsSync>(m_setup.assets);
 }
 
 Game::Game(const Logger& log, const AssetDatabase* assets, SceneLoader loader)
@@ -70,6 +73,7 @@ void Game::stop()
     }
     m_soundObjects.clear();
     m_objectSounds.clear();
+    m_physics->reset();
     m_scene.reset();
     m_scripts.reset();
     m_toDestroy.clear();
@@ -99,6 +103,7 @@ void Game::beginScene(Scene scene, AssetId id)
     });
     m_triggers.clear();
     m_prompt.clear();
+    m_physics->reset();   // the new scene gets its own physics (if it has RigidBodies)
     // The old scene's looping sounds stop; short effects and the music carry
     // on (a new scene with the same music continues it).
     stopObjectSounds();
@@ -156,7 +161,12 @@ void Game::update(float dt)
         handleDialogueInput();
     }
     updateSounds();
+    m_physics->sync(*m_scene);   // bodies for new objects, before behaviours push them
     runBehaviours();
+    if (m_scene != nullptr) {
+        m_physics->step(*m_scene, m_dt);
+        deliverCollisions();
+    }
     if (m_scene != nullptr) {
         runTriggers(talking);
         m_runner->update(m_dt);
@@ -834,6 +844,160 @@ void Game::stopObjectSounds()
     }
     m_objectSounds.clear();
     m_soundObjects.clear();
+}
+
+} // namespace rolo
+
+namespace rolo {
+
+// --- Physics -----------------------------------------------------------------------------------------------
+
+namespace {
+
+Vec2 normalised(Vec2 v)
+{
+    const float length = std::sqrt(v.x * v.x + v.y * v.y);
+    return length > 1e-6f ? Vec2{v.x / length, v.y / length} : Vec2{};
+}
+
+} // namespace
+
+bool Game::hasPhysics() const noexcept
+{
+    return m_physics->isRunning();
+}
+
+Vec2 Game::velocity(EntityId id) const
+{
+    const BodyHandle body = m_physics->bodyOf(id);
+    return body.isNull() ? Vec2{} : m_physics->world()->velocity(body);
+}
+
+void Game::setVelocity(EntityId id, Vec2 velocity)
+{
+    if (const BodyHandle body = m_physics->bodyOf(id); !body.isNull()) {
+        m_physics->world()->setVelocity(body, velocity);
+    }
+}
+
+float Game::spin(EntityId id) const
+{
+    const BodyHandle body = m_physics->bodyOf(id);
+    return body.isNull() ? 0.0f : m_physics->world()->angularVelocity(body);
+}
+
+void Game::setSpin(EntityId id, float degreesPerSecond)
+{
+    if (const BodyHandle body = m_physics->bodyOf(id); !body.isNull()) {
+        m_physics->world()->setAngularVelocity(body, degreesPerSecond);
+    }
+}
+
+void Game::applyImpulse(EntityId id, Vec2 impulse)
+{
+    if (const BodyHandle body = m_physics->bodyOf(id); !body.isNull()) {
+        m_physics->world()->applyImpulse(body, impulse);
+    }
+}
+
+void Game::applyForce(EntityId id, Vec2 force)
+{
+    if (const BodyHandle body = m_physics->bodyOf(id); !body.isNull()) {
+        m_physics->world()->applyForce(body, force);
+    }
+}
+
+bool Game::isOnGround(EntityId id) const
+{
+    const BodyHandle body = m_physics->bodyOf(id);
+    if (body.isNull() || m_scene == nullptr) {
+        return false;
+    }
+    // "Up" is against gravity (and its scale on this body: a body falling
+    // upwards stands on ceilings).
+    float scale = 1.0f;
+    if (const Entity* e = m_scene->find(id); e != nullptr && e->get<RigidBody>() != nullptr) {
+        scale = e->get<RigidBody>()->gravityScale;
+    }
+    const Vec2 g = m_scene->gravity();
+    const Vec2 up = normalised({-g.x * scale, -g.y * scale});
+    if (up.x == 0.0f && up.y == 0.0f) {
+        return false;   // no gravity: nothing is "below"
+    }
+    for (const BodyContact& contact : m_physics->world()->contacts(body)) {
+        // The normal points from what it touches towards it: from the ground, upwards.
+        if (contact.normal.x * up.x + contact.normal.y * up.y > 0.7f) {   // surfaces up to about 45° count
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<EntityId> Game::touching(EntityId id) const
+{
+    std::vector<EntityId> out;
+    const BodyHandle body = m_physics->bodyOf(id);
+    if (body.isNull()) {
+        return out;
+    }
+    for (const BodyContact& contact : m_physics->world()->contacts(body)) {
+        const EntityId other{contact.other};
+        if (!other.isNull() && std::find(out.begin(), out.end(), other) == out.end()) {
+            out.push_back(other);
+        }
+    }
+    return out;
+}
+
+Vec2 Game::gravity() const
+{
+    return m_scene != nullptr ? m_scene->gravity() : Scene::kDefaultGravity;
+}
+
+void Game::setGravity(Vec2 gravity)
+{
+    if (m_scene != nullptr) {
+        m_scene->setGravity(gravity);   // the game's copy; physics picks it up next frame
+    }
+}
+
+// Tells the behaviours of both objects that they started touching.
+void Game::deliverCollisions()
+{
+    const auto deliver = [this](EntityId self, EntityId other) {
+        const Entity* entity = m_scene != nullptr ? m_scene->find(self) : nullptr;
+        if (entity == nullptr || !isActiveInScene(*entity)) {
+            return;
+        }
+        std::vector<std::string> types;
+        for (const auto& component : entity->components()) {
+            if (dynamic_cast<const Behaviour*>(component.get()) != nullptr) {
+                types.push_back(component->type().id);
+            }
+        }
+        for (const std::string& type : types) {
+            entity = m_scene != nullptr ? m_scene->find(self) : nullptr;
+            auto* behaviour = entity != nullptr
+                                  ? const_cast<Behaviour*>(dynamic_cast<const Behaviour*>(entity->component(type)))
+                                  : nullptr;
+            if (behaviour == nullptr || behaviour->m_failed || !behaviour->m_started) {
+                continue;
+            }
+            try {
+                behaviour->collide(*this, other);
+            } catch (const std::exception& error) {
+                behaviour->m_failed = true;
+                m_log.error(kCategory, behaviour->type().displayName + " on '" + entity->name()
+                                           + "' failed in collide(): " + error.what()
+                                           + ". It is switched off until the game is played again.");
+            }
+        }
+    };
+    const auto hits = m_physics->hits();   // a copy: behaviours may change the scene
+    for (const auto& [a, b] : hits) {
+        deliver(a, b);
+        deliver(b, a);
+    }
 }
 
 } // namespace rolo

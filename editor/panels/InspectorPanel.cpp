@@ -217,6 +217,41 @@ void InspectorPanel::buildScene(ui::Column& content)
         }
         file.setText(where + (doc.isDirty() ? "  (unsaved changes)" : ""));
     });
+
+    // Physics: only Rigid Bodies feel gravity, so it matters only once the scene has one.
+    auto& physics = content.emplace<ui::Section>("Physics");
+    auto& gravityRow = physics.body().emplace<ui::PropertyField>("Gravity");
+    gravityRow.setTooltip("The pull on Rigid Bodies, in points per second per second. Platformers: 0, -980 "
+                          "(down). Top-down games: 0, 0.");
+    auto& gx = gravityRow.addValue(std::make_unique<ui::NumberField>());
+    auto& gy = gravityRow.addValue(std::make_unique<ui::NumberField>());
+    for (ui::NumberField* f : {&gx, &gy}) {
+        f->setStep(10.0f);
+        f->setOnEditEnd([this] { m_editor.endEdit(); });
+    }
+    gx.setSuffix("X");
+    gy.setSuffix("Y");
+    gx.setOnValue([this](float v) {
+        m_editor.execute(std::make_unique<SetSceneGravity>(Vec2{v, m_editor.document().scene().gravity().y}));
+    });
+    gy.setOnValue([this](float v) {
+        m_editor.execute(std::make_unique<SetSceneGravity>(Vec2{m_editor.document().scene().gravity().x, v}));
+    });
+    auto& presets = physics.body().emplace<ui::Row>(6.0f);
+    presets.emplace<ui::Button>("Platformer", [this] {
+        m_editor.endEdit();
+        m_editor.execute(std::make_unique<SetSceneGravity>(Scene::kDefaultGravity));
+        m_editor.endEdit();
+    }).setTooltip("Gravity pulls down (0, -980): for platformers and anything seen from the side");
+    presets.emplace<ui::Button>("Top-Down", [this] {
+        m_editor.endEdit();
+        m_editor.execute(std::make_unique<SetSceneGravity>(Vec2{0.0f, 0.0f}));
+        m_editor.endEdit();
+    }).setTooltip("No gravity (0, 0): for games seen from above, where things slide but never fall");
+    m_refresh.push_back([this, &gx, &gy] {
+        gx.setValue(m_editor.document().scene().gravity().x);
+        gy.setValue(m_editor.document().scene().gravity().y);
+    });
 }
 
 // --- An entity ---------------------------------------------------------------------------------

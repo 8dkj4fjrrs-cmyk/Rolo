@@ -47,8 +47,9 @@ each object that has a **Script** component pointing at the file:
 |---|---|
 | `start(self)` | once, in the first frame the object is in the game |
 | `update(self, dt)` | every frame after that; `dt` is the time since the last frame, in seconds (about 1/60) |
+| `collide(self, other)` | physics: when the object starts touching `other` (see [Physics](#physics)) |
 
-Both are optional. Code outside any function runs once, when the file is
+All are optional. Code outside any function runs once, when the file is
 first used. Put settings and helper functions there.
 
 **`self`** is a table that belongs to one object. Put the object's own state
@@ -201,6 +202,26 @@ Key names, in any case:
   either side;
 - `"f1"` to `"f12"`;
 - `"mouse left"`, `"mouse right"`, `"mouse middle"`.
+
+### Physics
+
+For objects with a **Rigid Body** (see the [physics guide](physics.md)).
+Using these on an object without one is an error that says so.
+
+| Function | What it does |
+|---|---|
+| `obj:velocity()` | its speed, `x, y`, in points per second |
+| `obj:setVelocity(x, y)` | sets its speed |
+| `obj:applyImpulse(x, y)` | a sudden push, in kg·points/s: a 1 kg body pushed by `0, 500` gains 500 points per second upwards |
+| `obj:applyForce(x, y)` | a steady push for this frame, in kg·points/s² |
+| `obj:spin()`, `obj:setSpin(degrees)` | turning speed, degrees per second, clockwise |
+| `obj:isOnGround()` | true if it stands on something (below it, against gravity) |
+| `obj:contacts()` | a list of the objects it touches now |
+| `game.gravity()`, `game.setGravity(x, y)` | the scene's gravity, points per second per second (while the game runs) |
+
+A script can also define `collide(self, other)`: it is called when the
+object starts touching `other` (another object with a Collider; tiles are
+not objects).
 
 ### `audio`
 

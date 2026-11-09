@@ -53,8 +53,10 @@ add_executable(rolo_tests
     content/test_save.cpp
     content/test_notation.cpp
     audio/test_audio_engine.cpp
-    gameplay/test_sound.cpp)
-target_link_libraries(rolo_tests PRIVATE rolo::core rolo::scene rolo::assets rolo::content rolo::gameplay rolo::audio rolo::ui rolo_editor_core Catch2::Catch2WithMain)
+    physics/test_physics_world.cpp
+    gameplay/test_sound.cpp
+    gameplay/test_physics.cpp)
+target_link_libraries(rolo_tests PRIVATE rolo::core rolo::scene rolo::assets rolo::content rolo::gameplay rolo::audio rolo::physics rolo::ui rolo_editor_core Catch2::Catch2WithMain)
 if(TARGET sample_game)
     target_sources(rolo_tests PRIVATE gameplay/test_sample_game.cpp gameplay/test_lantern_keeper.cpp
         gameplay/test_templates.cpp)

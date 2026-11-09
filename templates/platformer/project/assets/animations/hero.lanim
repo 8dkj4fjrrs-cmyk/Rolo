@@ -1,0 +1,34 @@
+{
+  "format": "rolo.animations",
+  "version": 1,
+  "image": "504c415400000002",
+  "frameSize": [16, 24],
+  "margin": 0,
+  "spacing": 0,
+  "clips": [
+    {
+      "id": "idle_left",
+      "frames": [3],
+      "fps": 1,
+      "loop": true
+    },
+    {
+      "id": "walk_left",
+      "frames": [4, 3, 5, 3],
+      "fps": 10,
+      "loop": true
+    },
+    {
+      "id": "idle_right",
+      "frames": [6],
+      "fps": 1,
+      "loop": true
+    },
+    {
+      "id": "walk_right",
+      "frames": [7, 6, 8, 6],
+      "fps": 10,
+      "loop": true
+    }
+  ]
+}

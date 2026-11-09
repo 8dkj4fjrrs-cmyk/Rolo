@@ -35,6 +35,8 @@ and AI assistants.
 - Sound: games ask for it through `rolo::SoundPlayer` (`engine/gameplay`, `Sound.hpp`), never a
   backend. miniaudio stays inside `engine/audio/src/AudioEngine.cpp` (ADR 0015); nothing else
   includes it.
+- Physics: Box2D stays inside `engine/physics/src/PhysicsWorld.cpp` (ADR 0016); the rest of Rolo uses
+  `rolo::PhysicsWorld` in points and clockwise degrees. Physics runs only in scenes with a RigidBody.
 - RPG content (`engine/content`) is data: conditions and actions are a fixed, typed set, never code or
   free expressions. Authored definitions (variables, dialogues, quests) stay apart from progress
   (`GameState`, save files). New action or condition types need the JSON form, the written form

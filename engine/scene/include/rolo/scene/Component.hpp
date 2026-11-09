@@ -30,6 +30,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -205,6 +206,13 @@ public:
     template <class M>
     ComponentTypeBuilder& property(std::string key, std::string label, M T::*member, PropertyOptions options = {})
     {
+        // Scene files write a component as {"type": ..., "data": ..., <properties>}:
+        // a property with either name would be mistaken for them. A mistake in
+        // Rolo's (or a game module's) code, caught by any test using the component.
+        if (key == "type" || key == "data") {
+            throw std::logic_error("Component " + m_type.id + ": a property cannot be called \"" + key
+                                   + "\" (scene files use that name).");
+        }
         PropertyInfo info;
         info.key = std::move(key);
         info.label = std::move(label);

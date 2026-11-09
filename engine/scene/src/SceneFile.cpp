@@ -430,6 +430,17 @@ SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& regis
     if (!document.contains("name") || !document["name"].is_string()) {
         issues.warning("", "The scene has no name; it is called \"Untitled\".");
     }
+    // Optional (added with physics): files without it have the default gravity.
+    if (document.contains("gravity")) {
+        const Json& g = document["gravity"];
+        const bool ok = g.is_array() && g.size() == 2 && g[0].is_number() && g[1].is_number()
+                        && std::isfinite(g[0].get<double>()) && std::isfinite(g[1].get<double>());
+        if (ok) {
+            scene.setGravity({g[0].get<float>(), g[1].get<float>()});
+        } else {
+            issues.warning("", "\"gravity\" should be two numbers, like [0, -980]; the default is used.");
+        }
+    }
 
     std::size_t index = 0;
     for (const Json& e : document["entities"]) {
@@ -490,7 +501,7 @@ SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& regis
         }
     }
     for (const auto& [key, value] : document.items()) {
-        if (key != "format" && key != "version" && key != "name" && key != "entities") {
+        if (key != "format" && key != "version" && key != "name" && key != "gravity" && key != "entities") {
             issues.warning("", "Unknown field \"" + key + "\" was ignored.");
         }
     }
@@ -526,6 +537,10 @@ std::string serializeScene(const Scene& scene)
     document["format"] = SceneFormat::kName;
     document["version"] = SceneFormat::kVersion;
     document["name"] = scene.name();
+    // Written only when changed, so scenes without physics stay as they were.
+    if (scene.gravity() != Scene::kDefaultGravity) {
+        document["gravity"] = Json::array({number(scene.gravity().x), number(scene.gravity().y)});
+    }
     Json entities = Json::array();
     scene.forEach([&](const Entity& e, int) {
         Json entity;

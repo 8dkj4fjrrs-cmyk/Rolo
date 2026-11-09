@@ -352,6 +352,23 @@ private:
     std::string m_previous;
 };
 
+/// Changes the scene's gravity (physics). Dragging the numbers is one undo step.
+class SetSceneGravity final : public Command {
+public:
+    explicit SetSceneGravity(Vec2 gravity)
+        : m_gravity(gravity)
+    {
+    }
+    std::string label() const override { return "Change Gravity"; }
+    bool apply(Scene& scene) override;
+    void revert(Scene& scene) override;
+    bool mergeWith(const Command& next) override;
+
+private:
+    Vec2 m_gravity;
+    Vec2 m_previous;
+};
+
 /// Moves an entity to another parent and/or position among its siblings.
 class MoveEntity final : public Command {
 public:

@@ -52,6 +52,9 @@ public:
     /// Called every frame while the game runs (not while it is paused).
     /// `dt` is the time since the previous frame, in seconds.
     virtual void update(Game& /*game*/, float /*dt*/) {}
+    /// Physics (RigidBody): called when this object starts touching `other`,
+    /// after the step in which it happened. Only in scenes with physics.
+    virtual void collide(Game& /*game*/, EntityId /*other*/) {}
 
 protected:
     Behaviour() = default;

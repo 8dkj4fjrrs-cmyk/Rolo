@@ -614,6 +614,93 @@ int scriptRequire(lua_State* L)
     return 1;
 }
 
+// --- Physics -------------------------------------------------------------------------------------------
+
+// An object with a RigidBody, for the physics methods.
+EntityId bodyObject(lua_State* L, int index)
+{
+    const Entity& entity = objectEntity(L, index);
+    if (entity.get<RigidBody>() == nullptr) {
+        luaL_error(L, "this object has no Rigid Body component");
+    }
+    return entity.id();
+}
+
+int pushVec2(lua_State* L, Vec2 v)
+{
+    lua_pushnumber(L, static_cast<lua_Number>(v.x));
+    lua_pushnumber(L, static_cast<lua_Number>(v.y));
+    return 2;
+}
+
+int objectVelocity(lua_State* L)
+{
+    return pushVec2(L, gameOf(L).velocity(bodyObject(L, 1)));
+}
+
+int objectSetVelocity(lua_State* L)
+{
+    const EntityId id = bodyObject(L, 1);
+    gameOf(L).setVelocity(id, {checkFloat(L, 2), checkFloat(L, 3)});
+    return 0;
+}
+
+int objectSpin(lua_State* L)
+{
+    lua_pushnumber(L, static_cast<lua_Number>(gameOf(L).spin(bodyObject(L, 1))));
+    return 1;
+}
+
+int objectSetSpin(lua_State* L)
+{
+    const EntityId id = bodyObject(L, 1);
+    gameOf(L).setSpin(id, checkFloat(L, 2));
+    return 0;
+}
+
+int objectApplyImpulse(lua_State* L)
+{
+    const EntityId id = bodyObject(L, 1);
+    gameOf(L).applyImpulse(id, {checkFloat(L, 2), checkFloat(L, 3)});
+    return 0;
+}
+
+int objectApplyForce(lua_State* L)
+{
+    const EntityId id = bodyObject(L, 1);
+    gameOf(L).applyForce(id, {checkFloat(L, 2), checkFloat(L, 3)});
+    return 0;
+}
+
+int objectIsOnGround(lua_State* L)
+{
+    lua_pushboolean(L, gameOf(L).isOnGround(bodyObject(L, 1)));
+    return 1;
+}
+
+int objectContacts(lua_State* L)
+{
+    const auto others = gameOf(L).touching(bodyObject(L, 1));
+    lua_createtable(L, static_cast<int>(others.size()), 0);
+    lua_Integer i = 1;
+    for (const EntityId other : others) {
+        pushObjectForScripts(L, other);
+        lua_rawseti(L, -2, i++);
+    }
+    return 1;
+}
+
+int gameGravity(lua_State* L)
+{
+    return pushVec2(L, gameOf(L).gravity());
+}
+
+int gameSetGravity(lua_State* L)
+{
+    gameOf(L).setGravity({checkFloat(L, 1), checkFloat(L, 2)});
+    return 0;
+}
+
 // --- Sound ---------------------------------------------------------------------------------------------
 
 // A sound asset by the name the editor shows ("coin", or a path).
@@ -836,6 +923,14 @@ void openScriptApi(ScriptHost& host)
         {"setFlipX", guarded<objectSetFlipX>},
         {"playSound", guarded<objectPlaySound>},
         {"stopSound", guarded<objectStopSound>},
+        {"velocity", guarded<objectVelocity>},
+        {"setVelocity", guarded<objectSetVelocity>},
+        {"spin", guarded<objectSpin>},
+        {"setSpin", guarded<objectSetSpin>},
+        {"applyImpulse", guarded<objectApplyImpulse>},
+        {"applyForce", guarded<objectApplyForce>},
+        {"isOnGround", guarded<objectIsOnGround>},
+        {"contacts", guarded<objectContacts>},
         {nullptr, nullptr},
     };
     luaL_newmetatable(L, kObjectType);
@@ -864,6 +959,8 @@ void openScriptApi(ScriptHost& host)
         {"save", guarded<gameSave>},
         {"load", guarded<gameLoad>},
         {"inDialogue", guarded<gameInDialogue>},
+        {"gravity", guarded<gameGravity>},
+        {"setGravity", guarded<gameSetGravity>},
         {nullptr, nullptr},
     };
     lua_newtable(L);

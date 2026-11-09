@@ -1,0 +1,1275 @@
+{
+  "format": "rolo.scene",
+  "version": 1,
+  "name": "Level 1",
+  "entities": [
+    {
+      "id": "504c010000000001",
+      "name": "Sky",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [1680, 584],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "rectangle",
+          "size": [4760, 1968],
+          "color": "#7ec8f0ff",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000002",
+      "name": "Cloud 1",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [216, 696],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "ellipse",
+          "size": [160, 56],
+          "color": "#ffffffd0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000003",
+      "parent": "504c010000000002",
+      "name": "Puff",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [24, 19.2],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "ellipse",
+          "size": [88, 64],
+          "color": "#ffffffd0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000004",
+      "name": "Cloud 2",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [936, 720],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "ellipse",
+          "size": [220, 77],
+          "color": "#ffffffd0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000005",
+      "parent": "504c010000000004",
+      "name": "Puff",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [33, 26.4],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "ellipse",
+          "size": [121.0, 88],
+          "color": "#ffffffd0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000006",
+      "name": "Cloud 3",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [1800, 672],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "ellipse",
+          "size": [180, 63.0],
+          "color": "#ffffffd0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000007",
+      "parent": "504c010000000006",
+      "name": "Puff",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [27, 21.6],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "ellipse",
+          "size": [99.0, 72],
+          "color": "#ffffffd0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000008",
+      "name": "Cloud 4",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [2712, 705.6],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "ellipse",
+          "size": [200, 70],
+          "color": "#ffffffd0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000009",
+      "parent": "504c010000000008",
+      "name": "Puff",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [30, 24],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "ellipse",
+          "size": [110.0, 80],
+          "color": "#ffffffd0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c01000000000a",
+      "name": "Ground",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 0],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Tilemap",
+          "tileset": "504c415400000007",
+          "cellSize": [16, 16],
+          "data": {
+            "layers": [
+              {
+                "name": "Ground",
+                "visible": true,
+                "rows": [
+                  [15, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [14, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [13, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [12, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [11, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [10, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [9, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [8, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 3, 3, 3, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [7, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 3, 3, 3, 3, 3, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                  [6, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 4],
+                  [5, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 4],
+                  [4, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 4],
+                  [3, 0, -1, -1, -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1, -1, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6, -1, -1, -1, -1, -1, -1, -1, 4, 4],
+                  [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                  [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                  [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+                ]
+              }
+            ],
+            "solid": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c01000000000b",
+      "name": "Crate 1",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [408, 216],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000003",
+          "size": [16, 16],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [16, 16],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "box"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "dynamic",
+          "mass": 2,
+          "gravityScale": 1,
+          "friction": 0.6,
+          "bounciness": 0,
+          "drag": 0,
+          "lockRotation": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "id": "504c01000000000c",
+      "name": "Crate 2",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [408, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000003",
+          "size": [16, 16],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [16, 16],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "box"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "dynamic",
+          "mass": 2,
+          "gravityScale": 1,
+          "friction": 0.6,
+          "bounciness": 0,
+          "drag": 0,
+          "lockRotation": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "id": "504c01000000000d",
+      "name": "Crate 3",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [552, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000003",
+          "size": [16, 16],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [16, 16],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "box"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "dynamic",
+          "mass": 2,
+          "gravityScale": 1,
+          "friction": 0.6,
+          "bounciness": 0,
+          "drag": 0,
+          "lockRotation": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "id": "504c01000000000e",
+      "name": "Crate 4",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [1608, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000003",
+          "size": [16, 16],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [16, 16],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "box"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "dynamic",
+          "mass": 2,
+          "gravityScale": 1,
+          "friction": 0.6,
+          "bounciness": 0,
+          "drag": 0,
+          "lockRotation": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "id": "504c01000000000f",
+      "name": "Crate 5",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [3096, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000003",
+          "size": [16, 16],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [16, 16],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "box"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "dynamic",
+          "mass": 2,
+          "gravityScale": 1,
+          "friction": 0.6,
+          "bounciness": 0,
+          "drag": 0,
+          "lockRotation": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "id": "504c010000000010",
+      "name": "Ball 1",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [792, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000004",
+          "size": [16, 16],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [16, 16],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "dynamic",
+          "mass": 0.5,
+          "gravityScale": 1,
+          "friction": 0.4,
+          "bounciness": 0.7,
+          "drag": 0,
+          "lockRotation": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "id": "504c010000000011",
+      "name": "Ball 2",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [1752, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000004",
+          "size": [16, 16],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [16, 16],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "dynamic",
+          "mass": 0.5,
+          "gravityScale": 1,
+          "friction": 0.4,
+          "bounciness": 0.7,
+          "drag": 0,
+          "lockRotation": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "id": "504c010000000012",
+      "name": "Lift 1",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [2424, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "rectangle",
+          "size": [48, 8],
+          "color": "#8c6230ff",
+          "filled": true,
+          "lineWidth": 2
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [48, 8],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "box"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "kinematic",
+          "mass": 1,
+          "gravityScale": 1,
+          "friction": 0.4,
+          "bounciness": 0,
+          "drag": 0,
+          "lockRotation": false,
+          "fast": false
+        },
+        {
+          "type": "rolo.Script",
+          "script": "504c41540000000d"
+        }
+      ]
+    },
+    {
+      "id": "504c010000000013",
+      "name": "Coin 1",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [2616, 456],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000005",
+          "size": [12, 12],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000009",
+          "clip": "spin",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 10],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": false,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c41540000000f"
+              },
+              {
+                "type": "add",
+                "variable": "coins",
+                "value": 1
+              },
+              {
+                "type": "destroy",
+                "entity": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c010000000014",
+      "name": "Coin 2",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [1272, 408],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000005",
+          "size": [12, 12],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000009",
+          "clip": "spin",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 10],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": false,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c41540000000f"
+              },
+              {
+                "type": "add",
+                "variable": "coins",
+                "value": 1
+              },
+              {
+                "type": "destroy",
+                "entity": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c010000000015",
+      "name": "Coin 3",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [1368, 408],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000005",
+          "size": [12, 12],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000009",
+          "clip": "spin",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 10],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": false,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c41540000000f"
+              },
+              {
+                "type": "add",
+                "variable": "coins",
+                "value": 1
+              },
+              {
+                "type": "destroy",
+                "entity": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c010000000016",
+      "name": "Coin 4",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [1464, 408],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000005",
+          "size": [12, 12],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000009",
+          "clip": "spin",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 10],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": false,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c41540000000f"
+              },
+              {
+                "type": "add",
+                "variable": "coins",
+                "value": 1
+              },
+              {
+                "type": "destroy",
+                "entity": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c010000000017",
+      "name": "Coin 5",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [984, 312],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000005",
+          "size": [12, 12],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000009",
+          "clip": "spin",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 10],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": false,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c41540000000f"
+              },
+              {
+                "type": "add",
+                "variable": "coins",
+                "value": 1
+              },
+              {
+                "type": "destroy",
+                "entity": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c010000000018",
+      "name": "Coin 6",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [1896, 312],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000005",
+          "size": [12, 12],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000009",
+          "clip": "spin",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 10],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": false,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c41540000000f"
+              },
+              {
+                "type": "add",
+                "variable": "coins",
+                "value": 1
+              },
+              {
+                "type": "destroy",
+                "entity": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c010000000019",
+      "name": "Coin 7",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [2088, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000005",
+          "size": [12, 12],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000009",
+          "clip": "spin",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 10],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": false,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c41540000000f"
+              },
+              {
+                "type": "add",
+                "variable": "coins",
+                "value": 1
+              },
+              {
+                "type": "destroy",
+                "entity": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c01000000001a",
+      "name": "Coin 8",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [2856, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000005",
+          "size": [12, 12],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000009",
+          "clip": "spin",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 10],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "circle"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": false,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c41540000000f"
+              },
+              {
+                "type": "add",
+                "variable": "coins",
+                "value": 1
+              },
+              {
+                "type": "destroy",
+                "entity": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c01000000001b",
+      "name": "Flag",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [3192, 192],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000006",
+          "size": [16, 32],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 32],
+          "offset": [0, 0],
+          "solid": false,
+          "shape": "box"
+        },
+        {
+          "type": "rolo.Trigger",
+          "on": "enterArea",
+          "prompt": "",
+          "event": "",
+          "delay": 1,
+          "once": true,
+          "data": {
+            "condition": null,
+            "actions": [
+              {
+                "type": "playSound",
+                "sound": "504c415400000010"
+              },
+              {
+                "type": "setActive",
+                "entity": "504c010000000020",
+                "active": true
+              },
+              {
+                "type": "log",
+                "text": "Level complete with {coins} coins!"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "504c01000000001c",
+      "name": "Player",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [120, 168],
+          "rotation": 0,
+          "scale": [3, 3]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504c415400000002",
+          "size": [16, 24],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        },
+        {
+          "type": "rolo.Animator",
+          "animations": "504c415400000008",
+          "clip": "idle_right",
+          "speed": 1,
+          "playing": true
+        },
+        {
+          "type": "rolo.Collider",
+          "size": [10, 22],
+          "offset": [0, 0],
+          "solid": true,
+          "shape": "capsule"
+        },
+        {
+          "type": "rolo.RigidBody",
+          "bodyType": "dynamic",
+          "mass": 1,
+          "gravityScale": 1,
+          "friction": 0,
+          "bounciness": 0,
+          "drag": 0,
+          "lockRotation": true,
+          "fast": false
+        },
+        {
+          "type": "rolo.Interactor",
+          "key": "E"
+        },
+        {
+          "type": "rolo.Script",
+          "script": "504c41540000000c"
+        }
+      ]
+    },
+    {
+      "id": "504c01000000001d",
+      "parent": "504c01000000001c",
+      "name": "Camera",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 0],
+          "rotation": 0,
+          "scale": [0.333333, 0.333333]
+        },
+        {
+          "type": "rolo.Camera",
+          "zoom": 1
+        },
+        {
+          "type": "rolo.CameraBounds",
+          "min": [0, 0],
+          "max": [3360, 768],
+          "view": [1280, 720]
+        }
+      ]
+    },
+    {
+      "id": "504c01000000001e",
+      "parent": "504c01000000001d",
+      "name": "Coins",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [-616, 340],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Text",
+          "text": "Coins  {coins} / 8",
+          "source": "text",
+          "font": null,
+          "size": 22,
+          "color": "#1a2a44ff",
+          "align": "left",
+          "width": 0
+        }
+      ]
+    },
+    {
+      "id": "504c01000000001f",
+      "parent": "504c01000000001d",
+      "name": "Help",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [616, 340],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Text",
+          "text": "Arrows / A D run · Space jump · push the crates!",
+          "source": "text",
+          "font": null,
+          "size": 15,
+          "color": "#1a2a44c0",
+          "align": "right",
+          "width": 0
+        }
+      ]
+    },
+    {
+      "id": "504c010000000020",
+      "parent": "504c01000000001d",
+      "name": "Well Done",
+      "active": false,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 120],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "rectangle",
+          "size": [620, 110],
+          "color": "#1a2a44e0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000021",
+      "parent": "504c010000000020",
+      "name": "Words",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 34],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Text",
+          "text": "Well done!\nYou found {coins} coins.",
+          "source": "text",
+          "font": null,
+          "size": 30,
+          "color": "#ffd84aff",
+          "align": "center",
+          "width": 0
+        }
+      ]
+    }
+  ]
+}

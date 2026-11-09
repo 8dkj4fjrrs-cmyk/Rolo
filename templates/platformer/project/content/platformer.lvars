@@ -1,0 +1,12 @@
+{
+  "format": "rolo.variables",
+  "version": 1,
+  "variables": [
+    {
+      "id": "coins",
+      "type": "int",
+      "initial": 0,
+      "description": "Coins collected"
+    }
+  ]
+}

@@ -18,7 +18,7 @@ so the plan stays in one place.
 | 7 | Complete sample game: a small top-down RPG built from a fresh project | Done (0.7) — [ADR 0010](adr/0010-demo-game.md), [the game](../examples/lantern_keeper) |
 | 8 | Public alpha: project wizard, packaging and export, clean builds, onboarding, release | Done (0.8.0-alpha) — [ADR 0011](adr/0011-public-alpha.md) |
 | — | *After the alpha:* Lua scripting; no yasio or networking; macOS and Windows verified in CI | Done (0.9.0-alpha) — [ADR 0012](adr/0012-no-yasio.md), [ADR 0013](adr/0013-lua-scripting.md); [known limitations](known-limitations.md) |
-| — | *After the alpha:* renamed Rolo Engine; sound and music | Done (unreleased) — [ADR 0014](adr/0014-rename-to-rolo.md), [ADR 0015](adr/0015-sound.md); [sound guide](sound.md) |
+| — | *After the alpha:* renamed Rolo Engine; sound and music; 2D physics | Done (unreleased) — [ADR 0014](adr/0014-rename-to-rolo.md), [ADR 0015](adr/0015-sound.md), [ADR 0016](adr/0016-physics.md); [sound](sound.md), [physics](physics.md) |
 | — | *Added, after the alpha:* timeline animation editor | Later |
 
 ## Milestone 6.5 — Flipbook animation (*added*)
@@ -102,14 +102,16 @@ In rough order of importance:
    (ADR 0015). Next for sound: positional sound (louder near the camera),
    a volume menu for players. Still to do: **gamepad input**.
 4. **Signing** of macOS apps and Windows programs, and installers.
-5. Smaller gaps:
+5. **Physics, next** (ADR 0016): joints, one-way platforms, ray casts,
+   collision layers.
+6. Smaller gaps:
    - renaming scenes and creating folders in the editor;
    - multi-selection;
    - prefabs;
    - fullscreen and window settings for games;
    - ~~removing Axmol's unused networking libraries (and yasio's Anti 996
      terms with them)~~ — **done** after the alpha (ADR 0012).
-6. The timeline animation editor (below) and a visual dialogue graph.
+7. The timeline animation editor (below) and a visual dialogue graph.
 
 ## After the alpha: timeline animation editor (*added*)
 

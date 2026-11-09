@@ -143,6 +143,22 @@ with `.assetType = "scene"` and choose the scene in the Inspector (see
 `SceneDoor` in the sample). The new scene starts fresh: objects of the old
 one, and their behaviours, are gone.
 
+### Physics
+
+In scenes with a Rigid Body ([physics guide](physics.md)):
+
+```cpp
+game.setVelocity(entity(), {280, game.velocity(entity()).y});   // run, keep falling
+if (game.isOnGround(entity())) {
+    game.applyImpulse(entity(), {0, 640});                        // jump (1 kg body)
+}
+game.touching(entity());                                          // what it touches now
+game.setGravity({0, 0});                                          // the scene's gravity
+```
+
+A behaviour can also override `collide(rolo::Game&, rolo::EntityId other)`,
+called when its object starts touching another.
+
 ### Sound
 
 ```cpp

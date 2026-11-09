@@ -16,6 +16,20 @@ All notable changes to Rolo Engine. Versions follow the milestones in
   - Game modules written for Lantern need their includes, namespace and
     module macro renamed. Lua scripts need no changes.
   - The demo game keeps its name: *The Lantern Keeper*.
+- **2D physics** ([physics guide](docs/physics.md), [ADR 0016](docs/adr/0016-physics.md)).
+  - The **Rigid Body** component: dynamic, kinematic or static, with mass,
+    friction, bounciness, drag, gravity scale and lock rotation.
+  - Colliders can be **circles** and **capsules** as well as boxes.
+  - Each scene has a **gravity** (Inspector, with Platformer and Top-Down
+    presets).
+  - Solid tiles are floors and walls; colliders moved by code push things.
+  - Lua: `obj:setVelocity`, `applyImpulse`, `isOnGround`, `contacts`,
+    `game.setGravity`, and `collide(self, other)`. C++: the same on `Game`,
+    and `Behaviour::collide`.
+  - New **Platformer Starter** template: run, jump, crates, balls, a lift,
+    coins and a flag.
+  - Built on Box2D 3.2.0 (MIT). Scenes without a Rigid Body work exactly as
+    before.
 - **Sound and music** ([sound guide](docs/sound.md), [ADR 0015](docs/adr/0015-sound.md)).
   - WAV, OGG and MP3 files play in play mode and in exported games, on
     macOS, Windows and Linux, with nothing to install.

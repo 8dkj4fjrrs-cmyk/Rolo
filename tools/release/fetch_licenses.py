@@ -30,6 +30,7 @@ LIBRARIES = {
                   ["third_party/miniaudio/LICENSE"]),
     "stb-vorbis": ("stb_vorbis 1.22 (OGG sounds)", "MIT or public domain",
                    ["footer:third_party/miniaudio/stb_vorbis.c"]),
+    "box2d": ("Box2D 3.2.0 (physics)", "MIT", ["third_party/box2d/LICENSE"]),
     "astcenc": ("astc-encoder 5.3.0", "Apache-2.0", [GH + "ARM-software/astc-encoder/5.3.0/LICENSE.txt"]),
     "clipper2": ("Clipper2 2.0.1", "BSL-1.0", [GH + "AngusJohnson/Clipper2/Clipper2_2.0.1/LICENSE"]),
     "concurrentqueue": ("moodycamel::ConcurrentQueue 1.0.4", "BSL-1.0 or Simplified BSD",

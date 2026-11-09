@@ -73,6 +73,14 @@ therefore be moved, zipped, shared or put in git.
 }
 ```
 
+### The scene
+
+| Key | Meaning |
+|---|---|
+| `name` | The scene's name. |
+| `gravity` | Physics: `[x, y]` in points per second per second. Optional, default `[0, -980]`; written only when it is not the default. Added after Rolo 0.9.1 without changing the version: older Rolo ignores it with a warning. |
+| `entities` | The entities, below. |
+
 ### Entities
 
 | Key | Meaning |
@@ -172,15 +180,32 @@ the map is one line of the file and a small change gives a small diff.
 (blocks movement) and 0 (gap). A cell blocks movement if it is painted
 solid, or if a visible layer has a tile there that the tileset marks solid.
 
-**`rolo.Collider`**: a box for collision, centred on the entity (moved
+**`rolo.Collider`**: a shape for collision, centred on the entity (moved
 by `offset`), in the entity's own coordinates (so scaled with it). Used by
-gameplay code ([gameplay guide](../gameplay.md)).
+gameplay code ([gameplay guide](../gameplay.md)) and physics ([physics](../physics.md)).
 
 | Key | Type | Default |
 |---|---|---|
-| `size` | `[width, height]`, not negative | `[32, 32]` |
+| `size` | `[width, height]`, not negative: the box the shape fits in | `[32, 32]` |
 | `offset` | `[x, y]` from the entity's centre | `[0, 0]` |
 | `solid` | `true`: blocks movement; `false`: an area gameplay notices (a door, a pick-up) | `true` |
+| `shape` | `"box"`, `"circle"` (the largest circle in the box) or `"capsule"` (the box with round ends). Optional (added after 0.9.1) | `"box"` |
+
+**`rolo.RigidBody`**: physics moves the entity ([physics](../physics.md)). Needs a Collider.
+
+| Key | Type | Default |
+|---|---|---|
+| `bodyType` | `"dynamic"`, `"kinematic"` or `"static"` | `"dynamic"` |
+| `mass` | kilograms, more than 0 | `1` |
+| `gravityScale` | how strongly gravity pulls it | `1` |
+| `friction` | 0 to 2 | `0.4` |
+| `bounciness` | 0 to 1 | `0` |
+| `drag` | 0 or more | `0` |
+| `lockRotation` | `true`: never turns | `false` |
+| `fast` | `true`: continuous collision checks (bullets) | `false` |
+
+A component's properties can never be called `type` or `data`: those keys
+name the component and hold its extra data.
 
 **`rolo.Text`**: text in the world, or on screen as a child of the Camera.
 The entity's position is the top of the text (its left end, middle or right

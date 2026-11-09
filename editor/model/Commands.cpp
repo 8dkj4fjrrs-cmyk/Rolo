@@ -1,6 +1,7 @@
 #include "Commands.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace rolo::editor {
 
@@ -595,6 +596,33 @@ bool RenameScene::apply(Scene& scene)
 void RenameScene::revert(Scene& scene)
 {
     scene.setName(m_previous);
+}
+
+// --- SetSceneGravity --------------------------------------------------------------------------------------
+
+bool SetSceneGravity::apply(Scene& scene)
+{
+    if (scene.gravity() == m_gravity || !std::isfinite(m_gravity.x) || !std::isfinite(m_gravity.y)) {
+        return false;
+    }
+    m_previous = scene.gravity();
+    scene.setGravity(m_gravity);
+    return true;
+}
+
+void SetSceneGravity::revert(Scene& scene)
+{
+    scene.setGravity(m_previous);
+}
+
+bool SetSceneGravity::mergeWith(const Command& next)
+{
+    const auto* other = dynamic_cast<const SetSceneGravity*>(&next);
+    if (other == nullptr) {
+        return false;
+    }
+    m_gravity = other->m_gravity;   // undo still goes back to before the first change
+    return true;
 }
 
 // --- MoveEntity -------------------------------------------------------------------------------------------

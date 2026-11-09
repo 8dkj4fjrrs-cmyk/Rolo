@@ -1,0 +1,9 @@
+{
+  "format": "rolo.tileset",
+  "version": 1,
+  "image": "504c415400000001",
+  "tileSize": [16, 16],
+  "margin": 0,
+  "spacing": 0,
+  "solid": [0, 1, 2, 3, 4]
+}

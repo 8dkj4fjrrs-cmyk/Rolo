@@ -1,0 +1,6 @@
+{
+  "format": "rolo.project",
+  "version": 1,
+  "name": "Platformer Starter",
+  "startScene": "scenes/level.lscene"
+}

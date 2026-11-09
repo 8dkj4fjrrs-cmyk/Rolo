@@ -4,7 +4,8 @@
 //
 // A Script component points at a .lua file in the project. While the game
 // runs, the file's start(self) is called once and update(self, dt) every
-// frame, like a C++ behaviour's start() and update():
+// frame, like a C++ behaviour's start() and update(), and collide(self, other)
+// when physics makes its object start touching another:
 //
 //     -- scripts/spinner.lua: turns its object around, 90 degrees a second.
 //     function start(self)
@@ -54,6 +55,7 @@ struct Script : BehaviourBase<Script> {
 
     void start(Game& game) override;
     void update(Game& game, float dt) override;
+    void collide(Game& game, EntityId other) override;
 
     static const ComponentType& componentType();
 
