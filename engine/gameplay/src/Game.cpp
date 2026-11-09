@@ -10,6 +10,7 @@
 #include "ScriptHost.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <exception>
 
@@ -156,11 +157,33 @@ void Game::beginScene(Scene scene, AssetId id)
     updatePresentation();   // the dialogue box starts hidden, texts filled in
 }
 
+namespace {
+double millisecondsSince(std::chrono::steady_clock::time_point& last)
+{
+    const auto now = std::chrono::steady_clock::now();
+    const double ms = std::chrono::duration<double, std::milli>(now - last).count();
+    last = now;
+    return ms;
+}
+} // namespace
+
+std::size_t Game::scriptMemory() const noexcept
+{
+    return m_scripts != nullptr ? m_scripts->memoryUsed() : 0;
+}
+
+std::uint64_t Game::scriptMemoryAllocated() const noexcept
+{
+    return m_scripts != nullptr ? m_scripts->memoryAllocated() : 0;
+}
+
 void Game::update(float dt)
 {
     if (m_scene == nullptr) {
         return;
     }
+    auto clock = std::chrono::steady_clock::now();
+    m_timings = {};
     m_dt = std::clamp(dt, 0.0f, kMaxStep);
     m_time += static_cast<double>(m_dt);
     m_events.swap(m_pendingEvents);   // events sent last frame arrive now
@@ -170,12 +193,16 @@ void Game::update(float dt)
         handleDialogueInput();
     }
     updateSounds();
+    m_timings.other += millisecondsSince(clock);
     m_physics->sync(*m_scene);   // bodies for new objects, before behaviours push them
+    m_timings.physics += millisecondsSince(clock);
     runBehaviours();
+    m_timings.behaviours += millisecondsSince(clock);
     if (m_scene != nullptr) {
         m_physics->step(*m_scene, m_dt);
         deliverCollisions();
     }
+    m_timings.physics += millisecondsSince(clock);
     if (m_scene != nullptr) {
         runTriggers(talking);
         m_runner->update(m_dt);
@@ -193,6 +220,7 @@ void Game::update(float dt)
     }
     ++m_frames;
     m_input.endFrame();
+    m_timings.other += millisecondsSince(clock);
 }
 
 bool Game::isActiveInScene(const Entity& entity) const

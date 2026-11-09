@@ -19,6 +19,7 @@
 #include "rolo/scene/Project.hpp"
 #include "rolo/scene/SceneFile.hpp"
 
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -236,6 +237,11 @@ int main(int argc, char** argv)
         }
     }
 
+    // --frame-times: every frame's length, and the part gameplay took.
+    constexpr std::uint64_t kFrameTimesWarmup = 30;   // start-up frames are slow and not counted
+    std::vector<double> frameMs;
+    std::vector<double> gameplayMs;
+
     rolo::Application app(engine, {.title = title, .width = opt.width, .height = opt.height},
                              std::move(presentation));
     app.setAssets(assets.get());
@@ -265,7 +271,13 @@ int main(int argc, char** argv)
                 game.load("quick");
             }
             const float dt = opt.fixedStep ? 1.0f / 60.0f : static_cast<float>(frame.deltaSeconds);
+            const auto updateStart = std::chrono::steady_clock::now();
             game.update(dt);
+            if (opt.frameTimes && frame.frameIndex >= kFrameTimesWarmup) {
+                frameMs.push_back(frame.deltaSeconds * 1000.0);
+                gameplayMs.push_back(
+                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - updateStart).count());
+            }
             if (audio) {
                 audio->update();   // frees the sounds that finished
             }
@@ -289,6 +301,9 @@ int main(int argc, char** argv)
 
     if (!runStatus) {
         engine.logger().error("player", runStatus.message);
+    }
+    if (opt.frameTimes) {
+        engine.logger().info("player", rolo::player::frameTimesReport(frameMs, gameplayMs));
     }
 
     engine.shutdown();

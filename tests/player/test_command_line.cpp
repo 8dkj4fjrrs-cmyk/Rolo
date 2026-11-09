@@ -6,10 +6,12 @@
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
+#include <string>
 #include <string_view>
 #include <vector>
 
 using rolo::player::bundledGameFolder;
+using rolo::player::frameTimesReport;
 using rolo::player::parseCommandLine;
 using rolo::player::ParseResult;
 
@@ -99,6 +101,8 @@ TEST_CASE("A project or a scene can be chosen, not both", "[player][cli]")
 
 TEST_CASE("Held keys and fixed steps for gameplay tests", "[player][cli]")
 {
+    CHECK(parse({"--frame-times"}).options.frameTimes);
+    CHECK_FALSE(parse({}).options.frameTimes);
     const ParseResult r = parse({"--hold", "Right", "--hold", "space", "--fixed-step"});
     REQUIRE(r.ok());
     CHECK(r.options.heldKeys == std::vector<rolo::Key>{rolo::Key::Right, rolo::Key::Space});
@@ -153,4 +157,17 @@ TEST_CASE("The mute option plays without sound", "[player][cli]")
     const ParseResult r = parse({"--mute"});
     REQUIRE(r.ok());
     CHECK_FALSE(r.options.sound);
+}
+
+TEST_CASE("The frame-times report gives the mean, the slow frames and the worst", "[player][cli]")
+{
+    std::vector<double> frames(100, 16.0);
+    frames[50] = 40.0;   // one hitch
+    const std::vector<double> gameplay(100, 2.0);
+    const std::string report = frameTimesReport(frames, gameplay);
+    CHECK(report.find("over 100 frames") != std::string::npos);
+    CHECK(report.find("mean 16.24 ms (62 fps)") != std::string::npos);
+    CHECK(report.find("worst 40.00 ms; 1 frames slower than 48 fps") != std::string::npos);
+    CHECK(report.find("Gameplay: mean 2.00 ms") != std::string::npos);
+    CHECK(frameTimesReport({}, {}).find("too few frames") != std::string::npos);
 }

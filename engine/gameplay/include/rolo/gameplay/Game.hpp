@@ -55,6 +55,15 @@ struct Script;
 /// `error`) if it cannot.
 using SceneLoader = std::function<std::optional<Scene>(AssetId scene, std::string& error)>;
 
+/// How long the parts of one Game::update took, in milliseconds (for
+/// measuring: the stress test, and later the editor's profiler).
+struct FrameTimings {
+    double behaviours = 0.0;   // C++ behaviours and Lua scripts (start, update)
+    double physics = 0.0;      // syncing, stepping and collision callbacks (scripts' collide too)
+    double other = 0.0;        // dialogue, triggers, content, texts, removals, scene changes
+    double total() const noexcept { return behaviours + physics + other; }
+};
+
 /// What a Game needs from the program running it. Everything is optional.
 struct GameSetup {
     const AssetDatabase* assets = nullptr;   // tilesets (for collision)
@@ -107,6 +116,13 @@ public:
     /// game closes it: the player closes its window, the editor stops
     /// playing.
     bool quitRequested() const noexcept { return m_quitRequested; }
+    /// How long the last update took, by part.
+    const FrameTimings& lastFrameTimings() const noexcept { return m_timings; }
+    /// Memory used by Lua scripts now, in bytes (0 before any script ran).
+    std::size_t scriptMemory() const noexcept;
+    /// Bytes Lua scripts have allocated since the game started, garbage
+    /// included: its growth per frame is the garbage made per frame.
+    std::uint64_t scriptMemoryAllocated() const noexcept;
 
     // --- For behaviours -----------------------------------------------------------------------
     /// The scene being played (a copy; see above). Must be running.
@@ -301,6 +317,7 @@ private:
     float m_dt = 0.0f;
     std::uint64_t m_frames = 0;
     bool m_quitRequested = false;
+    FrameTimings m_timings;
 
     std::vector<EntityId> m_toDestroy;
     std::optional<AssetId> m_nextScene;

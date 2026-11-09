@@ -120,6 +120,9 @@ void* ScriptHost::allocate(void* ud, void* block, std::size_t oldSize, std::size
     void* grown = std::realloc(block, newSize);
     if (grown != nullptr) {
         host->m_memoryUsed = host->m_memoryUsed - previous + newSize;
+        if (newSize > previous) {
+            host->m_allocated += newSize - previous;
+        }
     }
     return grown;
 }

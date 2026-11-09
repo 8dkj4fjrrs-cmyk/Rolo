@@ -1,7 +1,10 @@
 #include "CommandLine.hpp"
 
+#include <algorithm>
 #include <charconv>
+#include <cstdio>
 #include <limits>
+#include <numeric>
 #include <optional>
 
 namespace rolo::player {
@@ -76,6 +79,8 @@ ParseResult parseCommandLine(std::span<const std::string_view> args)
             opt.statsChosen = true;
         } else if (arg == "--mute") {
             opt.sound = false;
+        } else if (arg == "--frame-times") {
+            opt.frameTimes = true;
         } else if (arg == "--fixed-step") {
             opt.fixedStep = true;
         } else if (arg == "--save-dir") {
@@ -184,6 +189,7 @@ std::string helpText()
            "  --no-stats         Hide the frame-rate overlay\n"
            "  --stats            Show it (exported games hide it by default)\n"
            "  --mute             Play without sound\n"
+           "  --frame-times      When the game ends, report how long frames took\n"
            "  --frames N         Quit automatically after N frames (used by tests)\n"
            "  --screenshot FILE  Save the last frame as a PNG (needs --frames)\n"
            "  --hold KEY         Hold a key down for the whole run, e.g. Right (tests)\n"
@@ -206,6 +212,45 @@ std::optional<std::filesystem::path> bundledGameFolder(const std::filesystem::pa
         }
     }
     return std::nullopt;
+}
+
+namespace {
+double percentileOf(std::vector<double> v, double p)
+{
+    if (v.empty()) {
+        return 0.0;
+    }
+    std::sort(v.begin(), v.end());
+    const auto i = static_cast<std::size_t>(p * static_cast<double>(v.size() - 1) + 0.5);
+    return v[std::min(i, v.size() - 1)];
+}
+
+std::string ms(double value)
+{
+    char text[32];
+    std::snprintf(text, sizeof text, "%.2f ms", value);
+    return text;
+}
+} // namespace
+
+std::string frameTimesReport(const std::vector<double>& frameMs, const std::vector<double>& gameplayMs)
+{
+    if (frameMs.empty()) {
+        return "Frame times: too few frames to measure (the first 30 are not counted).";
+    }
+    const auto meanOf = [](const std::vector<double>& v) {
+        return v.empty() ? 0.0 : std::accumulate(v.begin(), v.end(), 0.0) / static_cast<double>(v.size());
+    };
+    const double mean = meanOf(frameMs);
+    const auto slow = std::count_if(frameMs.begin(), frameMs.end(), [](double f) { return f > 1000.0 / 60.0 * 1.25; });
+    char fps[32];
+    std::snprintf(fps, sizeof fps, "%.0f", mean > 0.0 ? 1000.0 / mean : 0.0);
+    return "Frame times over " + std::to_string(frameMs.size()) + " frames: mean " + ms(mean) + " (" + fps
+           + " fps), 99th percentile " + ms(percentileOf(frameMs, 0.99)) + ", worst "
+           + ms(*std::max_element(frameMs.begin(), frameMs.end())) + "; " + std::to_string(slow)
+           + " frames slower than 48 fps. Gameplay: mean " + ms(meanOf(gameplayMs)) + ", 99th percentile "
+           + ms(percentileOf(gameplayMs, 0.99)) + ", worst "
+           + ms(gameplayMs.empty() ? 0.0 : *std::max_element(gameplayMs.begin(), gameplayMs.end())) + ".";
 }
 
 } // namespace rolo::player

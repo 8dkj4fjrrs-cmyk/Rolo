@@ -179,7 +179,7 @@ engine/ui/       Rolo UI: the editor's own interface toolkit (widgets, docking, 
 engine/runtime/  Window and main loop (rolo::Application); wraps Axmol privately
 player/          rolo_player, the game runtime application
 editor/          The editor: model (logic, undo), panels, application
-examples/        The Lantern Keeper (the demo RPG) and the sample game
+examples/        The Lantern Keeper (the demo RPG), the sample game, and the stress test
 templates/       New Project templates (Empty, Top-Down Starter)
 third_party/     Small libraries kept in the repository (Lua, stb)
 licenses/        License texts of everything inside an exported game

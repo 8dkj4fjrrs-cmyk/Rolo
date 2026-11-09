@@ -38,6 +38,7 @@ struct PlayerOptions {
     bool showStats = true;
     bool statsChosen = false;     // --stats or --no-stats was given (exported games hide them by default)
     bool sound = true;            // --mute: play no sound
+    bool frameTimes = false;      // --frame-times: report frame times when the game ends
 
     // For automated tests of gameplay.
     std::vector<Key> heldKeys;    // --hold: keys held down for the whole run
@@ -69,6 +70,11 @@ ParseResult parseCommandLine(std::span<const std::string_view> args);
 /// the folder `game` beside the program, or (macOS) in the app's Resources.
 /// See editor/model/GameExport.hpp.
 std::optional<std::filesystem::path> bundledGameFolder(const std::filesystem::path& executable);
+
+/// The --frame-times report: frames' lengths and the gameplay part of them
+/// (milliseconds), as one line: mean, frames per second, 99th percentile,
+/// worst, and frames slower than 60 fps.
+std::string frameTimesReport(const std::vector<double>& frameMs, const std::vector<double>& gameplayMs);
 
 /// Text printed by --help.
 std::string helpText();

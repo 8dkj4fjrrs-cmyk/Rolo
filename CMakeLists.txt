@@ -113,6 +113,8 @@ foreach(dir IN LISTS ROLO_GAME_MODULE_DIRS)
     add_subdirectory("${dir}" "${CMAKE_BINARY_DIR}/game_modules/${_name}")
 endforeach()
 
+add_subdirectory(tools/stress)   # rolo_stress: gameplay frame times (examples/stress)
+
 if(ROLO_RUNTIME_BACKEND STREQUAL "axmol")
     add_subdirectory(engine/runtime)
     add_subdirectory(player)

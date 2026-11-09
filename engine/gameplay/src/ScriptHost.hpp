@@ -24,6 +24,7 @@
 #include "rolo/core/Log.hpp"
 #include "rolo/scene/EntityId.hpp"
 
+#include <cstdint>
 #include <cstddef>
 #include <map>
 #include <optional>
@@ -61,6 +62,10 @@ class ScriptHost {
     Game& game() noexcept { return m_game; }
     const Logger& log() const noexcept { return m_log; }
     lua_State* state() noexcept { return m_L; }
+    /// Bytes the scripts use now.
+    std::size_t memoryUsed() const noexcept { return m_memoryUsed; }
+    /// Bytes the scripts have asked for since they started (garbage included).
+    std::uint64_t memoryAllocated() const noexcept { return m_allocated; }
 
     // --- Used by the Lua bindings (ScriptApi.cpp) -------------------------------------------------
     /// The ScriptHost that owns a Lua state.
@@ -101,6 +106,7 @@ class ScriptHost {
     const Logger& m_log;
     lua_State* m_L = nullptr;
     std::size_t m_memoryUsed = 0;
+    std::uint64_t m_allocated = 0;
     long long m_instructions = 0; // in the current call
     std::map<AssetId, File> m_files;
     std::map<std::string, int, std::less<>> m_modules;         // require() results by name (registry refs)

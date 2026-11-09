@@ -5,6 +5,16 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Rolo's direction** ([ADR 0019](docs/adr/0019-direction.md)): a free,
+  truly MIT 2D engine for Roblox graduates, for desktop, web and phones,
+  scripted in Lua-ux (unmodified Luau plus a measured performance layer).
+- **A stress test** ([examples/stress](examples/stress/README.md)): seven
+  scenes (2000 scripted objects, garbage-making scripts and their tidy
+  twin, bullets, physics, 5000 sprites, everything at once), `rolo_stress`
+  to measure gameplay frame times without a window, and the player's
+  `--frame-times`. The baseline (Lua 5.4) is in its README.
+  - `Game::lastFrameTimings()` (scripts, physics, the rest),
+    `scriptMemory()` and `scriptMemoryAllocated()`, for measuring.
 - **Escape and quitting are the game's choice**
   ([controls guide](docs/controls.md#escape-quitting-and-the-quick-save-keys)).
   - Per project, in the scene's Inspector (**Game (whole project)**):

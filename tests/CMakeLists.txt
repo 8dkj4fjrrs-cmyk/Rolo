@@ -76,6 +76,13 @@ rolo_set_warnings(rolo_tests)
 catch_discover_tests(rolo_tests)
 
 # ---------------------------------------------------------------------------
+# The stress tool runs every scene briefly, without warnings (it fails if
+# a scene did not run as meant). Frame times are not checked: they depend on the computer.
+add_test(NAME stress.runs_every_scene COMMAND rolo_stress --frames 10 --warmup 5)
+set_tests_properties(stress.runs_every_scene PROPERTIES
+    PASS_REGULAR_EXPRESSION "busy +2505"
+    TIMEOUT 300)
+
 # Runtime, player and editor tests: only when the Axmol backend is built.
 # ---------------------------------------------------------------------------
 if(NOT TARGET rolo_player)
@@ -183,6 +190,15 @@ if(TARGET sample_game)
     set_tests_properties(player.escape_off PROPERTIES
         PASS_REGULAR_EXPRESSION "Showing scene 'Meadow'"
         FAIL_REGULAR_EXPRESSION "Escape pressed|\\[ERROR\\]"
+        TIMEOUT 120)
+
+    # The stress test's busy scene plays in a window, and --frame-times reports.
+    add_test(NAME player.plays_stress_test
+        COMMAND rolo_player --project "${PROJECT_SOURCE_DIR}/examples/stress/project" --frames 120 --no-stats
+                --mute --frame-times)
+    set_tests_properties(player.plays_stress_test PROPERTIES
+        PASS_REGULAR_EXPRESSION "Showing scene 'Busy'.*Frame times over [0-9]+ frames: mean"
+        FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|\\[WARN"
         TIMEOUT 120)
 
     # The Lantern Keeper, with keys only: read the opening (five lines), walk
