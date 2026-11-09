@@ -250,6 +250,46 @@ TEST_CASE("A project made from the Platformer Starter runs, jumps and pushes wit
     CHECK(p.errors.empty());
 }
 
+TEST_CASE("The Platformer Starter's Controls screen remaps the jump, and keeps it", "[templates][actions]")
+{
+    const auto list = listProjectTemplates(findRoloResources("/x/rolo_editor", HostOs::Linux, kSource, {}));
+    NewProject made;
+    std::string error;
+    REQUIRE(createProjectFromTemplate(find(list, "platformer"), made.folder, "My Game", &error));
+    test::PlayProject p(made.folder);
+    REQUIRE(p.start());
+    Game& game = *p.game;
+    p.frames(30);
+    // The help line shows pictures of the keys (the keyboard was used last).
+    CHECK(p.text("Help").find("{icon:key:Space} jump") != std::string::npos);
+    const EntityId hero = p.player();
+    const float groundY = game.worldPosition(hero).y;
+
+    p.tap(Key::Tab);   // open the Controls screen
+    CHECK(game.scene().find(game.find("Controls Panel"))->isActive());
+    p.tap(Key::Enter);   // change the first action, Jump...
+    p.tap(Key::J);       // ...to J
+    CHECK(p.text("Controls Text").find("Jump    {icon:key:J} {icon:pad:A:generic}") != std::string::npos);
+    p.tap(Key::Tab);   // close it
+    CHECK_FALSE(game.scene().find(game.find("Controls Panel"))->isActive());
+    CHECK(p.text("Help").find("{icon:key:J} jump") != std::string::npos);
+
+    // Space no longer jumps; J does.
+    p.tap(Key::Space);
+    p.frames(10);
+    CHECK(game.worldPosition(hero).y == Catch::Approx(groundY).margin(2.0f));
+    p.tap(Key::J);
+    p.frames(10);
+    CHECK(game.worldPosition(hero).y > groundY + 60.0f);
+
+    // Kept beside the saves, for next time.
+    const auto saved = p.saves.read(std::string(Game::kControlsSlot));
+    REQUIRE(saved);
+    CHECK(saved->find("jump=J,Pad A") != std::string::npos);
+    INFO(all(p.errors));
+    CHECK(p.errors.empty());
+}
+
 TEST_CASE("Projects made from the other templates open and start cleanly", "[templates]")
 {
     const auto list = listProjectTemplates(findRoloResources("/x/rolo_editor", HostOs::Linux, kSource, {}));

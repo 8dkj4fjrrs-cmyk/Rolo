@@ -579,3 +579,24 @@ end
     CHECK(positionOf(game, g).x < 300.0f);  // turned round at the wall
     CHECK(p.printed == std::vector<std::string>{"scripts/player_health.lua: true"});
 }
+
+TEST_CASE("Text set by a script stays and fills in variables", "[gameplay][script]")
+{
+    ScriptProject p;
+    const AssetId script = p.write("scripts/score.lua", R"(
+        function update(self, dt)
+            self.object:setText("Frames {ticks}")
+        end
+    )");
+    Scene scene;
+    const EntityId label = addScripted(scene, "Label", script);
+    auto text = std::make_unique<Text>();
+    text->text = "Start";
+    scene.addComponent(label, std::move(text));
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 3);
+    // No variable called ticks: left as written (and the script's text kept).
+    CHECK(game.scene().find(label)->get<Text>()->text == "Frames {ticks}");
+    CHECK(p.problems.empty());
+}

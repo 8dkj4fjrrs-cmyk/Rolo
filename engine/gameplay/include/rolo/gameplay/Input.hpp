@@ -25,12 +25,29 @@
 // setGamepad(). moveDirection() includes the left stick and the d-pad, and
 // the dialogue box and triggers accept the A button, so a game made without
 // code is playable with a gamepad too.
+//
+// Actions: games name what the player does ("jump", "interact") and bind
+// keys and buttons to it; the player can change those bindings (remapping):
+//
+//     input.defineAction("jump", {Binding::key(Key::Space), Binding::pad(GamepadButton::A)});
+//     if (input.wasActionPressed("jump")) { ... }
+//     input.startRebind("jump");   // the next key or button pressed takes over
+//
+// Rolo's own controls are actions too, so they can be remapped: "move left",
+// "move right", "move up", "move down" (moveDirection) and "interact"
+// (talking, going on in dialogue). Bindings the player chose are kept with
+// their save games (saveBindings/loadBindings).
 
 #include "rolo/scene/Types.hpp"
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace rolo {
 
@@ -66,13 +83,52 @@ std::string_view gamepadButtonName(GamepadButton button);
 /// Gamepad axes. Sticks go from -1 to 1 (y up); triggers from 0 to 1.
 enum class GamepadAxis { LeftX, LeftY, RightX, RightY, LeftTrigger, RightTrigger, Count };
 
+/// Which family a gamepad belongs to, for showing its buttons as they look.
+enum class GamepadStyle { Generic, Xbox, PlayStation, Nintendo };
+
+/// A gamepad's style from its name (as GLFW reports it), e.g. "PS5 Controller".
+GamepadStyle gamepadStyleFromName(std::string_view name);
+
 /// One gamepad as the program reads it. Values are raw (no dead zone).
 struct GamepadState {
     bool connected = false;
     std::array<bool, static_cast<std::size_t>(GamepadButton::Count)> buttons{};
     std::array<float, static_cast<std::size_t>(GamepadAxis::Count)> axes{};
     std::string_view name;   // e.g. "Xbox Controller" (only for messages)
+    GamepadStyle style = GamepadStyle::Generic;
 };
+
+/// What an action can be bound to: a key, a mouse button or a gamepad button.
+struct Binding {
+    enum class Kind { Key, Mouse, Pad };
+    Kind kind = Kind::Key;
+    Key key = Key::Unknown;
+    MouseButton mouse = MouseButton::Left;
+    GamepadButton pad = GamepadButton::A;
+
+    static Binding ofKey(Key k) { return {Kind::Key, k, MouseButton::Left, GamepadButton::A}; }
+    static Binding ofMouse(MouseButton b) { return {Kind::Mouse, Key::Unknown, b, GamepadButton::A}; }
+    static Binding ofPad(GamepadButton b) { return {Kind::Pad, Key::Unknown, MouseButton::Left, b}; }
+    bool isGamepad() const noexcept { return kind == Kind::Pad; }
+    friend bool operator==(const Binding&, const Binding&) = default;
+};
+
+/// "Space", "Mouse Left", "Pad A".
+std::string bindingName(const Binding& binding);
+/// Reads a name like the above (any case; spaces optional): "space",
+/// "left shift", "mouse left", "pad a", "gamepad start". Nothing if unknown.
+std::optional<Binding> parseBinding(std::string_view name);
+
+/// A rumble asked for by the game, for the program to send to the gamepad.
+struct RumbleRequest {
+    int pad = -1;             // -1: every gamepad
+    float low = 0.0f;         // the heavy, slow motor, 0 to 1
+    float high = 0.0f;        // the light, fast motor, 0 to 1
+    float seconds = 0.0f;     // 0: stop
+};
+
+/// The device the player used last, for prompts.
+enum class InputDevice { Keyboard, Gamepad };
 
 class Input {
 public:
@@ -114,6 +170,66 @@ public:
     /// For menus: the d-pad or the left stick was just pushed this way
     /// (`direction` is Up, Down, Left or Right).
     bool wasNudged(GamepadButton direction) const noexcept;
+    /// What the player used last: the keyboard (or mouse), or a gamepad.
+    InputDevice lastDevice() const noexcept { return m_lastDevice; }
+    /// The style of the gamepad used last (or the first one plugged in).
+    GamepadStyle gamepadStyle() const noexcept;
+
+    // --- Rumble -----------------------------------------------------------------------------
+    /// Shakes the gamepad: `strength` 0 to 1 for `seconds` (0 stops it).
+    /// Without `pad`, every gamepad. Not every gamepad can rumble.
+    void rumble(float strength, float seconds, int pad = -1);
+    /// The same with each motor set: `low` the heavy one, `high` the light one.
+    void rumble(float low, float high, float seconds, int pad);
+    /// The rumbles asked for since the last call (the program sends them).
+    std::vector<RumbleRequest> takeRumbles();
+
+    // --- Actions and remapping ---------------------------------------------------------------
+    /// Names an action and its default bindings. If the player changed the
+    /// action's bindings, theirs are kept (defining again is harmless).
+    void defineAction(std::string_view name, std::vector<Binding> defaults);
+    bool hasAction(std::string_view name) const;
+    /// The actions, in the order they were defined.
+    std::vector<std::string> actions() const;
+    /// Any of the action's bindings is down / was pressed / was released.
+    /// False for an action that does not exist.
+    bool isActionDown(std::string_view name) const;
+    bool wasActionPressed(std::string_view name) const;
+    bool wasActionReleased(std::string_view name) const;
+    /// The bindings now (the player's, or else the defaults).
+    std::vector<Binding> bindings(std::string_view name) const;
+    /// The binding to show for an action on `device` (e.g. in "{button:jump}"):
+    /// its first binding of that kind, else its first. Nothing if none.
+    std::optional<Binding> bindingFor(std::string_view name, InputDevice device) const;
+    void setBindings(std::string_view name, std::vector<Binding> bindings);
+    /// Back to the defaults: one action, or every action (empty name).
+    void resetBindings(std::string_view name = {});
+
+    /// Remapping: the next key, mouse button or gamepad button pressed
+    /// becomes the action's binding for that kind of device (a key replaces
+    /// its keyboard and mouse bindings, a gamepad button its gamepad ones).
+    /// Escape or Backspace cancels (in Rolo's player, Escape also quits the
+    /// game: menus should offer Backspace). The press is used up: it does not
+    /// also count as pressed.
+    void startRebind(std::string_view name);
+    void cancelRebind() noexcept { m_rebinding.clear(); }
+    bool isRebinding() const noexcept { return !m_rebinding.empty(); }
+    const std::string& rebindingAction() const noexcept { return m_rebinding; }
+
+    /// Goes up whenever the player's bindings change (to know when to save them).
+    std::uint64_t bindingsRevision() const noexcept { return m_bindingsRevision; }
+    /// The player's changed bindings as text, one action per line:
+    /// "jump=Space,Pad A". Actions left at their defaults are not written.
+    std::string saveBindings() const;
+    /// Reads what saveBindings wrote; unknown names are skipped.
+    void loadBindings(std::string_view text);
+
+    /// Rolo's own actions (moveDirection, dialogue, triggers).
+    static constexpr std::string_view kMoveLeft = "move left";
+    static constexpr std::string_view kMoveRight = "move right";
+    static constexpr std::string_view kMoveUp = "move up";
+    static constexpr std::string_view kMoveDown = "move down";
+    static constexpr std::string_view kInteract = "interact";
 
     // --- Reported by the program running the game -------------------------------------------
     void press(Key key) noexcept;
@@ -155,11 +271,33 @@ private:
         std::array<State, static_cast<std::size_t>(GamepadButton::Count)> buttons{};
         std::array<float, static_cast<std::size_t>(GamepadAxis::Count)> axes{};
         Vec2 previousStick;   // the left stick at the last endFrame (for wasNudged)
+        GamepadStyle style = GamepadStyle::Generic;
     };
     // The pad to read: `pad` if valid, else the first connected one (null if none).
     const Pad* padFor(int pad) const noexcept;
     Vec2 stick(GamepadAxis x, GamepadAxis y, int pad) const noexcept;
     std::array<Pad, kMaxGamepads> m_pads{};
+
+    struct Action {
+        std::vector<Binding> defaults;
+        std::optional<std::vector<Binding>> chosen;   // the player's, if changed
+        int order = 0;
+    };
+    const Action* findAction(std::string_view name) const;
+    bool bindingIs(const Binding& b, bool (Input::*keyQ)(Key) const noexcept,
+                   bool (Input::*mouseQ)(MouseButton) const noexcept,
+                   bool (Input::*padQ)(GamepadButton, int) const noexcept) const;
+    void rebindTo(const Binding& binding);
+    std::map<std::string, Action, std::less<>> m_actions;
+    std::map<std::string, std::vector<Binding>, std::less<>> m_loaded;   // chosen bindings of actions not defined yet
+    std::string m_rebinding;
+    std::uint64_t m_bindingsRevision = 0;
+    InputDevice m_lastDevice = InputDevice::Keyboard;
+    int m_lastPad = -1;
+    std::vector<RumbleRequest> m_rumbles;
+
+public:
+    Input();
 };
 
 } // namespace rolo

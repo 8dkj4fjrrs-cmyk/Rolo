@@ -114,6 +114,13 @@ struct PlayProject {
         frames(1);
     }
     EntityId player() const { return game->find("Player"); }
+    /// What the Text of the object called `name` shows now ("" if none).
+    std::string text(std::string_view name) const
+    {
+        const Entity* e = game->scene().find(game->find(name));
+        const Text* t = e != nullptr ? e->get<Text>() : nullptr;
+        return t != nullptr ? t->text : std::string();
+    }
     /// Puts the player's feet (its collider) on a point, as if it walked there.
     void stand(Vec2 at)
     {

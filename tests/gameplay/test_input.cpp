@@ -4,6 +4,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <string>
+#include <vector>
 
 using namespace rolo;
 
@@ -159,8 +161,8 @@ TEST_CASE("moveDirection steers with the keys, else the d-pad, else the left sti
     const Vec2 dpad = input.moveDirection();
     CHECK(dpad.x == Catch::Approx(-0.7071f).margin(0.001f));
     CHECK(dpad.y == Catch::Approx(0.7071f).margin(0.001f));
-    input.press(Key::Right);   // the keyboard wins
-    CHECK(input.moveDirection() == Vec2{1.0f, 0.0f});
+    input.press(Key::Right);   // keys and buttons combine: right and left cancel out, up stays
+    CHECK(input.moveDirection() == Vec2{0.0f, 1.0f});
 }
 
 TEST_CASE("A stick pushed past halfway counts as a nudge once, for menus", "[gameplay][input][gamepad]")
@@ -186,4 +188,143 @@ TEST_CASE("releaseAll lets go of gamepad buttons too", "[gameplay][input][gamepa
     input.releaseAll();
     CHECK_FALSE(input.isDown(GamepadButton::B));
     CHECK(input.wasReleased(GamepadButton::B));
+}
+
+// --- Actions and remapping ------------------------------------------------------------------------------
+
+TEST_CASE("Rolo's own actions are there from the start", "[gameplay][input][actions]")
+{
+    Input input;
+    CHECK(input.actions() == std::vector<std::string>{"move left", "move right", "move up", "move down", "interact"});
+    input.press(Key::E);
+    CHECK(input.wasActionPressed("interact"));
+    input.endFrame();
+    input.setGamepad(0, pad({GamepadButton::A}));
+    CHECK(input.wasActionPressed("interact"));
+    CHECK(input.isActionDown("interact"));
+    CHECK_FALSE(input.isActionDown("no such action"));
+}
+
+TEST_CASE("Games define actions; any of their bindings counts", "[gameplay][input][actions]")
+{
+    Input input;
+    input.defineAction("jump", {Binding::ofKey(Key::Space), Binding::ofPad(GamepadButton::A), Binding::ofMouse(MouseButton::Right)});
+    CHECK(input.hasAction("jump"));
+    input.press(MouseButton::Right);
+    CHECK(input.wasActionPressed("jump"));
+    input.release(MouseButton::Right);
+    CHECK(input.wasActionReleased("jump"));
+    CHECK(input.bindingFor("jump", InputDevice::Gamepad) == Binding::ofPad(GamepadButton::A));
+    CHECK(input.bindingFor("jump", InputDevice::Keyboard) == Binding::ofKey(Key::Space));
+}
+
+TEST_CASE("Binding names are read and written", "[gameplay][input][actions]")
+{
+    CHECK(bindingName(Binding::ofKey(Key::LeftShift)) == "Left Shift");
+    CHECK(bindingName(Binding::ofMouse(MouseButton::Middle)) == "Mouse Middle");
+    CHECK(bindingName(Binding::ofPad(GamepadButton::RightBumper)) == "Pad RB");
+    CHECK(parseBinding("left_shift") == Binding::ofKey(Key::LeftShift));
+    CHECK(parseBinding("Gamepad Start") == Binding::ofPad(GamepadButton::Start));
+    CHECK(parseBinding("pad up") == Binding::ofPad(GamepadButton::Up));
+    CHECK(parseBinding("mouse left") == Binding::ofMouse(MouseButton::Left));
+    CHECK(parseBinding("return") == Binding::ofKey(Key::Enter));
+    CHECK_FALSE(parseBinding("pad q"));
+    CHECK_FALSE(parseBinding("hyperspace"));
+}
+
+TEST_CASE("Remapping: the next press becomes the binding for its kind of device", "[gameplay][input][actions]")
+{
+    Input input;
+    input.defineAction("jump", {Binding::ofKey(Key::Space), Binding::ofPad(GamepadButton::A)});
+    const auto revision = input.bindingsRevision();
+
+    input.startRebind("jump");
+    CHECK(input.isRebinding());
+    CHECK(input.rebindingAction() == "jump");
+    input.press(Key::J);
+    CHECK_FALSE(input.isRebinding());
+    CHECK_FALSE(input.wasPressed(Key::J));   // used up by the remapping
+    CHECK(input.bindings("jump") == std::vector<Binding>{Binding::ofKey(Key::J), Binding::ofPad(GamepadButton::A)});
+    CHECK(input.bindingsRevision() != revision);
+    input.release(Key::J);
+    input.endFrame();
+
+    // A gamepad button replaces only the gamepad binding.
+    input.startRebind("jump");
+    input.setGamepad(0, pad({GamepadButton::RightBumper}));
+    CHECK_FALSE(input.wasPressed(GamepadButton::RightBumper));
+    CHECK(input.bindings("jump") == std::vector<Binding>{Binding::ofKey(Key::J), Binding::ofPad(GamepadButton::RightBumper)});
+    input.endFrame();
+    input.setGamepad(0, pad());
+
+    // Escape or Backspace gives up; unknown actions cannot be remapped.
+    input.startRebind("jump");
+    input.press(Key::Escape);
+    CHECK_FALSE(input.isRebinding());
+    input.startRebind("jump");
+    input.press(Key::Backspace);
+    CHECK_FALSE(input.isRebinding());
+    CHECK(input.bindings("jump").front() == Binding::ofKey(Key::J));
+    input.startRebind("fly");
+    CHECK_FALSE(input.isRebinding());
+
+    input.resetBindings("jump");
+    CHECK(input.bindings("jump").front() == Binding::ofKey(Key::Space));
+}
+
+TEST_CASE("Remapped controls are written and read back, even before the game defines them", "[gameplay][input][actions]")
+{
+    Input before;
+    before.defineAction("jump", {Binding::ofKey(Key::Space)});
+    before.setBindings("jump", {Binding::ofKey(Key::K), Binding::ofPad(GamepadButton::B)});
+    before.setBindings("move left", {Binding::ofKey(Key::J)});
+    const std::string text = before.saveBindings();
+    CHECK(text == "move left=J\njump=K,Pad B\n");   // only the changed ones, in the order defined
+
+    Input after;
+    after.loadBindings(text + "broken line\n=nothing\n");
+    CHECK(after.bindings("move left") == std::vector<Binding>{Binding::ofKey(Key::J)});
+    after.press(Key::J);
+    CHECK(after.moveDirection() == Vec2{-1.0f, 0.0f});
+    after.defineAction("jump", {Binding::ofKey(Key::Space)});   // defined later: the player's choice wins
+    CHECK(after.bindings("jump") == std::vector<Binding>{Binding::ofKey(Key::K), Binding::ofPad(GamepadButton::B)});
+    after.resetBindings();
+    CHECK(after.bindings("jump") == std::vector<Binding>{Binding::ofKey(Key::Space)});
+    CHECK(after.saveBindings().empty());
+}
+
+TEST_CASE("The input knows which device the player used last, and the pad's style", "[gameplay][input][gamepad]")
+{
+    Input input;
+    CHECK(input.lastDevice() == InputDevice::Keyboard);
+    GamepadState ps = pad({GamepadButton::X});
+    ps.style = gamepadStyleFromName("DualSense Wireless Controller");
+    input.setGamepad(1, ps);
+    CHECK(input.lastDevice() == InputDevice::Gamepad);
+    CHECK(input.gamepadStyle() == GamepadStyle::PlayStation);
+    input.press(Key::Space);
+    CHECK(input.lastDevice() == InputDevice::Keyboard);
+    CHECK(gamepadStyleFromName("Xbox Wireless Controller") == GamepadStyle::Xbox);
+    CHECK(gamepadStyleFromName("Nintendo Switch Pro Controller") == GamepadStyle::Nintendo);
+    CHECK(gamepadStyleFromName("8BitDo SN30") == GamepadStyle::Generic);
+}
+
+TEST_CASE("Rumbles are queued for the program, clamped to sensible values", "[gameplay][input][gamepad]")
+{
+    Input input;
+    input.rumble(0.5f, 0.3f);
+    input.rumble(2.0f, -1.0f, 20.0f, 1);
+    input.rumble(0.0f, 0.0f, 0.0f, 9);
+    const auto r = input.takeRumbles();
+    REQUIRE(r.size() == 3);
+    CHECK(r[0].pad == -1);
+    CHECK(r[0].low == 0.5f);
+    CHECK(r[0].high == 0.5f);
+    CHECK(r[0].seconds == Catch::Approx(0.3f));
+    CHECK(r[1].pad == 1);
+    CHECK(r[1].low == 1.0f);
+    CHECK(r[1].high == 0.0f);
+    CHECK(r[1].seconds == 10.0f);
+    CHECK(r[2].pad == -1);   // no gamepad 9: every gamepad
+    CHECK(input.takeRumbles().empty());
 }

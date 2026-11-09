@@ -14,9 +14,15 @@
 #include "rolo/gameplay/Input.hpp"
 
 #include <array>
+#include <memory>
 #include <string>
 
 namespace rolo {
+
+namespace detail {
+class Rumble;
+class RumbleTimer;
+}
 
 /// A gamepad's buttons and axes as GLFW reports them (GLFWgamepadstate:
 /// 15 buttons, then 6 axes with y pointing down and triggers from -1 to 1),
@@ -26,17 +32,28 @@ GamepadState gamepadFromGlfw(const unsigned char (&buttons)[15], const float (&a
 class GamepadReader {
 public:
     explicit GamepadReader(const Logger& log);
+    ~GamepadReader();   // stops any rumble
+    GamepadReader(const GamepadReader&) = delete;
+    GamepadReader& operator=(const GamepadReader&) = delete;
 
     /// Reads every connected gamepad into `input` (up to Input::kMaxGamepads),
-    /// and says in the log when one is plugged in or out.
+    /// and says in the log when one is plugged in or out. Also sends the
+    /// rumbles the game asked for (Input::rumble) and ends them on time.
     void read(Input& input);
+    /// Stops every rumble at once (the game was paused or stopped).
+    void stopRumble();
 
 private:
+    void updateRumble(Input& input);
+
     const Logger& m_log;
+    std::unique_ptr<detail::Rumble> m_rumble;
+    std::unique_ptr<detail::RumbleTimer> m_timer;
     // Which GLFW joystick each of Rolo's pads is (-1: none). A pad keeps its
     // number while it stays plugged in, even if one before it is unplugged.
     std::array<int, Input::kMaxGamepads> m_joystickOf{-1, -1, -1, -1};
     std::array<bool, 16> m_reportedUnknown{};   // joysticks without a layout, already mentioned
+    std::array<std::string, Input::kMaxGamepads> m_names;   // each pad's name, e.g. "PS5 Controller"
 };
 
 } // namespace rolo

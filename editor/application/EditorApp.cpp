@@ -632,6 +632,9 @@ void EditorApp::stopPlaying()
     }
     const std::uint64_t frames = m_game->frameCount();
     m_game.reset();   // the game's copy of the scene (and its sounds) go with it
+    if (m_gamepads) {
+        m_gamepads->stopRumble();
+    }
     m_playContent.reset();
     m_paused = false;
     if (m_audio) {
@@ -646,6 +649,9 @@ void EditorApp::togglePause()
     if (m_game) {
         m_paused = !m_paused;
         audio().setPaused(m_paused);   // sounds hold too
+        if (m_paused && m_gamepads) {
+            m_gamepads->stopRumble();
+        }
         log().info(kCategory, m_paused ? "Paused." : "Resumed.");
     }
 }

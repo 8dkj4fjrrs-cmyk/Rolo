@@ -1215,11 +1215,11 @@
         },
         {
           "type": "rolo.Text",
-          "text": "Arrows / A D or a gamepad run · Space or (A) jump · push the crates!",
+          "text": "{button:move left} {button:move right} run   {button:jump} jump   {button:controls} controls",
           "source": "text",
           "font": null,
-          "size": 15,
-          "color": "#1a2a44c0",
+          "size": 18,
+          "color": "#1a2a44e0",
           "align": "right",
           "width": 0
         }
@@ -1267,6 +1267,70 @@
           "size": 30,
           "color": "#ffd84aff",
           "align": "center",
+          "width": 0
+        }
+      ]
+    },
+    {
+      "id": "504c010000000022",
+      "parent": "504c01000000001d",
+      "name": "Controls",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 0],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Script",
+          "script": "504c415400000011"
+        }
+      ]
+    },
+    {
+      "id": "504c010000000023",
+      "parent": "504c010000000022",
+      "name": "Controls Panel",
+      "active": false,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [0, 70],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Shape",
+          "kind": "rectangle",
+          "size": [860, 300],
+          "color": "#141c30f0",
+          "filled": true,
+          "lineWidth": 2
+        }
+      ]
+    },
+    {
+      "id": "504c010000000024",
+      "parent": "504c010000000023",
+      "name": "Controls Text",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [-400, 120],
+          "rotation": 0,
+          "scale": [1, 1]
+        },
+        {
+          "type": "rolo.Text",
+          "text": "",
+          "source": "text",
+          "font": null,
+          "size": 24,
+          "color": "#ffffffff",
+          "align": "left",
           "width": 0
         }
       ]

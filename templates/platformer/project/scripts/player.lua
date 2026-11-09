@@ -9,22 +9,37 @@ local SPEED = 280     -- running speed, points per second
 local JUMP = 640      -- jump speed, points per second upwards
 
 function start(self)
+    -- "jump" is an action: the keys and buttons that do it. Players can
+    -- change them in the Controls screen (scripts/controls.lua).
+    input.action("jump", {"space", "w", "up", "pad a"})
     self.startX, self.startY = self.object:position()
     self.facing = "right"
+    self.fallSpeed = 0
 end
 
 function update(self, dt)
-    local dx = input.direction()          -- -1 left to 1 right (keys, d-pad or stick)
     local vx, vy = self.object:velocity()
     local onGround = self.object:isOnGround()
 
+    -- Landing after a long fall: a little rumble on a gamepad.
+    if onGround and self.fallSpeed < -700 then
+        input.rumble(0.4, 0.15)
+    end
+    self.fallSpeed = vy
+
+    -- While the Controls screen is open, the hero stands still.
+    if game.get("menu_open") then
+        self.object:setVelocity(0, vy)
+        self.object:play("idle_" .. self.facing)
+        return
+    end
+
     -- Run: set the sideways speed and keep the up-and-down speed (falling).
+    local dx = input.direction()          -- -1 left to 1 right (keys, d-pad or stick)
     self.object:setVelocity(dx * SPEED, vy)
 
-    -- Jump: only from the ground. Space, up, W, or A on a gamepad.
-    local jump = input.wasPressed("space") or input.wasPressed("up") or input.wasPressed("w")
-                 or input.wasPressed("pad a")
-    if onGround and jump then
+    -- Jump: only from the ground.
+    if onGround and input.wasPressed("jump") then
         self.object:setVelocity(dx * SPEED, JUMP)
         audio.play("jump")
     end
