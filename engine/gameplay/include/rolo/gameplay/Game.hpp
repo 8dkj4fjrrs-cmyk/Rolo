@@ -72,6 +72,10 @@ struct GameSetup {
     SaveStore* saves = nullptr;              // where save slots go (none: saving is reported, not done)
     std::string gameName = "Game";           // written in save files
     SoundPlayer* sound = nullptr;            // the program's audio (none: the game is silent)
+    /// The longest one script call (start, update, collide, a required file)
+    /// may run, in seconds, before it is stopped as stuck. Generous, so slow
+    /// computers and big set-ups are not stopped; tests use less.
+    double scriptTimeLimit = 10.0;
 };
 
 class Game : private ContentHost {

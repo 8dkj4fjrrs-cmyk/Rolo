@@ -8,7 +8,7 @@ Large dependencies are not copied into this repository: Axmol is downloaded
 by CMake into `external/` at a pinned commit (see `cmake/RoloAxmol.cmake`).
 Small ones are kept in the repository, unmodified and with their license
 files: `third_party/stb/stb_truetype.h`, `third_party/stb/stb_image.h`, Lua's
-sources in `third_party/lua/`, miniaudio and stb_vorbis in `third_party/miniaudio/`, Box2D in `third_party/box2d/` and the Inter fonts in `assets/fonts/`.
+sources in `third_party/luau/`, miniaudio and stb_vorbis in `third_party/miniaudio/`, Box2D in `third_party/box2d/` and the Inter fonts in `assets/fonts/`.
 
 ## Runtime backend
 
@@ -88,13 +88,14 @@ source.
 
 | Component | Version | License | Shipped? |
 |---|---|---|---|
-| [Lua](https://www.lua.org) (`third_party/lua/`) | 5.4.9 (`312b9ef`, from the official mirror github.com/lua/lua) | MIT | Yes: runs Lua scripts in the editor and in games |
+| [Luau](https://luau.org) (`third_party/luau/`) | 0.744 (`32c2808`, from github.com/luau-lang/luau) | MIT | Yes: runs scripts in the editor and in games |
 
-Kept in this repository, unmodified, with its license file. Only the language
-core and the base, coroutine, string, table, math and utf8 libraries are
-copied and built; the io, os, debug and package libraries are left out on
-purpose (see `third_party/lua/README.md` and ADR 0013). Its MIT notice goes
-with every game in `licenses/lua.txt`.
+Kept in this repository, unmodified, with its license files. Only the
+parser, compiler and virtual machine are copied and built (not type
+checking, native code or Luau's programs); scripts never get the os or debug
+libraries, and Luau has no io or package library (see
+`third_party/luau/README.md` and ADR 0020). Its MIT notice, which includes
+Lua's, goes with every game in `licenses/luau.txt`.
 
 ## Sound (`engine/audio`)
 

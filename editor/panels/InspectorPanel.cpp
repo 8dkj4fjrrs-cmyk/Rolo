@@ -1157,7 +1157,7 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
             if (const AssetRecord* a = assets != nullptr ? assets->find(id) : nullptr) {
                 openWithDefaultApp(assets->absolutePath(*a));
             }
-        }).setTooltip("Opens the script in the program your computer uses for .lua files, e.g. Visual Studio Code. "
+        }).setTooltip("Opens the script in the program your computer uses for .lua files, e.g. Visual Studio Code (with the Luau extension). "
                       "Save it there, then press Play.");
     }
     if (asset.type == AssetType::Animation) {

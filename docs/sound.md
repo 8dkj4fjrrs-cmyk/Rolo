@@ -7,7 +7,7 @@ games. You can add sound three ways, from no code at all to full control:
 |---|---|
 | A **Sound** component on an object | music for a scene, a waterfall's loop, a sound when something appears |
 | The **playSound**, **playMusic** and **stopMusic** actions | a sound when a trigger fires, a dialogue choice is made or a quest completes |
-| **Lua scripts** (`audio.play`, `object:playSound`) and **C++** (`game.playSound`) | anything else: footsteps, varying pitch, fading by distance |
+| **Luau scripts** (`audio.play`, `object:playSound`) and **C++** (`game.playSound`) | anything else: footsteps, varying pitch, fading by distance |
 
 ## Sound files
 

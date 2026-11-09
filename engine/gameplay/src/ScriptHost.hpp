@@ -12,21 +12,27 @@
 //     update() without clashing.
 //   * Each *object* with a Script gets its own `self` table, kept in the Lua
 //     registry; the component remembers its reference.
-//   * The shared globals are Lua's safe libraries (string, table, math, utf8,
-//     coroutine and most of the base library) plus Rolo's: game, input,
-//     print and require. Nothing reaches files, programs or native code.
+//   * The shared globals are Luau's safe libraries (string, table, math,
+//     utf8, coroutine, bit32, buffer, vector and most of the base library)
+//     plus Rolo's: game, input, audio, print and require. They are
+//     read-only (luaL_sandbox). Nothing reaches files, programs or native code.
 //
 // Limits, so a broken script cannot hang or exhaust the game:
-//   * a call (start, update, a required file) that runs more than
-//     kInstructionLimit Lua instructions is stopped with an error;
+//   * a call (start, update, a required file) that runs for more than
+//     GameSetup::scriptTimeLimit seconds is stopped with an error. A watchdog thread notices;
+//     scripts pay nothing for it while they run;
 //   * all scripts together may use at most kMemoryLimit bytes.
 
 #include "rolo/core/Log.hpp"
 #include "rolo/scene/EntityId.hpp"
 
+#include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <cstddef>
 #include <map>
+#include <mutex>
+#include <thread>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -41,7 +47,6 @@ struct Script;
 
 class ScriptHost {
   public:
-    static constexpr long long kInstructionLimit = 50'000'000;
     static constexpr std::size_t kMemoryLimit = 256u * 1024u * 1024u;
 
     ScriptHost(Game& game, const Logger& log);
@@ -66,6 +71,11 @@ class ScriptHost {
     std::size_t memoryUsed() const noexcept { return m_memoryUsed; }
     /// Bytes the scripts have asked for since they started (garbage included).
     std::uint64_t memoryAllocated() const noexcept { return m_allocated; }
+    void countAllocated(std::size_t bytes) noexcept { m_allocated += bytes; }
+    /// True when the watchdog found the current call running too long.
+    bool callTimedOut() const noexcept { return m_timedOut.load(std::memory_order_relaxed); }
+    /// How long one call may run, in seconds (GameSetup::scriptTimeLimit).
+    double timeLimit() const noexcept { return m_timeLimit; }
 
     // --- Used by the Lua bindings (ScriptApi.cpp) -------------------------------------------------
     /// The ScriptHost that owns a Lua state.
@@ -100,14 +110,23 @@ class ScriptHost {
     void ensureSelf(Script& script, EntityId object);
 
     static void* allocate(void* ud, void* block, std::size_t oldSize, std::size_t newSize) noexcept;
-    static void countHook(lua_State* L, lua_Debug* ar);
+    void watch();   // the watchdog thread
 
     Game& m_game;
     const Logger& m_log;
     lua_State* m_L = nullptr;
     std::size_t m_memoryUsed = 0;
+    int m_traceback = -2;   // registry reference of the message handler of every call
     std::uint64_t m_allocated = 0;
-    long long m_instructions = 0; // in the current call
+    // The watchdog (see watch()).
+    double m_timeLimit = 10.0;
+    std::atomic<std::uint64_t> m_callNumber{0};   // counts outermost calls
+    std::atomic<bool> m_inCall{false};
+    std::atomic<bool> m_timedOut{false};
+    std::mutex m_watchMutex;
+    std::condition_variable m_watchWake;
+    bool m_stopWatching = false;   // guarded by m_watchMutex
+    std::thread m_watchdog;        // started by the constructor once Luau is ready
     std::map<AssetId, File> m_files;
     std::map<std::string, int, std::less<>> m_modules;         // require() results by name (registry refs)
     std::map<std::string, bool, std::less<>> m_loadingModules; // to catch require loops

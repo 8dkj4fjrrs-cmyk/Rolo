@@ -8,7 +8,7 @@ Their license texts are in this folder; games carry a copy of it.
 | `rolo.txt` | Rolo Engine | MIT |
 | `axmol.txt` | Axmol Engine 2.11.5 | MIT |
 | `inter-font.txt` | Inter font 4.0 (Rolo's default text font) | SIL OFL 1.1 |
-| `lua.txt` | Lua 5.4.9 (gameplay scripts) | MIT |
+| `luau.txt` | Luau 0.744 (gameplay scripts), based on Lua 5.1 | MIT |
 | `nlohmann-json.txt` | nlohmann/json 3.12.0 | MIT |
 | `stb.txt` | stb_image, stb_truetype | MIT or public domain |
 | `miniaudio.txt` | miniaudio 0.11.26 (sound) | public domain (Unlicense) or MIT No Attribution |

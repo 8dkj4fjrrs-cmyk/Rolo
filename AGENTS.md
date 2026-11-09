@@ -25,10 +25,11 @@ and AI assistants.
 - Editor operations that change scene or project data must go through the undo/redo command system: panels call the editor's `execute()` with a `Command` (`editor/model/Commands.hpp`), never `Scene` setters directly.
 - Scenes are `rolo::Scene` data (`engine/scene`); Axmol nodes are created only by `engine/runtime/src/SceneRenderer.*`. New component types describe their properties with `ComponentTypeBuilder` so the Inspector, files and undo handle them automatically.
 - Gameplay code is C++ `Behaviour` components (`engine/gameplay`) in game modules registered with
-  `ROLO_GAME_MODULE` / `rolo_add_game_module` (docs/gameplay.md), or Lua scripts run by the
-  `rolo.Script` behaviour (docs/scripting.md, ADR 0013). Lua stays inside `engine/gameplay`
-  (ScriptHost, ScriptApi): no other module includes Lua headers. Scripts stay sandboxed: never open
-  Lua's io, os, debug or package libraries, and every API function checks its arguments and turns
+  `ROLO_GAME_MODULE` / `rolo_add_game_module` (docs/gameplay.md), or Luau scripts run by the
+  `rolo.Script` behaviour (docs/scripting.md, ADR 0013, ADR 0020). Luau stays inside `engine/gameplay`
+  (ScriptHost, ScriptApi): no other module includes Luau headers. Luau is used unmodified. Scripts
+  stay sandboxed: never open Luau's os or debug libraries or `loadstring`, keep the shared globals
+  read-only (`luaL_sandbox`), and every API function checks its arguments and turns
   C++ exceptions into Lua errors (`guarded`). New script functions need docs/scripting.md and tests. `engine/gameplay` has no
   backend; the runtime and editor translate their input into `rolo::Input`. A game always plays a
   copy of the scene (`Game::start`), never the scene being edited.

@@ -16,7 +16,8 @@ Nothing here is kept unless the numbers say it helps.
 
 The project is made by `make_stress.py` (`python3 examples/stress/make_stress.py
 examples/stress/project`); every run of it gives the same scenes. The
-scripts run unchanged on Lua 5.4 and on Luau, so the two can be compared.
+scripts run unchanged on Lua 5.4 and on Luau, so the two can be compared
+(Rolo uses Luau since ADR 0020).
 
 ## Measuring gameplay: `rolo_stress`
 
@@ -60,6 +61,8 @@ lengths there include waiting for the screen, so a fast computer shows
 
 ## Baseline: Lua 5.4.9, before any optimisation
 
+(Rolo moved to Luau the same day; see below.)
+
 Measured on 2026-11-09 with `rolo_stress --frames 1200` (after 120 warm-up
 frames), Release build, GCC 13.3, on a shared cloud Linux machine (2 cores
 of an Intel Xeon at 2.1 GHz). Each number is the median of three runs.
@@ -97,6 +100,42 @@ What it shows:
 - **Physics is fine at this size**: 800 tumbling bodies take about 1 ms.
 - **Busy scenes add up**: `busy` reaches 10–14 ms in its worst frames
   for gameplay alone, before drawing.
+
+## Luau against Lua 5.4
+
+Measured on 2026-11-09 on the same machine, Lua 5.4.9 (Rolo at `00f0d14`)
+and Luau 0.744 runs taking turns, three of each, `--frames 1200`; medians.
+Only the columns that matter here (milliseconds per frame):
+
+| scene | scripts, Lua 5.4 | scripts, Luau | | frame mean, Lua 5.4 | frame mean, Luau | p99, Lua 5.4 | p99, Luau |
+|---|---|---|---|---|---|---|---|
+| scripts | 1.48 | 1.27 | 1.2× | 2.63 | 2.60 | 4.49 | 3.93 |
+| garbage | 4.09 | 1.74 | 2.4× | 4.63 | 2.44 | 8.46 | 4.22 |
+| tidy | 1.76 | 0.76 | 2.3× | 2.28 | 1.32 | 3.81 | 3.37 |
+| bullets | 0.96 | 0.91 | 1.1× | 1.98 | 2.10 | 3.85 | 4.64 |
+| busy | 2.92 | 1.63 | 1.8× | 5.22 | 4.33 | 9.78 | 7.63 |
+
+What it shows:
+
+- **Code that runs in the language itself is about 2.3× faster** with
+  Luau (`garbage`, `tidy`), and `garbage`'s slow frames (p99) are half as
+  slow: Luau's garbage collector clears the same garbage with shorter
+  pauses.
+- **Scripts that mostly call Rolo hardly change** (`scripts`, `bullets`):
+  there the time goes into Rolo's functions (`setPosition`,
+  `setRotation`, `isActive`), not the language. That is the target of the
+  next step, the performance layer.
+- **Scenes without scripts** (`physics`, `sprites`) do not use Luau at
+  all; their differences between the two runs (up to 30%) are the noise of
+  the machine. Worst frames vary even more, so they are left out above.
+- `KB/frame` counts differently now: Luau reports every object it makes,
+  where Lua 5.4 counted blocks from the system. Garbage is about the same
+  (1048 against 997 KB a frame in `garbage`).
+- Moving to Luau first made garbage of its own: every script call made a
+  48-byte object (Rolo pushed its error handler anew each call, which is
+  free in Lua 5.4 but not in Luau). The stress test showed it (94 KB a
+  frame in `scripts`); it is fixed, and scripts that make no garbage now
+  show 0.
 
 Drawing was not measured here: the cloud machine draws without a graphics
 card, which says nothing about a real computer. Measure it on yours with

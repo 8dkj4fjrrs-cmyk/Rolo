@@ -179,7 +179,7 @@ TEST_CASE("A script error names the file and line and switches only that script 
     REQUIRE(p.problems.size() == 1); // reported once, then switched off
     CHECK_THAT(p.problems[0], ContainsSubstring("'Broken'"));
     CHECK_THAT(p.problems[0], ContainsSubstring("scripts/broken.lua:3:"));
-    CHECK_THAT(p.problems[0], ContainsSubstring("attempt to index a nil value"));
+    CHECK_THAT(p.problems[0], ContainsSubstring("attempt to index nil with 'field'"));
     CHECK(positionOf(game, ok).x == 5.0f); // the other script kept going
 }
 
@@ -194,7 +194,7 @@ TEST_CASE("A script with a syntax error is reported with its line", "[gameplay][
     frames(game, 2);
     INFO((p.problems.empty() ? std::string() : p.problems.front()));
     CHECK(p.hasProblem("scripts/bad.lua:4:")); // the missing 'end' is noticed at the end of the file
-    CHECK(p.hasProblem("'end' expected"));
+    CHECK(p.hasProblem("Expected 'end'"));
 
     CHECK(checkScriptSyntax("function f() end", "scripts/ok.lua") == std::nullopt);
     const auto error = checkScriptSyntax("function f(", "scripts/x.lua");
@@ -208,10 +208,11 @@ TEST_CASE("A script that never finishes is stopped instead of freezing the game"
     const AssetId loop = p.write("scripts/loop.lua", "function update(self, dt)\n  while true do end\nend\n");
     Scene scene;
     addScripted(scene, "Loop", loop);
-    Game game(p.log, &p.assets);
+    Game game(p.log, GameSetup{.assets = &p.assets, .scriptTimeLimit = 1.0});   // games: 10 seconds
     game.start(scene);
     frames(game, 3);
-    CHECK(p.hasProblem("ran for too long"));
+    INFO((p.problems.empty() ? std::string("no problems") : p.problems[0]));
+    CHECK(p.hasProblem("ran for more than 1 second without finishing"));
     CHECK(p.hasProblem("scripts/loop.lua:2:"));
 }
 
@@ -238,7 +239,8 @@ TEST_CASE("Scripts cannot reach files, programs or native code", "[gameplay][scr
     const AssetId probe = p.write("scripts/probe.lua", R"(
         function start(self)
             local found = {}
-            for _, name in ipairs({"io", "os", "debug", "package", "dofile", "loadfile", "load"}) do
+            for _, name in ipairs({"io", "os", "debug", "package", "dofile", "loadfile", "load", "loadstring",
+                                   "getfenv", "setfenv"}) do
                 if _G[name] ~= nil then found[#found + 1] = name end
             end
             print("reachable: " .. table.concat(found, ","))
@@ -381,9 +383,9 @@ TEST_CASE("Scripts read keys and the movement direction", "[gameplay][script]")
     game.input().press(Key::RightShift);
     frames(game, 2);
     REQUIRE(p.printed.size() == 2);
-    CHECK(p.printed[0] == "scripts/keys.lua: true\ttrue\ttrue\t-1.0\t0.0");
+    CHECK(p.printed[0] == "scripts/keys.lua: true\ttrue\ttrue\t-1\t0");
     CHECK(p.printed[1] ==
-          "scripts/keys.lua: true\tfalse\ttrue\t-1.0\t0.0"); // pressed only in the first frame
+          "scripts/keys.lua: true\tfalse\ttrue\t-1\t0"); // pressed only in the first frame
 }
 
 TEST_CASE("An unknown key name is an error that lists the names", "[gameplay][script]")
@@ -621,4 +623,82 @@ TEST_CASE("game.quit asks the program to close the game", "[gameplay][script]")
     CHECK(p.problems.empty());
     game.start(scene);   // a new game starts fresh
     CHECK_FALSE(game.quitRequested());
+}
+
+TEST_CASE("Scripts are Luau: types, compound assignment, continue, interpolation", "[gameplay][script]")
+{
+    ScriptProject p;
+    const AssetId luau = p.write("scripts/luau.lua", R"(
+        type Point = { x: number, y: number }
+        local function add(a: Point, b: Point): Point
+            return { x = a.x + b.x, y = a.y + b.y }
+        end
+        function start(self)
+            local total = 0
+            for i = 1, 10 do
+                if i % 2 == 0 then continue end
+                total += i
+            end
+            local p = add({ x = 1, y = 2 }, { x = 3, y = 4 })
+            print(`odd sum {total}, point {p.x},{p.y}, floor {7 // 2}`)
+            local v = vector.create(1, 2, 3)
+            print(`vector {v.x + v.y + v.z}, bits {bit32.band(6, 3)}`)
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Luau", luau);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 1);
+    INFO((p.problems.empty() ? std::string() : p.problems.front()));
+    REQUIRE(p.printed.size() == 2);
+    CHECK(p.printed[0] == "scripts/luau.lua: odd sum 25, point 4,6, floor 3");
+    CHECK(p.printed[1] == "scripts/luau.lua: vector 6, bits 2");
+}
+
+TEST_CASE("The shared libraries are read-only; a file's own globals are its own", "[gameplay][script]")
+{
+    ScriptProject p;
+    const AssetId changer = p.write("scripts/changer.lua", R"(
+        counter = 1   -- this file's global
+        function start(self)
+            counter += 1
+            local ok, err = pcall(function() math.pi = 3 end)
+            print(`changed math: {ok}; {counter}`)
+            local ok2 = pcall(function() game.find = nil end)
+            print(`changed game: {ok2}`)
+        end
+    )");
+    const AssetId reader = p.write("scripts/reader.lua", R"(
+        function start(self) print(`pi {math.pi > 3.14}, counter {counter}`) end
+    )");
+    Scene scene;
+    addScripted(scene, "Changer", changer);
+    addScripted(scene, "Reader", reader);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 1);
+    REQUIRE(p.printed.size() == 3);
+    CHECK(p.printed[0] == "scripts/changer.lua: changed math: false; 2");
+    CHECK(p.printed[1] == "scripts/changer.lua: changed game: false");
+    CHECK(p.printed[2] == "scripts/reader.lua: pi true, counter nil");
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("Files named .luau are scripts too, and require finds them", "[gameplay][script]")
+{
+    ScriptProject p;
+    p.write("scripts/shapes.luau", "return { area = function(w: number, h: number): number return w * h end }\n");
+    const AssetId user = p.write("scripts/main.luau", R"(
+        local shapes = require("shapes")
+        function start(self) print(`area {shapes.area(3, 4)}`) end
+    )");
+    Scene scene;
+    addScripted(scene, "User", user);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 1);
+    INFO((p.problems.empty() ? std::string() : p.problems.front()));
+    REQUIRE(p.printed.size() == 1);
+    CHECK(p.printed[0] == "scripts/main.luau: area 12");
 }

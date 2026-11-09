@@ -5,12 +5,14 @@
 #include "rolo/gameplay/Script.hpp"
 #include "rolo/scene/Component.hpp"
 
-// Lua is compiled as C++ (third_party/lua/CMakeLists.txt), so its headers are
-// included directly, without the extern "C" wrapper of lua.hpp.
-#include "lauxlib.h"
+// Luau is compiled as C++ (third_party/luau/CMakeLists.txt), so its errors
+// are C++ exceptions and its headers are included directly.
 #include "lua.h"
+#include "luacode.h"
 #include "lualib.h"
 
+#include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
@@ -21,6 +23,43 @@ namespace rolo {
 namespace {
 
 constexpr int kNoRef = -2; // LUA_NOREF
+
+// Compiles a script file to Luau bytecode and loads it as a function in
+// environment `env` (a stack index), pushed on the stack. False, with the
+// error message pushed instead, if the code has a mistake.
+bool loadScript(lua_State* L, std::string_view code, const std::string& path, int env)
+{
+    // Optimisation level 1 (Luau's default): fast, and every line still
+    // reports its own number in errors. "@path" names the file in messages:
+    // "scripts/coin.lua:12: ...".
+    lua_CompileOptions options{};
+    options.optimizationLevel = 1;
+    options.debugLevel = 1;
+    std::size_t size = 0;
+    char* bytecode = luau_compile(code.data(), code.size(), &options, &size);
+    if (bytecode == nullptr) {
+        lua_pushstring(L, "could not compile the script: out of memory");
+        return false;
+    }
+    const std::string chunkName = "@" + path;
+    const int status = luau_load(L, chunkName.c_str(), bytecode, size, env);
+    std::free(bytecode);
+    return status == 0;
+}
+
+// A new environment for a script file: its own globals, falling through to
+// the shared (read-only) ones. Marked "safe", so Luau's fast paths for the
+// built-in libraries (math.sin and so on) stay on.
+void pushFileEnvironment(lua_State* L)
+{
+    lua_newtable(L);
+    lua_newtable(L);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_setfield(L, -2, "__index");
+    lua_setreadonly(L, -1, 1);
+    lua_setmetatable(L, -2);
+    lua_setsafeenv(L, -1, 1);
+}
 
 // The message handler of every call: adds where the error happened. Lua's
 // traceback also lists Rolo's own C functions ("[C]: in ?"); only the
@@ -51,26 +90,73 @@ int addTraceback(lua_State* L)
     return 1;
 }
 
-// Opens the safe parts of Lua's standard library. Runs inside lua_pcall, so
+// Opens the safe parts of Luau's standard library. Runs inside lua_pcall, so
 // running out of memory here is an error, not a crash.
 int openLibraries(lua_State* L)
 {
+    // Not opened: os and debug (and Luau has no io or package at all).
     const luaL_Reg libraries[] = {
-        {LUA_GNAME, luaopen_base},        {LUA_COLIBNAME, luaopen_coroutine}, {LUA_TABLIBNAME, luaopen_table},
-        {LUA_STRLIBNAME, luaopen_string}, {LUA_MATHLIBNAME, luaopen_math},    {LUA_UTF8LIBNAME, luaopen_utf8},
+        {"", luaopen_base},
+        {LUA_COLIBNAME, luaopen_coroutine},
+        {LUA_TABLIBNAME, luaopen_table},
+        {LUA_STRLIBNAME, luaopen_string},
+        {LUA_MATHLIBNAME, luaopen_math},
+        {LUA_UTF8LIBNAME, luaopen_utf8},
+        {LUA_BITLIBNAME, luaopen_bit32},
+        {LUA_BUFFERLIBNAME, luaopen_buffer},
+        {LUA_VECLIBNAME, luaopen_vector},
     };
     for (const luaL_Reg& library : libraries) {
-        luaL_requiref(L, library.name, library.func, 1);
-        lua_pop(L, 1);
+        lua_pushcfunction(L, library.func, nullptr);
+        lua_pushstring(L, library.name);
+        lua_call(L, 1, 0);
     }
-    // The base library can still read files (dofile, loadfile) and load
-    // compiled bytecode (load), which can crash the program if damaged.
-    for (const char* unsafe : {"dofile", "loadfile", "load"}) {
+    // loadstring compiles code at run time outside the file's environment,
+    // and getfenv/setfenv reach other functions' environments (and switch off
+    // Luau's fast paths).
+    for (const char* unsafe : {"loadstring", "getfenv", "setfenv"}) {
         lua_pushnil(L);
         lua_setglobal(L, unsafe);
     }
     openScriptApi(ScriptHost::of(L));
+    // The shared globals and libraries become read-only: a script cannot
+    // change math or game for the others. (A file's own globals live in its
+    // environment.)
+    luaL_sandbox(L);
     return 0;
+}
+
+// Called by Luau at safe points once the watchdog asked it to (see
+// ScriptHost::Watchdog): stops a call that has run for too long.
+void stopLongCall(lua_State* L, int gc)
+{
+    if (gc >= 0) {
+        return; // inside the garbage collector: an error cannot be raised here
+    }
+    lua_callbacks(L)->interrupt = nullptr;
+    ScriptHost& host = ScriptHost::of(L);
+    if (host.callTimedOut()) {
+        // Level 0: the script's own function is running here (no C function
+        // in between), so this names its file and line.
+        luaL_where(L, 0);
+        const double limit = host.timeLimit();
+        if (limit >= 1.0) {
+            const int seconds = static_cast<int>(limit);
+            lua_pushfstring(L, "the script ran for more than %d second%s without finishing (is there a loop that "
+                               "never ends?)",
+                            seconds, seconds == 1 ? "" : "s");
+        } else {
+            lua_pushstring(L, "the script ran for too long without finishing (is there a loop that never ends?)");
+        }
+        lua_concat(L, 2);
+        lua_error(L);
+    }
+}
+
+// Counts the memory scripts ask for (garbage included), for measuring.
+void countAllocation(lua_State* L, void*, std::size_t, std::size_t nsize, std::uint8_t, int, int)
+{
+    ScriptHost::of(L).countAllocated(nsize);
 }
 
 } // namespace
@@ -79,27 +165,39 @@ ScriptHost::ScriptHost(Game& game, const Logger& log) : m_game(game), m_log(log)
 {
     m_L = lua_newstate(&ScriptHost::allocate, this);
     if (m_L == nullptr) {
-        throw std::runtime_error("could not start Lua: out of memory");
+        throw std::runtime_error("could not start Luau: out of memory");
     }
-    // Every Lua state has a little space for its host program: ours points
-    // back at this ScriptHost, so the C++ functions scripts call can find it.
-    *static_cast<ScriptHost**>(lua_getextraspace(m_L)) = this;
-    lua_pushcfunction(m_L, openLibraries);
+    // Luau keeps one pointer for its host program: ours points back at this
+    // ScriptHost, so the C++ functions scripts call can find it.
+    m_timeLimit = std::max(0.01, game.m_setup.scriptTimeLimit);
+    lua_callbacks(m_L)->userdata = this;
+    lua_callbacks(m_L)->onallocate = countAllocation;
+    lua_pushcfunction(m_L, openLibraries, "openLibraries");
     if (lua_pcall(m_L, 0, 0, 0) != LUA_OK) {
         const std::string error = lua_tostring(m_L, -1) != nullptr ? lua_tostring(m_L, -1) : "unknown error";
         lua_close(m_L);
-        throw std::runtime_error("could not start Lua: " + error);
+        throw std::runtime_error("could not start Luau: " + error);
     }
+    lua_pushcfunction(m_L, addTraceback, "addTraceback");
+    m_traceback = lua_ref(m_L, -1);
+    lua_pop(m_L, 1);
+    m_watchdog = std::thread([this] { watch(); });
 }
 
 ScriptHost::~ScriptHost()
 {
+    {
+        const std::lock_guard<std::mutex> lock(m_watchMutex);
+        m_stopWatching = true;
+    }
+    m_watchWake.notify_all();
+    m_watchdog.join();
     lua_close(m_L);
 }
 
 ScriptHost& ScriptHost::of(lua_State* L)
 {
-    return **static_cast<ScriptHost**>(lua_getextraspace(L));
+    return *static_cast<ScriptHost*>(lua_callbacks(L)->userdata);
 }
 
 // --- Memory and time limits ---------------------------------------------------------------------------
@@ -107,7 +205,8 @@ ScriptHost& ScriptHost::of(lua_State* L)
 void* ScriptHost::allocate(void* ud, void* block, std::size_t oldSize, std::size_t newSize) noexcept
 {
     auto* host = static_cast<ScriptHost*>(ud);
-    // When `block` is null, Lua passes a type code in oldSize, not a size.
+    // Luau asks here for its own blocks (pages of small objects, and big
+    // objects); this keeps the total under the limit.
     const std::size_t previous = block != nullptr ? oldSize : 0;
     if (newSize == 0) {
         std::free(block);
@@ -115,24 +214,37 @@ void* ScriptHost::allocate(void* ud, void* block, std::size_t oldSize, std::size
         return nullptr;
     }
     if (newSize > previous && host->m_memoryUsed - previous + newSize > kMemoryLimit) {
-        return nullptr; // Lua turns this into a "not enough memory" error
+        return nullptr; // Luau turns this into a "not enough memory" error
     }
     void* grown = std::realloc(block, newSize);
     if (grown != nullptr) {
         host->m_memoryUsed = host->m_memoryUsed - previous + newSize;
-        if (newSize > previous) {
-            host->m_allocated += newSize - previous;
-        }
     }
     return grown;
 }
 
-void ScriptHost::countHook(lua_State* L, lua_Debug* /*ar*/)
+// The watchdog: a thread that looks every quarter of a second whether one
+// script call has been running for longer than the limit. Then it asks Luau
+// to call stopLongCall at its next safe point. Scripts that finish in time
+// cost nothing: no counting while they run, only two numbers stored per call.
+void ScriptHost::watch()
 {
-    ScriptHost& host = of(L);
-    host.m_instructions += 1000;
-    if (host.m_instructions > kInstructionLimit) {
-        luaL_error(L, "the script ran for too long without finishing (is there a loop that never ends?)");
+    std::uint64_t seenCall = 0;
+    auto seenSince = std::chrono::steady_clock::now();
+    std::unique_lock<std::mutex> lock(m_watchMutex);
+    while (!m_stopWatching) {
+        m_watchWake.wait_for(lock, std::chrono::duration<double>(std::min(0.25, m_timeLimit / 4.0)));
+        const std::uint64_t call = m_callNumber.load(std::memory_order_relaxed);
+        const auto now = std::chrono::steady_clock::now();
+        if (!m_inCall.load(std::memory_order_relaxed) || call != seenCall) {
+            seenCall = call;
+            seenSince = now;
+            continue;
+        }
+        if (now - seenSince > std::chrono::duration<double>(m_timeLimit)) {
+            m_timedOut.store(true, std::memory_order_relaxed);
+            lua_callbacks(m_L)->interrupt = stopLongCall;   // Luau allows setting this from another thread
+        }
     }
 }
 
@@ -141,16 +253,25 @@ void ScriptHost::countHook(lua_State* L, lua_Debug* /*ar*/)
 std::optional<std::string> ScriptHost::call(int arguments, const std::string& file)
 {
     // Stack: function, arguments. Put the message handler below the function.
+    // (Made once and reused: in Luau, pushing a C function makes a new
+    // object, which would be garbage after every call.)
     const int handler = lua_gettop(m_L) - arguments;
-    lua_pushcfunction(m_L, addTraceback);
+    lua_getref(m_L, m_traceback);
     lua_insert(m_L, handler);
 
     const std::string previousFile = m_currentFile;
     m_currentFile = file;
-    m_instructions = 0;
-    lua_sethook(m_L, &ScriptHost::countHook, LUA_MASKCOUNT, 1000);
+    const bool outermost = !m_inCall.load(std::memory_order_relaxed);
+    if (outermost) {
+        m_timedOut.store(false, std::memory_order_relaxed);
+        m_callNumber.fetch_add(1, std::memory_order_relaxed);
+        m_inCall.store(true, std::memory_order_relaxed);
+    }
     const int status = lua_pcall(m_L, arguments, 0, handler);
-    lua_sethook(m_L, nullptr, 0, 0);
+    if (outermost) {
+        m_inCall.store(false, std::memory_order_relaxed);
+        lua_callbacks(m_L)->interrupt = nullptr;
+    }
     m_currentFile = previousFile;
 
     std::optional<std::string> error;
@@ -183,27 +304,20 @@ bool ScriptHost::pushEnvironment(AssetId script, std::string& error)
             file.error = "could not read " + record->path;
         } else {
             file.path = record->path;
-            // "@path" makes Lua name the file in messages: "scripts/coin.lua:12: ...".
-            const std::string chunkName = "@" + record->path;
-            if (luaL_loadbufferx(m_L, code->data(), code->size(), chunkName.c_str(), "t") != LUA_OK) {
+            // The file's own environment: reads fall through to the shared
+            // globals (__index), writes stay in the file's table.
+            pushFileEnvironment(m_L);
+            if (!loadScript(m_L, *code, record->path, -1)) {
                 file.error = lua_tostring(m_L, -1);
-                lua_pop(m_L, 1);
+                lua_pop(m_L, 2); // the message and the environment
             } else {
-                // The file's own environment: reads fall through to the shared
-                // globals (__index), writes stay in the file's table.
-                lua_newtable(m_L);
-                lua_newtable(m_L);
-                lua_pushglobaltable(m_L);
-                lua_setfield(m_L, -2, "__index");
-                lua_setmetatable(m_L, -2);
-                lua_pushvalue(m_L, -1);
-                lua_setupvalue(m_L, -3, 1); // the chunk's _ENV is the new table
-                lua_insert(m_L, -2);        // stack: environment, chunk
+                // stack: environment, chunk
                 if (auto failed = call(0, file.path)) {
                     file.error = *failed;
                     lua_pop(m_L, 1);
                 } else {
-                    file.environment = luaL_ref(m_L, LUA_REGISTRYINDEX);
+                    file.environment = lua_ref(m_L, -1);
+                    lua_pop(m_L, 1);
                 }
             }
         }
@@ -225,7 +339,8 @@ void ScriptHost::ensureSelf(Script& script, EntityId object)
     lua_newtable(m_L);
     pushObjectForScripts(m_L, object);
     lua_setfield(m_L, -2, "object");
-    script.m_self = luaL_ref(m_L, LUA_REGISTRYINDEX);
+    script.m_self = lua_ref(m_L, -1);
+    lua_pop(m_L, 1);
 }
 
 std::optional<std::string> ScriptHost::call(Script& script, EntityId object, const char* name,
@@ -272,7 +387,7 @@ std::optional<std::string> ScriptHost::collide(Script& script, EntityId object, 
 void ScriptHost::release(int self) noexcept
 {
     if (self != kNoRef) {
-        luaL_unref(m_L, LUA_REGISTRYINDEX, self);
+        lua_unref(m_L, self);
     }
 }
 
@@ -296,7 +411,8 @@ void ScriptHost::require(lua_State* L, std::string_view name)
     if (assets != nullptr) {
         for (const AssetRecord* a : assets->all(AssetType::Script)) {
             const std::string_view path = a->path;
-            const std::string_view withoutExt = path.substr(0, path.size() - 4); // ".lua"
+            const std::size_t dot = path.rfind('.');
+            const std::string_view withoutExt = path.substr(0, dot); // without ".lua" or ".luau"
             const std::size_t slash = withoutExt.rfind('/');
             const std::string_view stem =
                 slash == std::string_view::npos ? withoutExt : withoutExt.substr(slash + 1);
@@ -324,21 +440,14 @@ void ScriptHost::require(lua_State* L, std::string_view name)
     if (!code) {
         luaL_error(L, "require: could not read %s", record.path.c_str());
     }
-    const std::string chunkName = "@" + record.path;
-    if (luaL_loadbufferx(L, code->data(), code->size(), chunkName.c_str(), "t") != LUA_OK) {
-        lua_error(L); // the syntax error message is on the stack
-    }
     // Like a script file, a module runs in its own environment. What it
     // returns is the module; if it returns nothing, its environment is (so a
     // file of plain functions works too).
-    lua_newtable(L);
-    lua_newtable(L);
-    lua_pushglobaltable(L);
-    lua_setfield(L, -2, "__index");
-    lua_setmetatable(L, -2);
-    lua_pushvalue(L, -1);
-    lua_setupvalue(L, -3, 1);
-    lua_insert(L, -2); // environment, chunk
+    pushFileEnvironment(L);
+    if (!loadScript(L, *code, record.path, -1)) {
+        lua_error(L); // the syntax error message is on the stack
+    }
+    // stack: environment, chunk
     m_loadingModules[record.path] = true;
     const std::string previousFile = m_currentFile;
     m_currentFile = record.path;
@@ -359,8 +468,7 @@ void ScriptHost::require(lua_State* L, std::string_view name)
     } else {
         lua_remove(L, -2); // keep the returned value, drop the environment
     }
-    lua_pushvalue(L, -1);
-    m_modules[record.path] = luaL_ref(L, LUA_REGISTRYINDEX);
+    m_modules[record.path] = lua_ref(L, -1);
 }
 
 // --- Script, the component ------------------------------------------------------------------------------
@@ -417,8 +525,8 @@ const ComponentType& Script::componentType()
         ComponentTypeBuilder<Script>("rolo.Script", "Script")
             .category("Gameplay")
             .description(
-                "Runs a Lua script: its start(self) once, then update(self, dt) every frame. Scripts need "
-                "no compiler; edit the .lua file and press Play again. See the scripting guide (Help).")
+                "Runs a Luau script: its start(self) once, then update(self, dt) every frame. Scripts need "
+                "no compiler; edit the .lua or .luau file and press Play again. See the scripting guide (Help).")
             .property("script", "Script", &Script::script,
                       {.help = "The .lua file to run. Make one with New Script in the Assets panel.",
                        .assetType = "script"})
@@ -428,14 +536,14 @@ const ComponentType& Script::componentType()
 
 std::optional<std::string> checkScriptSyntax(std::string_view code, std::string_view chunkName)
 {
-    // A bare state is enough to compile (not run) the code.
+    // A bare state is enough to compile and load (not run) the code; loading
+    // turns a compile error into the same message a game would show.
     lua_State* L = luaL_newstate();
     if (L == nullptr) {
-        return std::string("could not start Lua to check the script");
+        return std::string("could not start Luau to check the script");
     }
-    const std::string name = "@" + std::string(chunkName);
     std::optional<std::string> error;
-    if (luaL_loadbufferx(L, code.data(), code.size(), name.c_str(), "t") != LUA_OK) {
+    if (!loadScript(L, code, std::string(chunkName), 0)) {
         error = lua_tostring(L, -1);
     }
     lua_close(L);

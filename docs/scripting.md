@@ -1,12 +1,13 @@
-# Scripting with Lua
+# Scripting with Luau
 
-Rolo games can be programmed in **Lua**, a small language made for
-exactly this. Lua scripts need no compiler and no special setup: write a
-`.lua` file, attach it to an object, press ▶. A downloaded Rolo runs them,
-and so does every game you export.
+Rolo games are programmed in **Luau**, the Lua that Roblox uses: if you
+have scripted on Roblox, you already know the language. Scripts need no
+compiler and no special setup: write a `.lua` (or `.luau`) file, attach it
+to an object, press ▶. A downloaded Rolo runs them, and so does every game
+you export.
 
 (Rolo also accepts gameplay code in C++; see the [gameplay guide](gameplay.md).
-C++ needs Rolo built from source. Lua does not.)
+C++ needs Rolo built from source. Luau does not.)
 
 ## Your first script
 
@@ -14,8 +15,9 @@ C++ needs Rolo built from source. Lua does not.)
    makes `scripts/new_script.lua` with a small example in it. Rename it in
    the Inspector if you like, for example to `spinner.lua`.
 2. Select the file and click **Open in Code Editor**. Any text editor works.
-   [Visual Studio Code](https://code.visualstudio.com) is free and colours
-   Lua code.
+   [Visual Studio Code](https://code.visualstudio.com) is free; its
+   **Luau Language Server** extension colours Luau code and checks it as you
+   type.
 3. Replace the text with:
 
    ```lua
@@ -72,8 +74,8 @@ module (see `require` below).
 If a script has an error, the Console shows its file and line, for example:
 
 ```
-Script on 'Coin' failed in update(): scripts/coin.lua:12: attempt to index a nil value (field 'gem')
-  called from: scripts/coin.lua:12: in function 'update'
+Script on 'Coin' failed in update(): scripts/coin.lua:12: attempt to index nil with 'gem'
+  called from: scripts/coin.lua:12 function update
 ```
 
 That object's script stops for the rest of the run; everything else keeps
@@ -83,8 +85,8 @@ going.
 without playing. **Exporting refuses** a project with a broken script.
 
 Two limits stop a broken script from hanging or crashing the game:
-- a script that runs too long without finishing (a loop that never ends) is
-  stopped;
+- a script call (`start`, `update`, ...) that runs for more than 10
+  seconds without finishing (a loop that never ends) is stopped;
 - all scripts together may use at most 256 MB of memory.
 
 ## Examples
@@ -268,16 +270,21 @@ Sounds are named like scenes: by file name (`"coin"`) or path
 | `audio.setVolume("music", 0.5)` | a channel's volume, 0–1: `"master"`, `"music"` or `"effects"` |
 | `audio.volume("music")` | a channel's volume |
 
-### Lua's own library, and `require`
+### Luau's own library, and `require`
 
-- **Available:** Lua 5.4's `string`, `table`, `math`, `utf8` and `coroutine`
-  libraries, and the basics (`pairs`, `ipairs`, `tostring`, `tonumber`,
-  `type`, `pcall`, `error`, `assert`, `select`, `setmetatable`...).
+- **Available:** Luau's `string`, `table`, `math`, `utf8`, `coroutine`,
+  `bit32`, `buffer` and `vector` libraries, and the basics (`pairs`,
+  `ipairs`, `tostring`, `tonumber`, `type`, `typeof`, `pcall`, `error`,
+  `assert`, `select`, `setmetatable`...).
 - **Not available,** so a game's scripts cannot harm a player's computer:
   reading or writing files, running programs, and loading other code
-  (`io`, `os`, `debug`, `package`, `dofile`, `loadfile`, `load`).
+  (`os`, `debug`, `loadstring`, `getfenv`, `setfenv`; Luau has no `io` or
+  `package`).
+- **The shared libraries are read-only:** `math.pi = 3` or changing `game`
+  is an error, so one script cannot break another. Your own globals live
+  in your file and can be changed freely.
 - **`require("name")`** loads another script of the project as a module:
-  - the name can be the file name without `.lua`, or its path;
+  - the name can be the file name without `.lua` or `.luau`, or its path;
   - the module runs once, and every `require` of it returns the same value:
     what the file returns, or, if it returns nothing, its functions;
   - modules do not need to be attached to objects.
@@ -296,13 +303,54 @@ function update(self, dt)
 end
 ```
 
-## Learning Lua
+## Luau, the language
 
-Lua is small: the basics take an afternoon.
+Luau is Lua 5.1 with additions: what Lua 5.1 tutorials teach works, and
+so does the newer syntax Roblox developers use:
+
+```lua
+type Enemy = { name: string, health: number }   -- types (checked by editors; Rolo runs the code either way)
+
+local function hurt(enemy: Enemy, amount: number)
+    enemy.health -= amount                         -- compound assignment: += -= *= /= //= %= ^= ..=
+    print(`{enemy.name} has {enemy.health} left`)  -- string interpolation
+end
+
+for i = 1, 10 do
+    if i % 2 == 0 then continue end                -- continue
+end
+
+local half = 7 // 2                                -- floor division: 3
+local v = vector.create(1, 2, 3)                   -- vectors (v.x, v.y, v.z)
+```
+
+What is **not** in Luau, if you come from other Lua: `goto`, Lua 5.4's
+bitwise operators (`&`, `|`, `<<`; use `bit32.band` and friends) and
+`<const>` / `<close>` variables. Numbers are one kind (as in Lua 5.1):
+`3` and `3.0` are the same, and print as `3`.
+
+What is not here, if you come from **Roblox**: Roblox's own objects
+(`workspace`, `Instance.new`, `task.wait`, `:Connect`). Rolo's are `game`,
+`input`, `audio` and each script's `self.object` (above).
+
+Learning more:
+- [luau.org](https://luau.org): the language guide and its library.
 - [Programming in Lua](https://www.lua.org/pil/contents.html), first
-  edition, free online (written for an older Lua, but the basics are the
-  same).
-- The [Lua 5.4 reference manual](https://www.lua.org/manual/5.4/).
+  edition, free online: the basics, which are the same.
 
-Rolo uses **Lua 5.4.9**. It is built into Rolo; you do not need to
+Rolo uses **Luau 0.744**. It is built into Rolo; you do not need to
 install it.
+
+### Scripts written for Rolo before Luau (0.9 and earlier)
+
+Rolo 0.9 ran Lua 5.4. Almost every script runs unchanged. Check for:
+- **`goto`**, **bitwise operators** (`a & b`, `a << 2`) and **`<const>`**:
+  rewrite with loops, `bit32` and plain `local`;
+- **numbers printed with `.0`**: `print(2.0)` showed `2.0` and now shows
+  `2`;
+- **changing a shared library** (`string.trim = ...`): put your function in
+  your own file or module instead;
+- **error message wording**, if a script compares messages (e.g.
+  "attempt to index nil with 'gem'").
+
+**Game › Check Content** reports syntax errors in every script.

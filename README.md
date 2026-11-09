@@ -6,7 +6,7 @@
 
 **Rolo Engine** is an open-source, C++20 game engine with its own
 standalone editor, for making all kinds of 2D games. Build a game in the
-editor with no code, or with **Lua scripts** and no compiler. Then export it
+editor with no code, or with **Luau scripts** (Roblox's Lua) and no compiler. Then export it
 as a program players run without Rolo.
 
 Please read **[Getting started](docs/getting-started.md)** to go from a new
@@ -30,7 +30,7 @@ and phones, scripted in Luau ([direction](docs/adr/0019-direction.md),
 [![Latest Release](https://img.shields.io/github/v/release/8dkj4fjrrs-cmyk/Rolo?include_prereleases&label=release)](https://github.com/8dkj4fjrrs-cmyk/Rolo/releases)
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![cxxstd](https://img.shields.io/badge/cxxstd-c++20-8A2BE2.svg)](https://github.com/8dkj4fjrrs-cmyk/Rolo)
-[![Lua](https://img.shields.io/badge/scripting-Lua%205.4-000080.svg)](docs/scripting.md)
+[![Luau](https://img.shields.io/badge/scripting-Luau-00A2FF.svg)](docs/scripting.md)
 [![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](docs/known-limitations.md)
 
 ![issues](https://img.shields.io/github/issues/8dkj4fjrrs-cmyk/Rolo?style=plastic)
@@ -43,7 +43,7 @@ and phones, scripted in Luau ([direction](docs/adr/0019-direction.md),
 
 ***
 
-<p align="center"><img src="docs/images/editor.png" alt="The Rolo editor playing the Top-Down Starter: fireflies moved by a Lua script"></p>
+<p align="center"><img src="docs/images/editor.png" alt="The Rolo editor playing the Top-Down Starter: fireflies moved by a Luau script"></p>
 
 ## ⚡️ Getting it
 
@@ -80,7 +80,7 @@ and phones, scripted in Luau ([direction](docs/adr/0019-direction.md),
 
 Rolo is an editor first: scenes, art, maps, dialogue and quests are made
 by clicking, and saved as readable, versioned text files that work well with
-git. Gameplay is added with ready-made components, Lua scripts or C++. A
+git. Gameplay is added with ready-made components, Luau scripts or C++. A
 game always plays a copy of the scene, so stopping the game never leaves
 changes behind.
 
@@ -89,7 +89,7 @@ changes behind.
 * Exported games run on the system they were exported on
 
 **Languages**:
-* Lua 5.4, for game scripts
+* Luau (Roblox's Lua, MIT), for game scripts
 * C++20, for the engine, and for game modules when building from source
 
 **Renderer backends** (through [Axmol](https://github.com/axmolengine/axmol)):
@@ -119,7 +119,7 @@ Some highlights:
   - game variables;
   - triggers with conditions and actions;
   - save games (F5 / F9).
-- **Lua scripting**:
+- **Luau scripting** (the language Roblox uses):
   - `start(self)` and `update(self, dt)`, with objects, input, collisions,
     animation, variables, events and scene changes;
   - sandboxed, so scripts cannot reach files or programs;
@@ -174,14 +174,14 @@ engine/core/     Engine lifecycle, logging, version (no third-party deps)
 engine/scene/    Scenes, entities, components, scene and project files (no backend)
 engine/assets/   Asset IDs (.meta files), import, image checks, tilesets (no backend)
 engine/content/  RPG content: variables, dialogue, quests, conditions, actions, saves (no backend)
-engine/gameplay/ Behaviours, Lua scripts, game modules, input, collision queries, scene changes (no backend)
+engine/gameplay/ Behaviours, Luau scripts, game modules, input, collision queries, scene changes (no backend)
 engine/ui/       Rolo UI: the editor's own interface toolkit (widgets, docking, text)
 engine/runtime/  Window and main loop (rolo::Application); wraps Axmol privately
 player/          rolo_player, the game runtime application
 editor/          The editor: model (logic, undo), panels, application
 examples/        The Lantern Keeper (the demo RPG), the sample game, and the stress test
 templates/       New Project templates (Empty, Top-Down Starter, Platformer Starter)
-third_party/     Small libraries kept in the repository (Lua, stb)
+third_party/     Small libraries kept in the repository (Luau, Box2D, miniaudio, stb)
 licenses/        License texts of everything inside an exported game
 tests/           Catch2 unit tests and window tests
 tools/release/   Release helpers (license texts, Windows DLL check)

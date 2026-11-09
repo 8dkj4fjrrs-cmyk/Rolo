@@ -1,6 +1,6 @@
 # ADR 0013: Lua scripting
 
-- **Status:** Accepted
+- **Status:** Accepted; the language part (Lua 5.4) is superseded by ADR 0020 (Luau)
 - **Date:** 2026-11-03
 - **Revisits:** ADR 0007 (gameplay is C++ only, statically linked)
 

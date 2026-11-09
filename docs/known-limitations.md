@@ -65,16 +65,20 @@ Please report what you find.
 
 ## Editor
 
-- **Custom gameplay code:** write it in **Lua** ([scripting guide](scripting.md));
+- **Custom gameplay code:** write it in **Luau** ([scripting guide](scripting.md));
   a downloaded Rolo runs scripts. **C++** behaviours still need Rolo
   built from source: game modules are linked into the editor and the player
   when they are built ([gameplay guide](gameplay.md)).
-- Lua scripts, for now:
+- Luau scripts, for now:
   - one Script per object (share code with `require`);
   - no per-object settings in the Inspector (put them in the script, or
     look at the object's name);
   - edits are picked up when Play is pressed again, not while playing;
   - no debugger: use `print`, which writes to the Console.
+  - scripts cannot make new objects while playing yet (no spawning or
+    cloning): switch premade ones on and off with `setActive`;
+  - Luau's type annotations are accepted but not checked by Rolo (your
+    code editor can check them, e.g. VS Code with the Luau extension).
 - Scenes cannot be renamed, and folders cannot be created, in the editor.
   Use your file manager; the editor notices.
 - One object can be selected at a time. There are no prefabs (reusable

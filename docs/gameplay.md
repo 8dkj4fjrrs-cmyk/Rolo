@@ -1,7 +1,7 @@
 # Writing gameplay in C++
 
 > **New to programming, or using a downloaded Rolo?** Write gameplay in
-> **Lua** instead: no compiler, no rebuilding Rolo. See the
+> **Luau** instead: no compiler, no rebuilding Rolo. See the
 > [scripting guide](scripting.md). This guide is for C++, which needs
 > Rolo built from source.
 

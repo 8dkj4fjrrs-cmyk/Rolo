@@ -21,17 +21,19 @@
 #include "rolo/gameplay/Components.hpp"
 #include "rolo/gameplay/Game.hpp"
 #include "rolo/scene/Components.hpp"
-#include "lauxlib.h"
 #include "lua.h"
+#include "lualib.h"
 
 #include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <exception>
+#include <new>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <typeinfo>
 
 namespace rolo {
 
@@ -49,16 +51,29 @@ Game& gameOf(lua_State* L)
 
 // Rolo code that throws a C++ exception inside a Lua call must turn it into
 // a Lua error, or Lua cannot report it properly. Every binding goes through this.
+// Luau's own errors are C++ exceptions too (of its private type
+// lua_exception, derived from std::exception): those must pass through
+// untouched, so they keep their message and kind (e.g. out of memory).
+bool isLuauError(const std::exception& error)
+{
+    return std::string_view(typeid(error).name()).find("lua_exception") != std::string_view::npos;
+}
+
 template <int (*Function)(lua_State*)> int guarded(lua_State* L)
 {
     std::string message;
     try {
         return Function(L);
+    } catch (const std::bad_alloc&) {
+        message = "out of memory";
     } catch (const std::exception& error) {
+        if (isLuauError(error)) {
+            throw;
+        }
         message = error.what();
     }
     // Outside the catch block: luaL_error itself unwinds with an exception.
-    return luaL_error(L, "%s", message.c_str());
+    luaL_error(L, "%s", message.c_str());
 }
 
 float checkFloat(lua_State* L, int index)
@@ -275,7 +290,7 @@ int objectText(lua_State* L)
 {
     const Text* text = objectEntity(L, 1).get<Text>();
     if (text == nullptr) {
-        return luaL_error(L, "this object has no Text component");
+        luaL_error(L, "this object has no Text component");
     }
     pushText(L, text->text);
     return 1;
@@ -286,7 +301,7 @@ int objectSetText(lua_State* L)
     const EntityId id = objectEntity(L, 1).id();
     const std::string_view value = luaL_tolstring(L, 2, nullptr); // numbers and booleans too
     if (gameOf(L).get<Text>(id) == nullptr) {
-        return luaL_error(L, "this object has no Text component");
+        luaL_error(L, "this object has no Text component");
     }
     gameOf(L).setText(id, std::string(value));
     return 0;
@@ -299,7 +314,7 @@ int objectSetFlipX(lua_State* L)
     const bool flip = lua_toboolean(L, 2) != 0;
     const Sprite* sprite = objectEntity(L, 1).get<Sprite>();
     if (sprite == nullptr) {
-        return luaL_error(L, "this object has no Sprite component");
+        luaL_error(L, "this object has no Sprite component");
     }
     if (sprite->flipX != flip) {
         gameOf(L).get<Sprite>(id)->flipX = flip;
@@ -375,7 +390,7 @@ int gameGet(lua_State* L)
     const std::string_view name = checkText(L, 1);
     const auto value = gameOf(L).content().state().variable(name);
     if (!value) {
-        return luaL_error(L, "there is no game variable called \"%s\" (variables are made in a .lvars file)",
+        luaL_error(L, "there is no game variable called \"%s\" (variables are made in a .lvars file)",
                           std::string(name).c_str());
     }
     pushValue(L, *value);
@@ -388,7 +403,7 @@ int gameSet(lua_State* L)
     const std::string name(checkText(L, 1));
     const VariableDefinition* definition = game.content().content().variable(name);
     if (definition == nullptr) {
-        return luaL_error(L, "there is no game variable called \"%s\" (variables are made in a .lvars file)",
+        luaL_error(L, "there is no game variable called \"%s\" (variables are made in a .lvars file)",
                           name.c_str());
     }
     luaL_checkany(L, 2);
@@ -396,24 +411,25 @@ int gameSet(lua_State* L)
     switch (definition->type) {
     case ValueType::Bool:
         if (!lua_isboolean(L, 2)) {
-            return luaL_error(L, "game variable \"%s\" is true or false, not a %s", name.c_str(),
+            luaL_error(L, "game variable \"%s\" is true or false, not a %s", name.c_str(),
                               luaL_typename(L, 2));
         }
         value = lua_toboolean(L, 2) != 0;
         break;
     case ValueType::Int: {
-        int isInteger = 0;
-        const lua_Integer number = lua_tointegerx(L, 2, &isInteger);
-        if (isInteger == 0 || number < INT32_MIN || number > INT32_MAX) {
-            return luaL_error(L, "game variable \"%s\" is a whole number, not %s", name.c_str(),
-                              luaL_tolstring(L, 2, nullptr));
+        // Luau's numbers have no separate integer kind: a whole number is a
+        // number without a fraction.
+        const double number = lua_type(L, 2) == LUA_TNUMBER ? lua_tonumber(L, 2) : 0.5;
+        if (std::floor(number) != number || number < INT32_MIN || number > INT32_MAX) {
+            luaL_error(L, "game variable \"%s\" is a whole number, not %s", name.c_str(),
+                       luaL_tolstring(L, 2, nullptr));
         }
         value = static_cast<int>(number);
         break;
     }
     case ValueType::Text:
         if (lua_type(L, 2) != LUA_TSTRING) {
-            return luaL_error(L, "game variable \"%s\" is text, not a %s", name.c_str(), luaL_typename(L, 2));
+            luaL_error(L, "game variable \"%s\" is text, not a %s", name.c_str(), luaL_typename(L, 2));
         }
         value = std::string(checkText(L, 2));
         break;
@@ -435,7 +451,7 @@ int gameRun(lua_State* L)
     std::string error;
     const auto action = parseActionNotation(text, namesFor(game), &error);
     if (!action) {
-        return luaL_error(L, "game.run: %s", error.c_str());
+        luaL_error(L, "game.run: %s", error.c_str());
     }
     game.content().run({*action});
     return 0;
@@ -449,7 +465,7 @@ int gameCheck(lua_State* L)
     std::string error;
     const auto condition = parseConditionNotation(text, namesFor(game), &error);
     if (!condition) {
-        return luaL_error(L, "game.check: %s", error.c_str());
+        luaL_error(L, "game.check: %s", error.c_str());
     }
     lua_pushboolean(L, game.content().evaluate(*condition));
     return 1;
@@ -464,7 +480,7 @@ int gameChangeScene(lua_State* L)
     const NotationNames names = namesFor(game);
     const auto scene = names.findAsset ? names.findAsset(name, "scene", error) : std::nullopt;
     if (!scene) {
-        return luaL_error(L, "game.changeScene: %s", error.empty() ? "no project is open" : error.c_str());
+        luaL_error(L, "game.changeScene: %s", error.empty() ? "no project is open" : error.c_str());
     }
     game.changeScene(*scene, arriveAt);
     return 0;
@@ -647,17 +663,17 @@ int inputAction(lua_State* L)
 {
     const std::string name(checkText(L, 1));
     if (name.empty()) {
-        return luaL_argerror(L, 1, "an action needs a name");
+        luaL_argerror(L, 1, "an action needs a name");
     }
     luaL_checktype(L, 2, LUA_TTABLE);
     std::vector<Binding> defaults;
-    const lua_Integer count = static_cast<lua_Integer>(lua_rawlen(L, 2));
+    const lua_Integer count = static_cast<lua_Integer>(lua_objlen(L, 2));
     for (lua_Integer i = 1; i <= count; ++i) {
         lua_rawgeti(L, 2, i);
         const std::string_view text = checkText(L, -1);
         const auto binding = parseBinding(text);
         if (!binding) {
-            return luaL_error(L, "input.action: \"%s\" is not a key or button (e.g. \"space\", \"mouse left\", \"pad a\")",
+            luaL_error(L, "input.action: \"%s\" is not a key or button (e.g. \"space\", \"mouse left\", \"pad a\")",
                               std::string(text).c_str());
         }
         defaults.push_back(*binding);
@@ -944,8 +960,9 @@ SoundOptions checkSoundOptions(lua_State* L, int index, bool music, float* fade)
 
 SoundHandle checkHandle(lua_State* L, int index)
 {
-    const lua_Integer handle = luaL_checkinteger(L, index);
-    return handle > 0 && handle <= 0xffffffff ? static_cast<SoundHandle>(handle) : 0;
+    // Handles go up to 2^32 - 1, more than Luau's 32-bit integers: read as a number.
+    const lua_Number handle = luaL_checknumber(L, index);
+    return handle >= 1 && handle <= 4294967295.0 ? static_cast<SoundHandle>(handle) : 0;
 }
 
 // audio.play("coin", { volume = 0.5, pitch = 1.2, pan = 0, loop = false }) -> handle or nil
@@ -957,7 +974,7 @@ int audioPlay(lua_State* L)
     if (handle == 0) {
         lua_pushnil(L);
     } else {
-        lua_pushinteger(L, static_cast<lua_Integer>(handle));
+        lua_pushnumber(L, static_cast<lua_Number>(handle));
     }
     return 1;
 }
@@ -1033,13 +1050,13 @@ int objectPlaySound(lua_State* L)
 {
     const Entity& entity = objectEntity(L, 1);
     if (entity.get<Sound>() == nullptr) {
-        return luaL_error(L, "this object has no Sound component");
+        luaL_error(L, "this object has no Sound component");
     }
     const SoundHandle handle = gameOf(L).playSound(entity.id());
     if (handle == 0) {
         lua_pushnil(L);
     } else {
-        lua_pushinteger(L, static_cast<lua_Integer>(handle));
+        lua_pushnumber(L, static_cast<lua_Number>(handle));
     }
     return 1;
 }
@@ -1052,7 +1069,10 @@ int objectStopSound(lua_State* L)
 
 void setFunctions(lua_State* L, const luaL_Reg* functions)
 {
-    luaL_setfuncs(L, functions, 0);
+    for (const luaL_Reg* f = functions; f->name != nullptr; ++f) {
+        lua_pushcfunction(L, f->func, f->name);
+        lua_setfield(L, -2, f->name);
+    }
 }
 
 } // namespace
@@ -1063,9 +1083,10 @@ void pushObjectForScripts(lua_State* L, EntityId id)
         lua_pushnil(L);
         return;
     }
-    auto* handle = static_cast<ObjectHandle*>(lua_newuserdatauv(L, sizeof(ObjectHandle), 0));
+    auto* handle = static_cast<ObjectHandle*>(lua_newuserdata(L, sizeof(ObjectHandle)));
     handle->id = id.value();
-    luaL_setmetatable(L, kObjectType);
+    luaL_getmetatable(L, kObjectType);
+    lua_setmetatable(L, -2);
 }
 
 void openScriptApi(ScriptHost& host)
@@ -1113,9 +1134,9 @@ void openScriptApi(ScriptHost& host)
     lua_newtable(L);
     setFunctions(L, objectMethods);
     lua_setfield(L, -2, "__index");
-    lua_pushcfunction(L, guarded<objectEquals>);
+    lua_pushcfunction(L, guarded<objectEquals>, "__eq");
     lua_setfield(L, -2, "__eq");
-    lua_pushcfunction(L, guarded<objectToString>);
+    lua_pushcfunction(L, guarded<objectToString>, "__tostring");
     lua_setfield(L, -2, "__tostring");
     lua_pushliteral(L, "object");
     lua_setfield(L, -2, "__name");
@@ -1184,9 +1205,9 @@ void openScriptApi(ScriptHost& host)
     setFunctions(L, audioFunctions);
     lua_setglobal(L, "audio");
 
-    lua_pushcfunction(L, guarded<scriptPrint>);
+    lua_pushcfunction(L, guarded<scriptPrint>, "print");
     lua_setglobal(L, "print");
-    lua_pushcfunction(L, guarded<scriptRequire>);
+    lua_pushcfunction(L, guarded<scriptRequire>, "require");
     lua_setglobal(L, "require");
 }
 

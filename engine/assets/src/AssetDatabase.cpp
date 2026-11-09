@@ -188,7 +188,7 @@ std::optional<AssetType> assetTypeForPath(const fs::path& path)
     if (ext == AnimationFormat::kExtension) {
         return AssetType::Animation;
     }
-    if (ext == ".lua") {
+    if (ext == ".lua" || ext == ".luau") {   // Roblox's tools now name Luau files .luau
         return AssetType::Script;
     }
     return std::nullopt;

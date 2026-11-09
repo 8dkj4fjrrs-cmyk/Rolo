@@ -91,7 +91,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Our modules
 # ---------------------------------------------------------------------------
-add_subdirectory(third_party/lua)   # the Lua language, for gameplay scripts (ADR 0013)
+add_subdirectory(third_party/luau)   # the Luau language, for gameplay scripts (ADR 0020)
 add_subdirectory(third_party/miniaudio)   # playing sounds (ADR 0015)
 add_subdirectory(third_party/box2d)   # 2D physics (ADR 0016)
 add_subdirectory(engine/core)

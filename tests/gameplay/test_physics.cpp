@@ -335,7 +335,7 @@ TEST_CASE("Scripts push bodies, ask if they are on the ground, and hear collisio
     INFO((p.problems.empty() ? std::string() : p.problems.front()));
     CHECK(p.problems.empty());
     const std::vector<std::string> expected{"scripts/test.lua: hit Floor", "scripts/test.lua: jump from 1 contact",
-                                            "scripts/test.lua: falling again", "scripts/test.lua: gravity 0.0 -980.0",
+                                            "scripts/test.lua: falling again", "scripts/test.lua: gravity 0 -980",
                                             "scripts/test.lua: hit Floor"};
     std::vector<std::string> script_lines;
     for (const std::string& line : p.printed) {

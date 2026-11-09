@@ -89,12 +89,16 @@ In order:
 1. **A stress test** (`examples/stress`): thousands of scripted objects,
    bullets made and removed, physics; frame times and worst frames
    measured, as the baseline for everything below.
-2. **Luau** in place of Lua 5.4, unmodified, with a guide for existing
-   scripts.
-3. **Lua-ux's performance layer**, each part measured: garbage-free
-   vectors, APIs that make no garbage, collector pacing, cheap engine
-   calls, one script for many objects, native code where allowed, a
-   script profiler.
+2. ~~**Luau** in place of Lua 5.4, unmodified, with a guide for existing
+   scripts.~~ **Done** ([ADR 0020](adr/0020-luau.md)): about 2.3× faster
+   in the language; calls into Rolo are now the slow part.
+3. **Lua-ux's performance layer**, each part measured: cheaper calls
+   into Rolo (the slow part now), garbage-free vectors, APIs that make no
+   garbage, collector pacing, the engine's cost per object (texts,
+   behaviours, physics looking at every object; `game.find` searching all
+   of them), one script for many objects, native code where allowed, a
+   script profiler. Also: making and removing objects from scripts
+   (spawning).
 4. **Web export** (WebAssembly).
 5. **Touch controls** (taps, an on-screen stick and buttons, as actions)
    and **screen sizes** (scaling for any shape of screen).

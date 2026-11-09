@@ -5,6 +5,18 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Scripts are Luau now** ([ADR 0020](docs/adr/0020-luau.md)), Roblox's
+  Lua (MIT, unmodified), instead of Lua 5.4.
+  - Types, `+=`, `continue`, string interpolation, `//`, `bit32`,
+    `buffer` and `vector`; `.luau` files are scripts too.
+  - About 2.3× faster for code that runs in the language, with shorter
+    garbage-collection pauses ([stress test](examples/stress/README.md#luau-against-lua-54)).
+  - The shared libraries are read-only; `loadstring`, `getfenv` and
+    `setfenv` are not available.
+  - A stuck script is stopped after 10 seconds, noticed by a watchdog
+    thread instead of counting instructions (which slowed every script).
+  - Scripts written for 0.9: see [the scripting guide](docs/scripting.md#scripts-written-for-rolo-before-luau-09-and-earlier).
+    Rolo's own templates and examples needed no changes.
 - **Rolo's direction** ([ADR 0019](docs/adr/0019-direction.md)): a free,
   truly MIT 2D engine for Roblox graduates, for desktop, web and phones,
   scripted in Lua-ux (unmodified Luau plus a measured performance layer).
