@@ -19,6 +19,8 @@ so the plan stays in one place.
 | 8 | Public alpha: project wizard, packaging and export, clean builds, onboarding, release | Done (0.8.0-alpha) — [ADR 0011](adr/0011-public-alpha.md) |
 | — | *After the alpha:* Lua scripting; no yasio or networking; macOS and Windows verified in CI | Done (0.9.0-alpha) — [ADR 0012](adr/0012-no-yasio.md), [ADR 0013](adr/0013-lua-scripting.md); [known limitations](known-limitations.md) |
 | — | *After the alpha:* renamed Rolo Engine; sound and music; 2D physics; gamepads, remapping, button pictures, rumble | Done (unreleased) — [ADR 0014](adr/0014-rename-to-rolo.md), [ADR 0015](adr/0015-sound.md), [ADR 0016](adr/0016-physics.md), [ADR 0017](adr/0017-gamepads.md), [ADR 0018](adr/0018-controls.md); [sound](sound.md), [physics](physics.md), [controls](controls.md) |
+| — | *Direction* ([ADR 0019](adr/0019-direction.md)): for Roblox graduates; truly MIT; light; desktop, web and mobile; Lua-ux | Agreed 2026-11-09 |
+| — | *After the alpha:* Escape quitting and F5 / F9 as project settings, `game.quit()`, a pause menu in the Platformer Starter | Done (unreleased) — [controls guide](controls.md#escape-quitting-and-the-quick-save-keys) |
 | — | *Added, after the alpha:* timeline animation editor | Later |
 
 ## Milestone 6.5 — Flipbook animation (*added*)
@@ -80,9 +82,32 @@ Delivered in 0.8.0-alpha:
 - guides for getting started, exporting and releasing;
 - the [known limitations](known-limitations.md).
 
+## Next, by the direction (ADR 0019)
+
+In order:
+
+1. **A stress test** (`examples/stress`): thousands of scripted objects,
+   bullets made and removed, physics; frame times and worst frames
+   measured, as the baseline for everything below.
+2. **Luau** in place of Lua 5.4, unmodified, with a guide for existing
+   scripts.
+3. **Lua-ux's performance layer**, each part measured: garbage-free
+   vectors, APIs that make no garbage, collector pacing, cheap engine
+   calls, one script for many objects, native code where allowed, a
+   script profiler.
+4. **Web export** (WebAssembly).
+5. **Touch controls** (taps, an on-screen stick and buttons, as actions)
+   and **screen sizes** (scaling for any shape of screen).
+6. **Android**, then **iOS**.
+7. **A "Coming from Roblox" guide**, and script properties in the
+   Inspector (Roblox's Attributes).
+
+Alongside: the editor polish below. Later: 3D.
+
 ## After the alpha
 
-In rough order of importance:
+The list made after the alpha, in its original order (some of it is
+above now):
 
 1. **Verify macOS and Windows.** ~~Put the repository on GitHub, let CI build
    and test all three systems, and fix what they reveal.~~ On GitHub, macOS

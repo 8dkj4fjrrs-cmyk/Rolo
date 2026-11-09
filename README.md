@@ -12,6 +12,11 @@ as a program players run without Rolo.
 Please read **[Getting started](docs/getting-started.md)** to go from a new
 project to a game you can share in half an hour.
 
+**Where Rolo is going:** a free, truly MIT 2D engine for people who learned
+on Roblox and want games of their own, light and easy, for desktop, the web
+and phones, scripted in Luau ([direction](docs/adr/0019-direction.md),
+[roadmap](docs/roadmap.md)).
+
 > **Status: 0.9.1-alpha.**
 >
 > - Built and tested on Linux, macOS and Windows by CI.
