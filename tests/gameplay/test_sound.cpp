@@ -19,6 +19,7 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -79,7 +80,7 @@ struct RecordingSound final : SoundPlayer {
     }
 
     bool called(const std::string& call) const { return std::find(calls.begin(), calls.end(), call) != calls.end(); }
-    long count(const std::string& call) const { return std::count(calls.begin(), calls.end(), call); }
+    std::ptrdiff_t count(const std::string& call) const { return std::count(calls.begin(), calls.end(), call); }
 };
 
 // A project with two sounds and room for scripts.
