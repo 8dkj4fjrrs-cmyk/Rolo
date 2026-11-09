@@ -586,7 +586,6 @@ KeySet checkKey(lua_State* L, int index)
                "unknown key \"%s\"; use names like \"a\", \"space\", \"left\", \"left shift\", \"f1\", "
                "\"mouse left\" or \"pad a\"",
                lua_tostring(L, index));
-    return {};
 }
 
 // Which gamepad: an optional number 1 to 4 (nothing: any).
