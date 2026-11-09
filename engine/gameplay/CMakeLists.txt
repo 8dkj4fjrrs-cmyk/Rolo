@@ -6,6 +6,7 @@
 # Game modules (cmake/RoloGameModules.cmake) build on this library.
 
 add_library(rolo_gameplay STATIC
+    src/ButtonIcons.cpp
     src/Collision.cpp
     src/BuiltinBehaviours.cpp
     src/Components.cpp

@@ -16,6 +16,20 @@ All notable changes to Rolo Engine. Versions follow the milestones in
   - Game modules written for Lantern need their includes, namespace and
     module macro renamed. Lua scripts need no changes.
   - The demo game keeps its name: *The Lantern Keeper*.
+- **Controls** ([controls guide](docs/controls.md), [ADR 0018](docs/adr/0018-controls.md)).
+  - **Actions** with default keys and buttons (`input.action("jump", {"space", "pad a"})`),
+    usable wherever a key is. Rolo's own walking and talking are actions too.
+  - **Remapping** by players (`input.rebind`), kept on their computer beside
+    their saves.
+  - **Button pictures** in any text: `{button:jump}` draws what the action
+    is bound to on the device in use, as it looks on that pad (Xbox,
+    PlayStation, Nintendo) or keyboard. Prompts show the button's picture.
+  - **Rumble** (`input.rumble(0.5, 0.3)`): Rolo's own code on each system's
+    controller API (XInput, Game Controller, Linux force feedback).
+  - The Platformer Starter has a Controls screen (Tab or Start), button
+    pictures, and rumbles on hard landings.
+  - Fixed: text set by a script (`obj:setText`) was put back to the text
+    written in the editor in the next frame.
 - **Gamepads** ([ADR 0017](docs/adr/0017-gamepads.md)).
   - Up to four, plugged in and out while playing; Xbox, PlayStation,
     Nintendo Switch Pro and most other pads, with buttons named by position

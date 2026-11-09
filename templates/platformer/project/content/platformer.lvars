@@ -7,6 +7,12 @@
       "type": "int",
       "initial": 0,
       "description": "Coins collected"
+    },
+    {
+      "id": "menu_open",
+      "type": "bool",
+      "initial": false,
+      "description": "The Controls screen is open"
     }
   ]
 }

@@ -28,7 +28,7 @@ HERO = ROOT / "examples" / "lantern_keeper" / "project" / "assets" / "art" / "he
 
 _NAMES = ["tiles.png", "hero_walk.png", "crate.png", "ball.png", "coin.png", "flag.png", "tiles.ltileset",
           "hero.lanim", "coin.lanim", "level.lscene", "platformer.lvars", "player.lua", "lift.lua",
-          "jump.wav", "coin.wav", "win.wav"]
+          "jump.wav", "coin.wav", "win.wav", "controls.lua"]
 IDS = {n: f"504c4154{i + 1:08x}" for i, n in enumerate(_NAMES)}     # "PLAT..."
 PIXEL, SCALE = 16, 3
 CELL = PIXEL * SCALE      # 48 points
@@ -89,22 +89,37 @@ local SPEED = 280     -- running speed, points per second
 local JUMP = 640      -- jump speed, points per second upwards
 
 function start(self)
+    -- "jump" is an action: the keys and buttons that do it. Players can
+    -- change them in the Controls screen (scripts/controls.lua).
+    input.action("jump", {"space", "w", "up", "pad a"})
     self.startX, self.startY = self.object:position()
     self.facing = "right"
+    self.fallSpeed = 0
 end
 
 function update(self, dt)
-    local dx = input.direction()          -- -1 left to 1 right (keys, d-pad or stick)
     local vx, vy = self.object:velocity()
     local onGround = self.object:isOnGround()
 
+    -- Landing after a long fall: a little rumble on a gamepad.
+    if onGround and self.fallSpeed < -700 then
+        input.rumble(0.4, 0.15)
+    end
+    self.fallSpeed = vy
+
+    -- While the Controls screen is open, the hero stands still.
+    if game.get("menu_open") then
+        self.object:setVelocity(0, vy)
+        self.object:play("idle_" .. self.facing)
+        return
+    end
+
     -- Run: set the sideways speed and keep the up-and-down speed (falling).
+    local dx = input.direction()          -- -1 left to 1 right (keys, d-pad or stick)
     self.object:setVelocity(dx * SPEED, vy)
 
-    -- Jump: only from the ground. Space, up, W, or A on a gamepad.
-    local jump = input.wasPressed("space") or input.wasPressed("up") or input.wasPressed("w")
-                 or input.wasPressed("pad a")
-    if onGround and jump then
+    -- Jump: only from the ground.
+    if onGround and input.wasPressed("jump") then
         self.object:setVelocity(dx * SPEED, JUMP)
         audio.play("jump")
     end
@@ -123,6 +138,77 @@ function update(self, dt)
         self.object:setPosition(self.startX, self.startY)
         self.object:setVelocity(0, 0)
     end
+end
+"""
+
+CONTROLS = """-- controls.lua: a Controls screen where players change their keys and buttons.
+--
+-- Tab (or Start on a gamepad) opens and closes it. Up and down choose an
+-- action, Enter (or A) changes it: the next key or gamepad button pressed
+-- becomes its key or button. R (or Y) puts everything back as it was.
+-- Players' choices are kept on their computer, beside their saved games.
+-- Copy this script into your own game and list your own actions below.
+
+local ACTIONS = {
+    {"jump", "Jump"},
+    {"move left", "Run left"},
+    {"move right", "Run right"},
+    {"interact", "Interact"},
+}
+
+function start(self)
+    input.action("controls", {"tab", "pad start"})
+    self.panel = game.find("Controls Panel")
+    self.words = game.find("Controls Text")
+    self.choice = 1
+    game.set("menu_open", false)
+end
+
+-- The pictures of an action's keys and buttons: "{button:space} {button:pad a}".
+local function pictures(action)
+    local out = {}
+    for _, name in ipairs(input.bindings(action)) do
+        out[#out + 1] = "{button:" .. name .. "}"
+    end
+    return table.concat(out, " ")
+end
+
+local function show(self)
+    local lines = {"CONTROLS", ""}
+    for i, entry in ipairs(ACTIONS) do
+        local marker = (i == self.choice) and "> " or "   "
+        local keys = pictures(entry[1])
+        if input.isRebinding() and i == self.choice then
+            keys = "press a key or button...  (Backspace: keep)"
+        end
+        lines[#lines + 1] = marker .. entry[2] .. "    " .. keys
+    end
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "{button:move up} {button:move down} choose   {button:enter} / {button:pad a} change   "
+                        .. "{button:r} / {button:pad y} reset   {button:controls} close"
+    self.words:setText(table.concat(lines, "\\n"))
+end
+
+function update(self, dt)
+    local open = game.get("menu_open")
+    if input.wasPressed("controls") and not input.isRebinding() then
+        open = not open
+        game.set("menu_open", open)
+        self.panel:setActive(open)
+    end
+    if not open then
+        return
+    end
+    if not input.isRebinding() then
+        if input.wasPressed("move down") then self.choice = self.choice % #ACTIONS + 1 end
+        if input.wasPressed("move up") then self.choice = (self.choice - 2) % #ACTIONS + 1 end
+        if input.wasPressed("enter") or input.wasPressed("pad a") then
+            input.rebind(ACTIONS[self.choice][1])
+        elseif input.wasPressed("r") or input.wasPressed("pad y") then
+            input.resetControls()
+        end
+    end
+    show(self)
 end
 """
 
@@ -438,11 +524,15 @@ def level():
     left, top = -VIEW[0] / 2 + 24, VIEW[1] / 2 - 20
     s.add("Coins", [transform(left, top), text("Coins  {coins} / " + str(len(things["C"])), 22, "#1a2a44ff")],
           parent=cam)
-    s.add("Help", [transform(-left, top), text("Arrows / A D or a gamepad run · Space or (A) jump · push the crates!", 15, "#1a2a44c0",
+    s.add("Help", [transform(-left, top), text("{button:move left} {button:move right} run   {button:jump} jump   {button:controls} controls", 18, "#1a2a44e0",
                                                 align="right")], parent=cam)
     win = s.add("Well Done", [transform(0, 120), shape((620, 110), "#1a2a44e0")], parent=cam, active=False)
     s.add("Words", [transform(0, 34), text("Well done!\nYou found {coins} coins.", 30, "#ffd84aff", align="center")],
           parent=win)
+    # The Controls screen (scripts/controls.lua opens and fills it).
+    controls = s.add("Controls", [transform(), {"type": "rolo.Script", "script": IDS["controls.lua"]}], parent=cam)
+    panel = s.add("Controls Panel", [transform(0, 70), shape((860, 300), "#141c30f0")], parent=controls, active=False)
+    s.add("Controls Text", [transform(-400, 120), text("", 24, "#ffffffff")], parent=panel)
     for e in s.entities:
         for comp in e["components"]:
             if comp["type"] == "rolo.Trigger":
@@ -491,12 +581,13 @@ def main():
 
     content = root / "content"
     write(content / "platformer.lvars", {"format": "rolo.variables", "version": 1, "variables": [
-        {"id": "coins", "type": "int", "initial": 0, "description": "Coins collected"}]})
+        {"id": "coins", "type": "int", "initial": 0, "description": "Coins collected"},
+        {"id": "menu_open", "type": "bool", "initial": False, "description": "The Controls screen is open"}]})
     write(content / "platformer.lvars.meta", meta("platformer.lvars", "variables"))
 
     scripts = root / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
-    for name, code in (("player.lua", PLAYER), ("lift.lua", LIFT)):
+    for name, code in (("player.lua", PLAYER), ("lift.lua", LIFT), ("controls.lua", CONTROLS)):
         (scripts / name).write_text(code, encoding="utf-8")
         write(scripts / (name + ".meta"), meta(name, "script"))
 

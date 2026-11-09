@@ -18,7 +18,7 @@ so the plan stays in one place.
 | 7 | Complete sample game: a small top-down RPG built from a fresh project | Done (0.7) — [ADR 0010](adr/0010-demo-game.md), [the game](../examples/lantern_keeper) |
 | 8 | Public alpha: project wizard, packaging and export, clean builds, onboarding, release | Done (0.8.0-alpha) — [ADR 0011](adr/0011-public-alpha.md) |
 | — | *After the alpha:* Lua scripting; no yasio or networking; macOS and Windows verified in CI | Done (0.9.0-alpha) — [ADR 0012](adr/0012-no-yasio.md), [ADR 0013](adr/0013-lua-scripting.md); [known limitations](known-limitations.md) |
-| — | *After the alpha:* renamed Rolo Engine; sound and music; 2D physics; gamepads | Done (unreleased) — [ADR 0014](adr/0014-rename-to-rolo.md), [ADR 0015](adr/0015-sound.md), [ADR 0016](adr/0016-physics.md), [ADR 0017](adr/0017-gamepads.md); [sound](sound.md), [physics](physics.md) |
+| — | *After the alpha:* renamed Rolo Engine; sound and music; 2D physics; gamepads, remapping, button pictures, rumble | Done (unreleased) — [ADR 0014](adr/0014-rename-to-rolo.md), [ADR 0015](adr/0015-sound.md), [ADR 0016](adr/0016-physics.md), [ADR 0017](adr/0017-gamepads.md), [ADR 0018](adr/0018-controls.md); [sound](sound.md), [physics](physics.md), [controls](controls.md) |
 | — | *Added, after the alpha:* timeline animation editor | Later |
 
 ## Milestone 6.5 — Flipbook animation (*added*)
@@ -100,8 +100,8 @@ In rough order of importance:
    Loading compiled C++ modules is still open, for games that need C++.
 3. ~~**Sound**~~ — **done** with miniaudio instead of Axmol's audio
    (ADR 0015). Next for sound: positional sound (louder near the camera),
-   a volume menu for players. ~~**Gamepad input**~~ — **done** (ADR 0017);
-   next: rumble and button remapping.
+   a volume menu for players. ~~**Gamepad input**~~ — **done** (ADR 0017),
+   with rumble, remapping and button pictures (ADR 0018).
 4. **Signing** of macOS apps and Windows programs, and installers.
 5. **Physics, next** (ADR 0016): joints, one-way platforms, ray casts,
    collision layers.

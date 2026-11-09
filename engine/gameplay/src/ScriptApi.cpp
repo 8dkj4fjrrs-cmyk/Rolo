@@ -285,13 +285,10 @@ int objectSetText(lua_State* L)
 {
     const EntityId id = objectEntity(L, 1).id();
     const std::string_view value = luaL_tolstring(L, 2, nullptr); // numbers and booleans too
-    Text* text = gameOf(L).get<Text>(id);
-    if (text == nullptr) {
+    if (gameOf(L).get<Text>(id) == nullptr) {
         return luaL_error(L, "this object has no Text component");
     }
-    if (text->text != value) { // changing text redraws it: only when it changes
-        text->text = std::string(value);
-    }
+    gameOf(L).setText(id, std::string(value));
     return 0;
 }
 
@@ -584,11 +581,16 @@ int checkPad(lua_State* L, int index)
 }
 
 template <bool (Input::*KeyQuery)(Key) const noexcept, bool (Input::*ButtonQuery)(MouseButton) const noexcept,
-          bool (Input::*PadQuery)(GamepadButton, int) const noexcept>
+          bool (Input::*PadQuery)(GamepadButton, int) const noexcept, bool (Input::*ActionQuery)(std::string_view) const>
 int inputQuery(lua_State* L)
 {
-    const KeySet set = checkKey(L, 1);
     const Input& input = std::as_const(gameOf(L)).input();
+    // An action's name ("jump", "interact") first: then keys and buttons.
+    if (const std::string_view name = checkText(L, 1); input.hasAction(name)) {
+        lua_pushboolean(L, (input.*ActionQuery)(name));
+        return 1;
+    }
+    const KeySet set = checkKey(L, 1);
     bool result = false;
     if (set.pad) {
         result = (input.*PadQuery)(*set.pad, checkPad(L, 2));
@@ -632,6 +634,110 @@ int inputGamepad(lua_State* L)
 {
     lua_pushboolean(L, std::as_const(gameOf(L)).input().isGamepadConnected(checkPad(L, 1)));
     return 1;
+}
+
+// input.action("jump", {"space", "w", "pad a"}): names an action and its default bindings.
+int inputAction(lua_State* L)
+{
+    const std::string name(checkText(L, 1));
+    if (name.empty()) {
+        return luaL_argerror(L, 1, "an action needs a name");
+    }
+    luaL_checktype(L, 2, LUA_TTABLE);
+    std::vector<Binding> defaults;
+    const lua_Integer count = static_cast<lua_Integer>(lua_rawlen(L, 2));
+    for (lua_Integer i = 1; i <= count; ++i) {
+        lua_rawgeti(L, 2, i);
+        const std::string_view text = checkText(L, -1);
+        const auto binding = parseBinding(text);
+        if (!binding) {
+            return luaL_error(L, "input.action: \"%s\" is not a key or button (e.g. \"space\", \"mouse left\", \"pad a\")",
+                              std::string(text).c_str());
+        }
+        defaults.push_back(*binding);
+        lua_pop(L, 1);
+    }
+    gameOf(L).input().defineAction(name, std::move(defaults));
+    return 0;
+}
+
+std::string_view checkAction(lua_State* L, int index)
+{
+    const std::string_view name = checkText(L, index);
+    if (!std::as_const(gameOf(L)).input().hasAction(name)) {
+        luaL_error(L, "there is no action called \"%s\" (make one with input.action)", std::string(name).c_str());
+    }
+    return name;
+}
+
+// input.bindings("jump") -> {"Space", "Pad A"}: names to show in a controls menu.
+int inputBindings(lua_State* L)
+{
+    const std::vector<Binding> list = std::as_const(gameOf(L)).input().bindings(checkAction(L, 1));
+    lua_createtable(L, static_cast<int>(list.size()), 0);
+    for (std::size_t i = 0; i < list.size(); ++i) {
+        pushText(L, bindingName(list[i]));
+        lua_rawseti(L, -2, static_cast<lua_Integer>(i + 1));
+    }
+    return 1;
+}
+
+// input.rebind("jump"): the next key or button pressed becomes its binding.
+int inputRebind(lua_State* L)
+{
+    const std::string name(checkAction(L, 1));
+    gameOf(L).input().startRebind(name);
+    return 0;
+}
+
+int inputIsRebinding(lua_State* L)
+{
+    lua_pushboolean(L, std::as_const(gameOf(L)).input().isRebinding());
+    return 1;
+}
+
+int inputCancelRebind(lua_State* L)
+{
+    gameOf(L).input().cancelRebind();
+    return 0;
+}
+
+// input.resetControls() or input.resetControls("jump"): back to the defaults.
+int inputResetControls(lua_State* L)
+{
+    if (lua_isnoneornil(L, 1)) {
+        gameOf(L).input().resetBindings();
+    } else {
+        const std::string name(checkAction(L, 1));
+        gameOf(L).input().resetBindings(name);
+    }
+    return 0;
+}
+
+// input.lastDevice() -> "keyboard" or "gamepad"
+int inputLastDevice(lua_State* L)
+{
+    lua_pushstring(L, std::as_const(gameOf(L)).input().lastDevice() == InputDevice::Gamepad ? "gamepad" : "keyboard");
+    return 1;
+}
+
+// input.rumble(strength, seconds [, pad]) or input.rumble({low = , high = }, seconds [, pad])
+int inputRumble(lua_State* L)
+{
+    float low = 0.0f;
+    float high = 0.0f;
+    if (lua_istable(L, 1)) {
+        lua_getfield(L, 1, "low");
+        low = lua_isnil(L, -1) ? 0.0f : checkFloat(L, -1);
+        lua_getfield(L, 1, "high");
+        high = lua_isnil(L, -1) ? 0.0f : checkFloat(L, -1);
+        lua_pop(L, 2);
+    } else {
+        low = high = checkFloat(L, 1);
+    }
+    const float seconds = checkFloat(L, 2);
+    gameOf(L).input().rumble(low, high, seconds, checkPad(L, 3));
+    return 0;
 }
 
 int inputDirection(lua_State* L)
@@ -1032,9 +1138,19 @@ void openScriptApi(ScriptHost& host)
     lua_setglobal(L, "game");
 
     static const luaL_Reg inputFunctions[] = {
-        {"isDown", guarded<inputQuery<&Input::isDown, &Input::isDown, &Input::isDown>>},
-        {"wasPressed", guarded<inputQuery<&Input::wasPressed, &Input::wasPressed, &Input::wasPressed>>},
-        {"wasReleased", guarded<inputQuery<&Input::wasReleased, &Input::wasReleased, &Input::wasReleased>>},
+        {"isDown", guarded<inputQuery<&Input::isDown, &Input::isDown, &Input::isDown, &Input::isActionDown>>},
+        {"wasPressed",
+         guarded<inputQuery<&Input::wasPressed, &Input::wasPressed, &Input::wasPressed, &Input::wasActionPressed>>},
+        {"wasReleased",
+         guarded<inputQuery<&Input::wasReleased, &Input::wasReleased, &Input::wasReleased, &Input::wasActionReleased>>},
+        {"action", guarded<inputAction>},
+        {"bindings", guarded<inputBindings>},
+        {"rebind", guarded<inputRebind>},
+        {"isRebinding", guarded<inputIsRebinding>},
+        {"cancelRebind", guarded<inputCancelRebind>},
+        {"resetControls", guarded<inputResetControls>},
+        {"lastDevice", guarded<inputLastDevice>},
+        {"rumble", guarded<inputRumble>},
         {"direction", guarded<inputDirection>},
         {"stick", guarded<inputStick>},
         {"trigger", guarded<inputTrigger>},

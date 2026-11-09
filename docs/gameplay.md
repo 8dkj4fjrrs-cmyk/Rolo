@@ -104,7 +104,10 @@ in.isGamepadConnected();
 ```
 
 `moveDirection()` includes the left stick and the d-pad, so behaviours that
-use it work with gamepads unchanged.
+use it work with gamepads unchanged. Actions, remapping and rumble
+(`defineAction`, `wasActionPressed`, `startRebind`, `rumble`) are in the
+[controls guide](controls.md); to change a Text from C++, use
+`game.setText(id, "...")` (it fills in `{variable}` and `{button:...}`).
 
 **Objects:**
 
@@ -217,7 +220,7 @@ components:
 |---|---|---|
 | **Interactor** | the player (with a Collider) | Triggers notice it entering their area and pressing its interact key (E by default). |
 | **Trigger** | anything with a non-solid Collider (or nothing, for scene start, timers, events and conditions) | When something happens, runs actions if its condition is true (below). |
-| **Text** | an object (a child of the Camera stays on screen) | Draws text. `{gems}` shows a variable. Its *Source* can instead show the dialogue's speaker, line or choices, the interaction prompt ("[E] Talk") or the quest log. |
+| **Text** | an object (a child of the Camera stays on screen) | Draws text. `{gems}` shows a variable. Its *Source* can instead show the dialogue's speaker, line or choices, the interaction prompt (a picture of the interact button, then "Talk") or the quest log. |
 | **Dialogue View** | the dialogue box | Shown only while a dialogue is going on. |
 
 A Trigger's **When** is one of:

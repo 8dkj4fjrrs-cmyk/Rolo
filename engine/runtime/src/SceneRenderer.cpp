@@ -1,5 +1,7 @@
 #include "SceneRenderer.hpp"
 
+#include "ButtonIconNodes.hpp"
+
 #include "TextureStore.hpp"
 
 #include "rolo/ui/EmbeddedFonts.hpp"
@@ -349,6 +351,48 @@ ax::Node* SceneRenderer::makeTextNode(const Text& text)
     while (start <= text.text.size()) {
         const std::size_t end = std::min(text.text.find('\n', start), text.text.size());
         const std::string line = text.text.substr(start, end - start);
+        // A line with button pictures ({button:...} became icon tokens): words
+        // and pictures side by side. (Such lines are not wrapped.)
+        if (line.find("{icon:") != std::string::npos) {
+            const std::vector<TextPiece> pieces = splitIcons(line);
+            if (std::any_of(pieces.begin(), pieces.end(), [](const TextPiece& p) { return p.icon.has_value(); })) {
+                const float size = std::max(1.0f, text.size * kOversample);
+                auto* row = ax::Node::create();
+                float x = 0.0f;
+                float lineHeight = size * 1.2f;
+                const auto addWords = [&](const std::string& words) {
+                    auto* label = ax::Label::createWithTTF(words, font, size);
+                    if (label == nullptr) {
+                        return;
+                    }
+                    label->setTextColor(ax::Color4B(text.color.r, text.color.g, text.color.b, text.color.a));
+                    label->setAnchorPoint(ax::Vec2(0.0f, 1.0f));
+                    label->setPosition(x, 0.0f);
+                    row->addChild(label);
+                    x += label->getContentSize().width;
+                    lineHeight = std::max(lineHeight, label->getLineHeight());
+                };
+                for (const TextPiece& piece : pieces) {
+                    if (!piece.icon) {
+                        addWords(piece.text);
+                        continue;
+                    }
+                    const float iconHeight = size * 1.15f;
+                    ax::Node* icon = makeButtonIcon(*piece.icon, iconHeight, defaultFontPath());
+                    // Centred on the line, with a little room either side.
+                    icon->setPosition(x + size * 0.08f, -lineHeight * 0.5f - iconHeight * 0.5f);
+                    icon->setCascadeOpacityEnabled(true);
+                    icon->setOpacity(text.color.a);
+                    row->addChild(icon);
+                    x += icon->getContentSize().width + size * 0.16f;
+                }
+                row->setPosition(-x * anchorX, y);
+                root->addChild(row);
+                y -= lineHeight;
+                start = end + 1;
+                continue;
+            }
+        }
         auto* label = ax::Label::createWithTTF(line.empty() ? std::string(" ") : line, font,
                                                std::max(1.0f, text.size * kOversample),
                                                ax::Size(std::max(0.0f, text.width) * kOversample, 0.0f), align);

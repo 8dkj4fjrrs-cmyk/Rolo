@@ -71,6 +71,8 @@ public:
     /// (a slow disk, the debugger) time jumps; without a limit, things would
     /// move so far in one step that they pass through walls.
     static constexpr float kMaxStep = 0.1f;
+    /// The save slot that keeps the player's controls (remapped buttons).
+    static constexpr std::string_view kControlsSlot = "_controls";
 
     /// Nothing in `setup` is owned; it must outlive the game.
     explicit Game(const Logger& log, GameSetup setup = {});
@@ -191,7 +193,13 @@ public:
     bool save(std::string_view slot);
     /// Loads a slot at the end of this frame (its scene, progress, player position).
     void load(std::string_view slot);
-    /// The prompt for what the player can interact with now, e.g. "[E] Talk".
+    /// Changes what a Text says. Like the text written in the editor, it may
+    /// contain {variable} and {button:action}, filled in every frame. (Setting
+    /// Text::text directly is undone by that filling in: use this.)
+    void setText(EntityId id, std::string text);
+    /// The prompt for what the player can interact with now, e.g. "[E] Talk"
+    /// or "[A] Talk" (the button of the device the player uses). A Text
+    /// whose source is the prompt shows the button's picture instead.
     const std::string& interactionPrompt() const noexcept { return m_prompt; }
 
     // --- Physics (RigidBody; see docs/physics.md) -----------------------------------------------------
@@ -295,7 +303,10 @@ private:
     std::map<EntityId, std::string> m_textTemplates;  // each Text's own text, as written
     std::vector<std::string> m_pendingEvents;         // sent this frame
     std::vector<std::string> m_events;                // sent last frame: delivered now
-    std::string m_prompt;
+    std::string m_prompt;                             // "[E] Talk"
+    std::string m_promptText;                         // "{button:interact} Talk", for prompt Texts
+    std::vector<Binding> m_interactDefaults;          // the interact action's defaults, from the Interactor
+    std::uint64_t m_savedBindings = 0;                // the input's bindings revision last saved
     std::size_t m_choice = 0;                         // the selected dialogue choice
     std::string m_shownLine;                          // to notice a new line (resets the choice)
     std::shared_ptr<ScriptHost> m_scripts;            // Lua scripts' state; dropped when the game stops

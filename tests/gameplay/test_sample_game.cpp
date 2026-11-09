@@ -227,7 +227,7 @@ TEST_CASE("Playing the sample all the way: elder, gems, quest, boulder, cave, sa
     // Talk to the elder and take the quest.
     const Vec2 elder = at("Elder");
     p.stand({elder.x + 26.0f, elder.y - 18.0f});
-    CHECK(p.text("Prompt") == "[E] Talk");
+    CHECK(p.text("Prompt") == "{icon:key:E} Talk");   // drawn as a picture of the E key
     p.tap(Key::E);
     REQUIRE(game.isInDialogue());
     CHECK(p.text("Speaker") == "Elder Maren");

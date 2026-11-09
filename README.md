@@ -62,6 +62,7 @@ project to a game you can share in half an hour.
 * [Getting started](docs/getting-started.md): your first game, step by step
 * [Editor guide](docs/editor.md): every panel and tool
 * [Scripting in Lua](docs/scripting.md): gameplay code without a compiler, with the full API
+* [Controls](docs/controls.md): actions, remapping, button pictures and rumble
 * [Physics](docs/physics.md): rigid bodies, colliders, gravity, and scripts that move them
 * [Sound and music](docs/sound.md): effects, music and volumes, with or without code
 * [Gameplay in C++](docs/gameplay.md): behaviours and game modules (Rolo built from source)
@@ -123,9 +124,10 @@ Some highlights:
   circle and capsule colliders, solid tiles as floors and walls, and gravity
   per scene (down for platformers, none for top-down games). Scripts set
   velocities, jump and hear collisions.
-- **Gamepads**: up to four, Xbox, PlayStation, Switch Pro and most others,
-  plugged in and out while playing. Games made without code work with
-  them too.
+- **Gamepads and controls**: up to four pads (Xbox, PlayStation, Switch
+  Pro and most others), named actions that players can remap (kept between
+  sessions), button pictures in text (`{button:jump}`) drawn to match the
+  player's pad or keyboard, and rumble.
 - **Sound and music**: WAV, OGG and MP3, from a Sound component, trigger
   actions or scripts. Music fades between scenes, and carries on when the
   next scene has the same piece.

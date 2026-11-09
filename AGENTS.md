@@ -37,6 +37,8 @@ and AI assistants.
   includes it.
 - Gamepads: games read them through `rolo::Input` (`GamepadButton`, sticks); only `engine/runtime/src/Gamepads.cpp`
   talks to GLFW's gamepad API (ADR 0017).
+  Rumble's system code is in `engine/runtime/src/Rumble_*.{cpp,mm}` (ADR 0018). Text changed by code goes
+  through `Game::setText` (texts are refilled from their templates every frame).
 - Physics: Box2D stays inside `engine/physics/src/PhysicsWorld.cpp` (ADR 0016); the rest of Rolo uses
   `rolo::PhysicsWorld` in points and clockwise degrees. Physics runs only in scenes with a RigidBody.
 - RPG content (`engine/content`) is data: conditions and actions are a fixed, typed set, never code or

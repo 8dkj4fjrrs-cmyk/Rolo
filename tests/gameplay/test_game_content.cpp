@@ -155,7 +155,7 @@ TEST_CASE("Talking to someone: prompt, dialogue box, lines, choices", "[gameplay
 
     r.frames(1);
     CHECK(g.interactionPrompt() == "[E] Talk");
-    CHECK(textIn(g, "Prompt")->text == "[E] Talk");
+    CHECK(textIn(g, "Prompt")->text == "{icon:key:E} Talk");   // drawn as a picture of the E key
 
     r.tap(Key::E);
     REQUIRE(g.isInDialogue());

@@ -158,7 +158,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `obj:isAnimationPlaying()`, `obj:isAnimationFinished()` | animation state (finished: a clip that does not loop has reached its end) |
 | `obj:overlapping()` | a list of the objects whose Colliders overlap its Collider |
 | `obj:isTouching(other)` | true if their Colliders overlap |
-| `obj:text()`, `obj:setText("Score: 3")` | the text of a Text component |
+| `obj:text()`, `obj:setText("Score: 3")` | the text of a Text component; `{variable}` and `{button:jump}` in it are filled in, as in the editor |
 | `obj:setFlipX(true/false)` | mirrors its Sprite left to right |
 | `obj:playSound()` | plays its Sound component (as music, if the Sound is set to Music). Returns a handle for `audio.stop`, or `nil` |
 | `obj:stopSound()` | stops what its Sound component plays |
@@ -196,6 +196,15 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `input.stick("left")`, `input.stick("right")` | a gamepad stick, `x, y`, each -1 to 1 (up is +1), with a small dead zone; `0, 0` without a gamepad |
 | `input.trigger("left")`, `input.trigger("right")` | a gamepad trigger, 0 (released) to 1 |
 | `input.gamepad()`, `input.gamepad(2)` | true if a gamepad (or gamepad 2) is plugged in |
+| `input.action("jump", {"space", "pad a"})` | names an action and its default keys and buttons; then `input.isDown("jump")` (and `wasPressed`, `wasReleased`) |
+| `input.rebind("jump")`, `input.isRebinding()`, `input.cancelRebind()` | remapping: the next key or button pressed becomes the action's (Backspace keeps it) |
+| `input.bindings("jump")` | the action's keys and buttons now, as names: `{"Space", "Pad A"}` |
+| `input.resetControls()`, `input.resetControls("jump")` | back to the defaults |
+| `input.rumble(strength, seconds)`, `input.rumble(strength, seconds, pad)` | shakes the gamepad (strength 0 to 1; a table `{low = , high = }` sets each motor) |
+| `input.lastDevice()` | `"keyboard"` or `"gamepad"`: what the player used last |
+
+Actions, remapping, button pictures (`{button:jump}` in texts) and rumble
+are explained in the [controls guide](controls.md).
 
 Key names, in any case:
 - letters `"a"` to `"z"` and digits `"0"` to `"9"`;
@@ -217,7 +226,8 @@ Gamepads are plugged in and out while the game runs; up to four work at
 once. Games without code are playable with one too: the Top-Down
 Controller and `input.direction()` follow the left stick and d-pad, and A
 talks, goes on in dialogue and picks a choice (the stick or d-pad moves
-between choices).
+between choices). These are Rolo's own actions (`move left`, `move right`,
+`move up`, `move down`, `interact`), so players can remap them.
 
 ### Physics
 

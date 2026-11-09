@@ -1,8 +1,11 @@
 #include "rolo/runtime/Gamepads.hpp"
 
+#include "Rumble.hpp"
+
 #include <platform/RenderViewImpl.h>   // brings in GLFW the way Axmol expects
 
 #include <algorithm>
+#include <chrono>
 
 namespace rolo {
 
@@ -33,9 +36,33 @@ GamepadState gamepadFromGlfw(const unsigned char (&buttons)[15], const float (&a
     return state;
 }
 
+namespace {
+double now()
+{
+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+} // namespace
+
 GamepadReader::GamepadReader(const Logger& log)
     : m_log(log)
+    , m_rumble(detail::Rumble::create(log))
+    , m_timer(std::make_unique<detail::RumbleTimer>())
 {
+}
+
+GamepadReader::~GamepadReader()
+{
+    stopRumble();
+}
+
+void GamepadReader::stopRumble()
+{
+    m_timer->stop(m_joystickOf, *m_rumble);
+}
+
+void GamepadReader::updateRumble(Input& input)
+{
+    m_timer->update(input.takeRumbles(), now(), m_joystickOf, *m_rumble);
 }
 
 void GamepadReader::read(Input& input)
@@ -46,6 +73,7 @@ void GamepadReader::read(Input& input)
         if (jid >= 0 && glfwJoystickIsGamepad(jid) != GLFW_TRUE) {
             m_log.info(kCategory, "Gamepad " + std::to_string(pad + 1) + " was unplugged.");
             jid = -1;
+            m_timer->forget(pad);
             input.setGamepad(pad, GamepadState{});
         }
     }
@@ -74,6 +102,7 @@ void GamepadReader::read(Input& input)
         }
         *free = jid;
         const char* name = glfwGetGamepadName(jid);
+        m_names[static_cast<std::size_t>(free - m_joystickOf.begin())] = name != nullptr ? name : "";
         m_log.info(kCategory, "Gamepad " + std::to_string(free - m_joystickOf.begin() + 1) + " plugged in: "
                                   + (name != nullptr ? name : "a gamepad") + ".");
     }
@@ -82,11 +111,15 @@ void GamepadReader::read(Input& input)
         const int jid = m_joystickOf[static_cast<std::size_t>(pad)];
         GLFWgamepadstate raw{};
         if (jid >= 0 && glfwGetGamepadState(jid, &raw) == GLFW_TRUE) {
-            input.setGamepad(pad, gamepadFromGlfw(raw.buttons, raw.axes));
+            GamepadState state = gamepadFromGlfw(raw.buttons, raw.axes);
+            state.name = m_names[static_cast<std::size_t>(pad)];
+            state.style = gamepadStyleFromName(state.name);   // for drawing its buttons as they look
+            input.setGamepad(pad, state);
         } else {
             input.setGamepad(pad, GamepadState{});
         }
     }
+    updateRumble(input);
 }
 
 } // namespace rolo

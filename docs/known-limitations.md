@@ -44,9 +44,13 @@ Please report what you find.
   (a script can, with `audio.setVolume`). MP3 files do not loop seamlessly;
   use OGG for music.
 - **Gamepads**: up to four, with the button layouts GLFW knows (most
-  pads). No rumble, no remapping of buttons by players, and prompts show
-  button names ("[A] Talk"), not pictures. No touch input. The mouse
-  position is available to C++ behaviours and scripts.
+  pads). Rumble ([controls guide](controls.md)) works on Windows with
+  XInput pads (Xbox and alike), on macOS 11+ with pads the system can
+  rumble (one strength, not two motors), and on Linux with force-feedback
+  drivers. It was written without a real gamepad to try it on. No touch
+  input. The mouse position is available to C++ behaviours and scripts.
+- Text with button pictures is not wrapped; Escape quits a game at once,
+  so Controls screens should use Backspace to cancel.
 - The window is 1280 × 720 points. There is no fullscreen
   setting, title screen, pause menu or options menu. Escape quits at once,
   and **F5 / F9 save and load** in every game.

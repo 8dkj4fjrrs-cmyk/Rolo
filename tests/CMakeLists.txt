@@ -40,6 +40,8 @@ add_executable(rolo_tests
     assets/test_assets.cpp
     assets/test_animation.cpp
     gameplay/test_input.cpp
+    gameplay/test_button_icons.cpp
+    gameplay/test_controls.cpp
     gameplay/test_collision.cpp
     gameplay/test_game.cpp
     gameplay/test_animation_play.cpp

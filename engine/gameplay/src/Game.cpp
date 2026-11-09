@@ -3,6 +3,7 @@
 #include "rolo/assets/Animation.hpp"
 
 #include "rolo/gameplay/Behaviour.hpp"
+#include "rolo/gameplay/ButtonIcons.hpp"
 #include "rolo/gameplay/Components.hpp"
 
 #include "PhysicsSync.hpp"
@@ -63,6 +64,13 @@ void Game::start(const Scene& scene, AssetId sceneId)
     m_soundObjects.clear();
     m_objectSounds.clear();
     m_runner->setState(GameState::newGame(*m_setup.content));   // a new game
+    // The player's controls (remapped buttons) live beside their saves.
+    if (m_setup.saves != nullptr) {
+        if (const auto text = m_setup.saves->read(kControlsSlot)) {
+            m_input.loadBindings(*text);
+        }
+    }
+    m_savedBindings = m_input.bindingsRevision();
     beginScene(scene, sceneId);
 }
 
@@ -173,6 +181,15 @@ void Game::update(float dt)
         updatePresentation();
         finishFrame();
     }
+    // Remapped controls are kept at once (no save button for them).
+    if (m_input.bindingsRevision() != m_savedBindings) {
+        m_savedBindings = m_input.bindingsRevision();
+        if (m_setup.saves != nullptr) {
+            if (const Status written = m_setup.saves->write(kControlsSlot, m_input.saveBindings()); !written) {
+                m_log.warning(kCategory, "The controls could not be saved: " + written.message);
+            }
+        }
+    }
     ++m_frames;
     m_input.endFrame();
 }
@@ -252,20 +269,16 @@ void Game::handleDialogueInput()
     if (!line) {
         return;
     }
-    // The player's interact key, Enter or Space go on; up and down pick a choice.
-    Key interact = Key::E;
-    if (const EntityId player = firstPlayer(); !player.isNull()) {
-        interact = toKey(m_scene->find(player)->get<Interactor>()->key);
-    }
-    // On a gamepad: A goes on, the d-pad or the left stick picks.
-    const bool confirm = m_input.wasPressed(interact) || m_input.wasPressed(Key::Enter) || m_input.wasPressed(Key::Space)
-                         || m_input.wasPressed(GamepadButton::A);
+    // The interact action (E and A unless remapped), Enter or Space go on;
+    // the move up and down actions, or the left stick, pick a choice.
+    const bool confirm = m_input.wasActionPressed(Input::kInteract) || m_input.wasPressed(Key::Enter)
+                         || m_input.wasPressed(Key::Space);
     if (!line->choices.empty()) {
         const std::size_t count = line->choices.size();
-        if (m_input.wasPressed(Key::Down) || m_input.wasPressed(Key::S) || m_input.wasNudged(GamepadButton::Down)) {
+        if (m_input.wasActionPressed(Input::kMoveDown) || m_input.wasNudged(GamepadButton::Down)) {
             m_choice = (m_choice + 1) % count;
         }
-        if (m_input.wasPressed(Key::Up) || m_input.wasPressed(Key::W) || m_input.wasNudged(GamepadButton::Up)) {
+        if (m_input.wasActionPressed(Input::kMoveUp) || m_input.wasNudged(GamepadButton::Up)) {
             m_choice = (m_choice + count - 1) % count;
         }
         if (confirm) {
@@ -291,9 +304,16 @@ void Game::runTriggers(bool talkedThisFrame)
         }
         return false;
     };
+    // The Interactor's key is the interact action's default (the player may
+    // have remapped it).
     Key interactKey = Key::E;
     if (!players.empty()) {
         interactKey = toKey(m_scene->find(players.front())->get<Interactor>()->key);
+    }
+    if (const std::vector<Binding> wanted{Binding::ofKey(interactKey), Binding::ofPad(GamepadButton::A)};
+        m_interactDefaults != wanted) {
+        m_input.defineAction(Input::kInteract, wanted);
+        m_interactDefaults = wanted;
     }
     // A key press used by the dialogue this frame (e.g. to close it) must not
     // also start talking again.
@@ -336,10 +356,18 @@ void Game::runTriggers(bool talkedThisFrame)
             const bool inside = area && playerInside(*area);
             const bool allowed = !trigger.reaction.condition || m_runner->evaluate(*trigger.reaction.condition);
             if (inside && canInteract && allowed && m_prompt.empty() && !interacted) {
-                // With a gamepad plugged in, the prompt names its button.
-                const std::string_view button = m_input.isGamepadConnected() ? std::string_view("A") : keyName(interactKey);
-                m_prompt = trigger.prompt.empty() ? std::string() : "[" + std::string(button) + "] " + trigger.prompt;
-                if (m_input.wasPressed(interactKey) || m_input.wasPressed(GamepadButton::A)) {
+                // The prompt names the interact button of the device in use;
+                // a Text showing it draws the button's picture instead.
+                if (!trigger.prompt.empty()) {
+                    std::string button = "?";
+                    if (const auto b = m_input.bindingFor(Input::kInteract, m_input.lastDevice())) {
+                        button = b->isGamepad() ? std::string(padButtonLabel(b->pad, m_input.gamepadStyle()))
+                                                : bindingName(*b);
+                    }
+                    m_prompt = "[" + button + "] " + trigger.prompt;
+                    m_promptText = "{button:" + std::string(Input::kInteract) + "} " + trigger.prompt;
+                }
+                if (m_input.wasActionPressed(Input::kInteract)) {
                     fire = true;
                     interacted = true;   // one interaction per key press
                 }
@@ -408,16 +436,16 @@ void Game::updatePresentation()
         std::string shown;
         Color color = text.color;
         switch (text.source) {
-        case TextSource::Text: shown = m_runner->fillIn(written); break;
+        case TextSource::Text: shown = resolveButtons(m_runner->fillIn(written), m_input); break;
         case TextSource::DialogueSpeaker:
             if (line) {
                 shown = line->speakerName;
                 color = line->speakerColor;
             }
             break;
-        case TextSource::DialogueLine: shown = line ? line->text : std::string(); break;
-        case TextSource::DialogueChoices: shown = dialogueChoicesText(marker); break;
-        case TextSource::InteractionPrompt: shown = m_prompt; break;
+        case TextSource::DialogueLine: shown = line ? resolveButtons(line->text, m_input) : std::string(); break;
+        case TextSource::DialogueChoices: shown = resolveButtons(dialogueChoicesText(marker), m_input); break;
+        case TextSource::InteractionPrompt: shown = m_prompt.empty() ? std::string() : resolveButtons(m_promptText, m_input); break;
         case TextSource::QuestLog: shown = questLogText(); break;
         }
         // Only a real change redraws (changing text rebuilds the drawing).
@@ -610,6 +638,11 @@ bool Game::wasEmitted(std::string_view event) const
 
 bool Game::save(std::string_view slot)
 {
+    if (slot.empty() || slot.front() == '_') {
+        // Names starting with _ are Rolo's own files (the player's controls).
+        m_log.warning(kCategory, "Save slot names cannot start with _ ('" + std::string(slot) + "'); it was not saved.");
+        return false;
+    }
     if (m_setup.saves == nullptr) {
         m_log.warning(kCategory, "Saving is not available here; slot '" + std::string(slot) + "' was not saved.");
         return false;
@@ -1001,6 +1034,20 @@ void Game::deliverCollisions()
         deliver(a, b);
         deliver(b, a);
     }
+}
+
+} // namespace rolo
+
+namespace rolo {
+
+void Game::setText(EntityId id, std::string text)
+{
+    const Entity* entity = m_scene != nullptr ? m_scene->find(id) : nullptr;
+    if (entity == nullptr || entity->get<Text>() == nullptr) {
+        return;
+    }
+    m_textTemplates[id] = std::move(text);
+    updatePresentation();   // shown at once (filled in), not only next frame
 }
 
 } // namespace rolo
