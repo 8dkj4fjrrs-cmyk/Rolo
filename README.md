@@ -180,11 +180,12 @@ engine/runtime/  Window and main loop (rolo::Application); wraps Axmol privately
 player/          rolo_player, the game runtime application
 editor/          The editor: model (logic, undo), panels, application
 examples/        The Lantern Keeper (the demo RPG), the sample game, and the stress test
-templates/       New Project templates (Empty, Top-Down Starter)
+templates/       New Project templates (Empty, Top-Down Starter, Platformer Starter)
 third_party/     Small libraries kept in the repository (Lua, stb)
 licenses/        License texts of everything inside an exported game
 tests/           Catch2 unit tests and window tests
 tools/release/   Release helpers (license texts, Windows DLL check)
+tools/stress/    rolo_stress: gameplay frame times in the stress test
 cmake/           CMake helpers, the pinned Axmol download and its patches
 docs/            Guides, file formats and architecture decision records
 ```
