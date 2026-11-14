@@ -9,6 +9,7 @@
 #   Rolo-<v>-<system>/                  Rolo-<v>-macOS/
 #     rolo_editor(.exe), axslc/           rolo_editor.app/  (Contents/Resources/rolo/...)
 #     runtime/rolo_player(.exe), axslc/     ... runtime/rolo_player.app
+#     web-runtime/ (index.html, rolo_player.js, .wasm, .data: for web exports)
 #     templates/ examples/ licenses/ docs/   README.md, LICENSE, ...
 #     README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md
 #
@@ -68,6 +69,21 @@ install(DIRECTORY examples/ DESTINATION "${_resources}/examples" ${_component}
 install(DIRECTORY licenses/ DESTINATION "${_resources}/licenses" ${_component})
 install(DIRECTORY docs/ DESTINATION "${_resources}/docs" ${_component})
 install(FILES README.md LICENSE THIRD_PARTY_NOTICES.md CHANGELOG.md DESTINATION . ${_component})
+
+# The web runtime, for exporting games for browsers. It is built separately,
+# with Emscripten (the "web" preset; docs/building.md), and taken from where
+# that build puts it. A package made without it cannot export for the web
+# (the editor says so).
+set(ROLO_WEB_RUNTIME_DIR "${PROJECT_SOURCE_DIR}/build/web/bin/rolo_player" CACHE PATH
+    "The built web runtime (index.html, rolo_player.js, .wasm, .data) to put in the package")
+if(EXISTS "${ROLO_WEB_RUNTIME_DIR}/rolo_player.wasm")
+    install(FILES "${ROLO_WEB_RUNTIME_DIR}/index.html" "${ROLO_WEB_RUNTIME_DIR}/rolo_player.js"
+                  "${ROLO_WEB_RUNTIME_DIR}/rolo_player.wasm" "${ROLO_WEB_RUNTIME_DIR}/rolo_player.data"
+            DESTINATION "${_resources}/web-runtime" ${_component})
+    message(STATUS "Package: with the web runtime from ${ROLO_WEB_RUNTIME_DIR}")
+else()
+    message(STATUS "Package: WITHOUT the web runtime (none at ${ROLO_WEB_RUNTIME_DIR}); it will not export for the web")
+endif()
 
 # macOS: sign the apps "ad hoc", after everything is inside them. Apple
 # silicon Macs call a downloaded app with no valid signature "damaged" and

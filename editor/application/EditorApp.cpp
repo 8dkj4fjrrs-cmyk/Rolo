@@ -1291,10 +1291,13 @@ void EditorApp::showExportDialog()
     const char* system = currentOs() == HostOs::MacOS ? "macOS" : currentOs() == HostOs::Windows ? "Windows" : "Linux";
     auto dialog = std::make_unique<ui::Dialog>("Export Game", 500.0f);
     ui::Column& body = dialog->body();
-    body.emplace<ui::Label>(std::string("Makes a copy of your game that runs without the editor, for ") + system
-                                + " (this computer). To make a version for another system, export on that system.",
-                            ui::Label::Style::Dim)
+    body.emplace<ui::Label>("Makes a copy of your game that runs without the editor.", ui::Label::Style::Dim)
         .setWrap(true);
+    body.emplace<ui::Label>("Export for", ui::Label::Style::Dim);
+    auto& target = body.emplace<ui::ChoiceField>(
+        std::vector<std::string>{std::string(system) + " (this computer)", "Web browsers"});
+    auto& about = body.emplace<ui::Label>("", ui::Label::Style::Faint);
+    about.setWrap(true);
     body.emplace<ui::Label>("Game name", ui::Label::Style::Dim);
     auto& name = body.emplace<ui::TextField>("");
     name.setText(m_project->settings().name);
@@ -1307,10 +1310,17 @@ void EditorApp::showExportDialog()
                        .string());
     auto& hint = body.emplace<ui::Label>("", ui::Label::Style::Faint);
     hint.setWrap(true);
-    const auto updateHint = [&hint, &name, &folder] {
+    const auto updateHint = [&hint, &name, &folder, &target, &about] {
+        const bool web = target.selected() == 1;
         const std::string file = exportFileName(name.text());
-        hint.setText("Creates " + (std::filesystem::path(folder.text()) / (currentOs() == HostOs::MacOS ? file + ".app" : file)).string()
+        const std::string made = web ? file + " Web" : currentOs() == HostOs::MacOS ? file + ".app" : file;
+        hint.setText("Creates " + (std::filesystem::path(folder.text()) / made).string()
                      + ", replacing an earlier export of the same game.");
+        about.setText(web ? "A folder to put on a web host (itch.io, GitHub Pages...): players open a page, with "
+                            "nothing to install. Luau scripts and Rolo's own components run there; C++ game "
+                            "modules do not."
+                          : "A program for this kind of computer. To make one for another system, export on "
+                            "that system.");
     };
     updateHint();
     name.setOnChange([updateHint](const std::string&) { updateHint(); });
@@ -1329,37 +1339,53 @@ void EditorApp::showExportDialog()
     auto& error = body.emplace<ui::Label>("");
     error.setColor(m_ui->theme().error);
     error.setWrap(true);
-    std::error_code ec;
-    const bool runtimeFound = !m_resources.player.empty() && std::filesystem::exists(m_resources.player, ec);
-    if (!runtimeFound) {
-        error.setText("Rolo's game runtime (rolo_player) was not found"
-                      + (m_resources.player.empty() ? std::string() : " at " + m_resources.player.string())
-                      + ". Reinstall Rolo; when working from source, build the rolo_player target.");
-    }
     dialog->addButton("Cancel");
     ui::Button& ok = dialog->addButton(m_document->isDirty() ? "Save and Export" : "Export",
                                        ui::Button::Style::Primary);
-    ok.setEnabled(runtimeFound);
+    // Each kind of export needs its runtime; say so before the user tries.
+    const auto checkRuntime = [this, &error, &ok, &target] {
+        std::error_code ec;
+        std::string problem;
+        if (target.selected() == 1) {
+            if (!std::filesystem::exists(m_resources.webPlayer / "rolo_player.wasm", ec)) {
+                problem = "Rolo's web runtime was not found in " + m_resources.webPlayer.string()
+                          + ". It comes with Rolo's download; when working from source, build it first "
+                            "(docs/building.md, \"For the web\").";
+            }
+        } else if (m_resources.player.empty() || !std::filesystem::exists(m_resources.player, ec)) {
+            problem = "Rolo's game runtime (rolo_player) was not found"
+                      + (m_resources.player.empty() ? std::string() : " at " + m_resources.player.string())
+                      + ". Reinstall Rolo; when working from source, build the rolo_player target.";
+        }
+        error.setText(problem);
+        ok.setEnabled(problem.empty());
+    };
+    checkRuntime();
+    target.setOnChoose([updateHint, checkRuntime](int) {
+        updateHint();
+        checkRuntime();
+    });
     ui::Dialog& d = ui::showDialog(*m_ui, std::move(dialog));
-    ok.setOnClick([this, &d, &name, &folder, &error] {
+    ok.setOnClick([this, &d, &name, &folder, &error, &target] {
         if (folder.text().empty()) {
             error.setText("Choose the folder to export into.");
             return;
         }
         const std::string gameName = name.text();
         const std::filesystem::path into = folder.text();
+        const ExportTarget to = target.selected() == 1 ? ExportTarget::Web : ExportTarget::Desktop;
         m_ui->closeOverlay(&d);
         if (m_document->isDirty()) {
-            saveScene([this, gameName, into] { exportNow(gameName, into); });
+            saveScene([this, gameName, into, to] { exportNow(gameName, into, to); });
         } else {
-            exportNow(gameName, into);
+            exportNow(gameName, into, to);
         }
     });
 }
 
-void EditorApp::exportNow(const std::string& name, const std::filesystem::path& folder)
+void EditorApp::exportNow(const std::string& name, const std::filesystem::path& folder, ExportTarget target)
 {
-    const ExportRun run = exportProject(m_project->folder(), folder, name, m_resources, m_registry, log());
+    const ExportRun run = exportProject(m_project->folder(), folder, name, m_resources, m_registry, log(), target);
     if (!run.ok) {
         showMessage("Could Not Export", run.message);
         return;
@@ -1367,11 +1393,16 @@ void EditorApp::exportNow(const std::string& name, const std::filesystem::path& 
     auto dialog = std::make_unique<ui::Dialog>("Game Exported", 480.0f);
     dialog->body().emplace<ui::Label>(run.message).setWrap(true);
     dialog->body()
-        .emplace<ui::Label>("Players run " + run.result.program.filename().string()
-                                + ". Share the whole folder (zip it); its licenses folder must stay with the game.",
+        .emplace<ui::Label>(target == ExportTarget::Web
+                                ? "Put the folder on a web host and players open its page. Its README.txt says "
+                                  "how (itch.io and others) and how to try it on this computer; opening "
+                                  "index.html straight from the folder does not work."
+                                : "Players run " + run.result.program.filename().string()
+                                      + ". Share the whole folder (zip it); its licenses folder must stay with "
+                                        "the game.",
                             ui::Label::Style::Dim)
         .setWrap(true);
-    const std::filesystem::path where = run.result.game.parent_path();
+    const std::filesystem::path where = target == ExportTarget::Web ? run.result.game : run.result.game.parent_path();
     dialog->addButton("Show in Folder", ui::Button::Style::Normal, [where] { revealInFileManager(where); });
     dialog->addButton("Done", ui::Button::Style::Primary);
     ui::showDialog(*m_ui, std::move(dialog));

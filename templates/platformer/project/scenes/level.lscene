@@ -1368,7 +1368,7 @@
         {
           "type": "rolo.Shape",
           "kind": "rectangle",
-          "size": [560, 260],
+          "size": [660, 260],
           "color": "#141c30f0",
           "filled": true,
           "lineWidth": 2
@@ -1383,7 +1383,7 @@
       "components": [
         {
           "type": "rolo.Transform",
-          "position": [-240, 100],
+          "position": [-290, 100],
           "rotation": 0,
           "scale": [1, 1]
         },

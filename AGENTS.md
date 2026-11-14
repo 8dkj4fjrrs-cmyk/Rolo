@@ -61,6 +61,12 @@ and AI assistants.
   `RoloResources` (beside the program when installed, the source tree when built); never
   hard-code paths to them. Anything a game contains must have its license text in `licenses/`.
 - Saved files use project-relative paths and an explicit format version.
+- The web (ADR 0022): the player also builds with Emscripten (preset `web`), without threads. Code in
+  `engine/` must not need threads to work (ScriptHost's watchdog has a clock fallback), and nothing
+  after `Application::run` may assume the game has ended (`RunReport::continuesInBackground`): the
+  player keeps a running game's state in its `Player` object. Browser-only code is behind
+  `__EMSCRIPTEN__`, in `engine/runtime` and `player/` only. Check web changes with
+  `tools/web/check_web_game.js`.
 - Axmol is used unmodified except for the small patches in `cmake/axmol-patches/` (switches and
   build fixes only, each explained in its README). Rolo builds Axmol without networking or
   yasio; `engine/runtime/axmol_compat` provides the yasio headers Axmol's core includes, written

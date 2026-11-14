@@ -23,6 +23,23 @@ set(APP_NAME rolo_player)
 set(_AX_EXTENSION_LIBS "")
 ax_setup_app_config(rolo_player)
 
+# The web: the player is rolo_player.js + .wasm + .data (Axmol's shaders),
+# loaded by a page. pre.js (built into the .js) fetches the game's files and
+# the saved games before the game starts; index.html is the page, copied
+# beside the player so the folder can be served and exported as it is.
+if(EMSCRIPTEN)
+    target_link_options(rolo_player PRIVATE
+        "SHELL:--pre-js ${CMAKE_CURRENT_SOURCE_DIR}/web/pre.js"
+        -lidbfs.js                                      # saved games kept by the browser (IndexedDB)
+        -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2     # Axmol draws with WebGL 2
+        -sSTACK_SIZE=4mb)                               # as Axmol's own web apps
+    set_property(TARGET rolo_player APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/web/pre.js")
+    add_custom_command(TARGET rolo_player POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/web/index.html" "$<TARGET_FILE_DIR:rolo_player>/index.html"
+        VERBATIM)
+endif()
+
 # Windows: Axmol makes this a windowed program (no console window opens when
 # it is double-clicked). Such programs normally start at WinMain; ours starts
 # at an ordinary main(), so tell the linker to use the C runtime's start-up

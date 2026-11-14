@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace rolo::editor {
 
@@ -27,6 +28,11 @@ struct ProjectCheck {
 /// story content. `registry` must know the game's behaviours.
 ProjectCheck checkProject(const std::filesystem::path& folder, const ComponentRegistry& registry, const Logger& log);
 
+/// The names of the components in the project's scenes that come from C++
+/// game modules (not Rolo's own): what a runtime without those modules,
+/// like the web one, cannot run.
+std::vector<std::string> moduleComponentsUsed(const std::filesystem::path& folder, const ComponentRegistry& registry);
+
 struct ExportRun {
     bool ok = false;
     std::string message;   // what happened, for the user
@@ -38,6 +44,7 @@ struct ExportRun {
 /// reported, not blocking).
 ExportRun exportProject(const std::filesystem::path& project, const std::filesystem::path& output,
                         const std::string& gameName, const RoloResources& resources,
-                        const ComponentRegistry& registry, const Logger& log);
+                        const ComponentRegistry& registry, const Logger& log,
+                        ExportTarget target = ExportTarget::Desktop);
 
 } // namespace rolo::editor

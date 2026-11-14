@@ -55,6 +55,20 @@
             "cacheVariables": {
                 "ROLO_ENABLE_SANITIZERS": "ON"
             }
+        },
+        {
+            "name": "web",
+            "displayName": "Web runtime (WebAssembly; configure with: emcmake cmake --preset web)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/web",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "ROLO_RUNTIME_BACKEND": "axmol",
+                "ROLO_BUILD_SAMPLE_GAME": "OFF"
+            },
+            "warnings": {
+                "dev": false
+            }
         }
     ],
     "buildPresets": [
@@ -80,6 +94,13 @@
             "configurePreset": "release",
             "targets": [
                 "rolo_package"
+            ]
+        },
+        {
+            "name": "web",
+            "configurePreset": "web",
+            "targets": [
+                "rolo_player"
             ]
         }
     ],

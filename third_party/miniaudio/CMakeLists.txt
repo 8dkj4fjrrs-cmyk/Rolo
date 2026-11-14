@@ -20,7 +20,7 @@ if(MSVC)
 else()
     target_compile_options(rolo_miniaudio PRIVATE -w)   # third-party code: its warnings are not ours to fix
 endif()
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)   # (on the web it plays through the browser's Web Audio)
     find_package(Threads REQUIRED)
     target_link_libraries(rolo_miniaudio PUBLIC Threads::Threads ${CMAKE_DL_LIBS} m)
 endif()

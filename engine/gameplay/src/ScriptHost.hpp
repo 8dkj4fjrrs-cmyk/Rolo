@@ -19,7 +19,8 @@
 //
 // Limits, so a broken script cannot hang or exhaust the game:
 //   * a call (start, update, a required file) that runs for more than
-//     GameSetup::scriptTimeLimit seconds is stopped with an error. A watchdog thread notices;
+//     GameSetup::scriptTimeLimit seconds is stopped with an error. A watchdog thread notices
+//     (where there are no threads, on the web, Luau's interrupt checks the clock instead);
 //     scripts pay nothing for it while they run;
 //   * all scripts together may use at most kMemoryLimit bytes.
 
@@ -28,12 +29,25 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <cstddef>
 #include <map>
 #include <mutex>
 #include <thread>
+
+// Whether a watchdog thread can be used. The web build (WebAssembly without
+// threads, see the root CMakeLists.txt) has none: there the scripts
+// themselves look at the clock now and then.
+// (It can be set to 0 when compiling, to test that way on a desktop.)
+#ifndef ROLO_SCRIPT_WATCHDOG_THREAD
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+#define ROLO_SCRIPT_WATCHDOG_THREAD 0
+#else
+#define ROLO_SCRIPT_WATCHDOG_THREAD 1
+#endif
+#endif
 #include <optional>
 #include <string>
 #include <string_view>
@@ -75,6 +89,11 @@ class ScriptHost {
     void countAllocated(std::size_t bytes) noexcept { m_allocated += bytes; }
     /// True when the watchdog found the current call running too long.
     bool callTimedOut() const noexcept { return m_timedOut.load(std::memory_order_relaxed); }
+#if !ROLO_SCRIPT_WATCHDOG_THREAD
+    /// Without a watchdog thread: counts this check, and every few thousand
+    /// looks whether the current call has passed the time limit.
+    bool callRanTooLong();
+#endif
     /// How long one call may run, in seconds (GameSetup::scriptTimeLimit).
     double timeLimit() const noexcept { return m_timeLimit; }
 
@@ -112,7 +131,9 @@ class ScriptHost {
     void ensureSelf(Script& script, EntityId object);
 
     static void* allocate(void* ud, void* block, std::size_t oldSize, std::size_t newSize) noexcept;
+#if ROLO_SCRIPT_WATCHDOG_THREAD
     void watch();   // the watchdog thread
+#endif
 
     Game& m_game;
     const Logger& m_log;
@@ -128,7 +149,12 @@ class ScriptHost {
     std::mutex m_watchMutex;
     std::condition_variable m_watchWake;
     bool m_stopWatching = false;   // guarded by m_watchMutex
+#if ROLO_SCRIPT_WATCHDOG_THREAD
     std::thread m_watchdog;        // started by the constructor once Luau is ready
+#else
+    int m_interrupts = 0;                                  // safe points since the clock was last looked at
+    std::chrono::steady_clock::time_point m_callStarted;   // when the outermost call began
+#endif
     std::map<AssetId, File> m_files;
     std::map<std::string, int, std::less<>> m_modules;         // require() results by name (registry refs)
     std::map<std::string, bool, std::less<>> m_loadingModules; // to catch require loops

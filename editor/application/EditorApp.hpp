@@ -8,6 +8,7 @@
 #include "../model/CommandLine.hpp"
 #include "../model/ConsoleLog.hpp"
 #include "../model/EditorState.hpp"
+#include "../model/GameExport.hpp"
 #include "../model/Preferences.hpp"
 #include "../model/SceneDocument.hpp"
 #include "../panels/Panels.hpp"
@@ -149,7 +150,7 @@ private:
     void openExampleCopy();
     static constexpr const char* kShowWelcomeKey = "welcome.show";
     static constexpr const char* kMuteKey = "sound.muted";   // Game > Mute Sound
-    void exportNow(const std::string& name, const std::filesystem::path& folder);
+    void exportNow(const std::string& name, const std::filesystem::path& folder, ExportTarget target);
     void reportIssues(const std::filesystem::path& file, const std::vector<FileIssue>& issues);
     /// Re-reads the project's assets (also every few seconds) and reports problems.
     void refreshAssets();

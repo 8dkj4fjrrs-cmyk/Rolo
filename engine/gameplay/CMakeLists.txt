@@ -20,8 +20,14 @@ add_library(rolo_gameplay STATIC
 add_library(rolo::gameplay ALIAS rolo_gameplay)
 
 target_include_directories(rolo_gameplay PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-find_package(Threads REQUIRED)   # the scripts' watchdog (ScriptHost)
 target_link_libraries(rolo_gameplay
     PUBLIC rolo::core rolo::scene rolo::assets rolo::content rolo::physics
-    PRIVATE rolo::luau Threads::Threads)   # Luau scripts (Script.hpp); scripts never see Lua's C API
+    PRIVATE rolo::luau)   # Luau scripts (Script.hpp); scripts never see Lua's C API
 rolo_set_warnings(rolo_gameplay)
+
+# The scripts' watchdog is a thread (ScriptHost); the web build has none and
+# checks the clock instead.
+if(NOT EMSCRIPTEN)
+    find_package(Threads REQUIRED)
+    target_link_libraries(rolo_gameplay PRIVATE Threads::Threads)
+endif()

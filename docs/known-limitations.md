@@ -65,6 +65,12 @@ Please report what you find.
 
 ## Editor
 
+- **Web games** ([exporting](exporting.md#for-the-web)): no touch controls
+  yet (phones show the game but cannot play it), no rumble, the picture is
+  1280 × 720 scaled by the page (not sharper on high-density screens), and
+  the shipped web runtime has no C++ game modules. Tested in headless
+  Chromium only (by CI and by hand); Firefox and Safari are expected to
+  work but have not been tried.
 - **Custom gameplay code:** write it in **Luau** ([scripting guide](scripting.md));
   a downloaded Rolo runs scripts. **C++** behaviours still need Rolo
   built from source: game modules are linked into the editor and the player

@@ -605,8 +605,8 @@ def level():
     s.add("Controls Text", [transform(-400, 120), text("", 24, "#ffffffff")], parent=panel)
     # The pause menu (scripts/pause.lua).
     pause = s.add("Pause", [transform(), {"type": "rolo.Script", "script": IDS["pause.lua"]}], parent=cam)
-    panel = s.add("Pause Panel", [transform(0, 70), shape((560, 260), "#141c30f0")], parent=pause, active=False)
-    s.add("Pause Text", [transform(-240, 100), text("", 26, "#ffffffff")], parent=panel)
+    panel = s.add("Pause Panel", [transform(0, 70), shape((660, 260), "#141c30f0")], parent=pause, active=False)
+    s.add("Pause Text", [transform(-290, 100), text("", 26, "#ffffffff")], parent=panel)
     for e in s.entities:
         for comp in e["components"]:
             if comp["type"] == "rolo.Trigger":

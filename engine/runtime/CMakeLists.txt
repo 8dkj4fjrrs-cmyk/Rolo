@@ -8,13 +8,19 @@ add_library(rolo_runtime STATIC
     src/Application.cpp
     src/AxmolLogBridge.cpp
     src/ButtonIconNodes.cpp
-    src/Gamepads.cpp
     src/RumbleTimer.cpp
     src/SceneRenderer.cpp
     src/TextureStore.cpp
     src/UiHost.cpp)
 
 add_library(rolo::runtime ALIAS rolo_runtime)
+
+# Gamepads: through GLFW, or in a web browser the browser's own Gamepad API.
+if(EMSCRIPTEN)
+    target_sources(rolo_runtime PRIVATE src/Gamepads_web.cpp)
+else()
+    target_sources(rolo_runtime PRIVATE src/Gamepads.cpp)
+endif()
 
 # Gamepad rumble: each system's own controller API (src/Rumble.hpp, ADR 0018).
 if(WIN32)

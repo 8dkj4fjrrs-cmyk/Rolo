@@ -12,6 +12,9 @@ as a program players run without Rolo.
 Please read **[Getting started](docs/getting-started.md)** to go from a new
 project to a game you can share in half an hour.
 
+Games export as programs for macOS, Windows and Linux, and **for the web**:
+a folder for itch.io or any web host, played from a link.
+
 **Where Rolo is going:** a free, truly MIT 2D engine for people who learned
 on Roblox and want games of their own, light and easy, for desktop, the web
 and phones, scripted in Luau ([direction](docs/adr/0019-direction.md),

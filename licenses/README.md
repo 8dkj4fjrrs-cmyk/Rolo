@@ -38,3 +38,6 @@ Their license texts are in this folder; games carry a copy of it.
 | `xsxml.txt` | xsxml 1.1 | MIT |
 | `xxhash.txt` | xxHash 0.8.3 | BSD-2-Clause |
 | `zlib.txt` | zlib 1.3.1 | zlib |
+| `emscripten.txt` | Emscripten 4.0.9 (games for the web: its runtime, and musl, its C library) | MIT or NCSA; musl: MIT |
+| `llvm-runtime.txt` | LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web) | Apache-2.0 WITH LLVM-exception |
+| `libjpeg.txt` | IJG libjpeg 9f (games for the web) | IJG |

@@ -8,6 +8,9 @@
 #            include exporting a game and starting the exported program);
 #            macOS runs every test; Windows runs all but the window tests
 #            until they are known to work on Windows CI machines.
+#   web      the web runtime (WebAssembly, built with Emscripten), then the
+#            real thing end to end: the editor exports a game for the web
+#            and a headless browser plays it (tools/web/check_web_game.js).
 name: CI
 
 on:
@@ -102,3 +105,64 @@ jobs:
       - name: Test (Windows, without window tests)
         if: runner.os == 'Windows'
         run: ctest --preset dev -LE window
+
+  web:
+    name: web / ubuntu-24.04
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache downloaded Axmol
+        uses: actions/cache@v4
+        with:
+          path: external
+          key: external-${{ runner.os }}-${{ hashFiles('cmake/RoloAxmol.cmake', 'cmake/axmol-patches/**') }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config xvfb \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxxf86vm-dev \
+            libgl1-mesa-dev libglu1-mesa-dev libgl1-mesa-dri libfontconfig1-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libwayland-dev libxkbcommon-dev
+
+      # The version Rolo's web runtime is built and tested with (docs/building.md).
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.9
+
+      - name: Build the web runtime
+        run: |
+          emcmake cmake --preset web
+          cmake --build --preset web
+
+      # The editor exports the game (it finds the web runtime just built).
+      - name: Build the editor
+        run: |
+          cmake --preset dev
+          cmake --build --preset dev --target rolo_editor
+
+      - name: Export a game for the web
+        run: |
+          xvfb-run -a build/dev/bin/rolo_editor/rolo_editor --project templates/platformer/project --export-web web-export
+          xvfb-run -a build/dev/bin/rolo_editor/rolo_editor --project templates/topdown/project --export-web web-export
+          ls -la "web-export/Platformer Starter Web"
+
+      - name: Play the exported games in a browser
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+          node tools/web/check_web_game.js "web-export/Platformer Starter Web" --screenshot platformer.png \
+            --keys ArrowRight,Space,Escape,ArrowDown,Enter,Escape
+          node tools/web/check_web_game.js "web-export/Top-Down Starter Web" --screenshot topdown.png \
+            --keys ArrowRight,F5 --expect "Saved to slot 'quick'"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-check
+          path: |
+            *.png
+            web-export
+

@@ -63,6 +63,15 @@ LIBRARIES = {
     "xsxml": ("xsxml 1.1", "MIT", ["header:external/axmol/3rdparty/xsxml/xsxml.hpp"]),
     "xxhash": ("xxHash 0.8.3", "BSD-2-Clause", [GH + "Cyan4973/xxHash/v0.8.3/LICENSE"]),
     "zlib": ("zlib 1.3.1", "zlib", [GH + "madler/zlib/v1.3.1/LICENSE"]),
+    # Only in games exported for the web (built with Emscripten, ADR 0022):
+    "emscripten": ("Emscripten 4.0.9 (games for the web: its runtime, and musl, its C library)",
+                   "MIT or NCSA; musl: MIT",
+                   [GH + "emscripten-core/emscripten/4.0.9/LICENSE",
+                    GH + "emscripten-core/emscripten/4.0.9/system/lib/libc/musl/COPYRIGHT"]),
+    "llvm-runtime": ("LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web)",
+                     "Apache-2.0 WITH LLVM-exception",
+                     [GH + "emscripten-core/emscripten/4.0.9/system/lib/libcxx/LICENSE.TXT"]),
+    "libjpeg": ("IJG libjpeg 9f (games for the web)", "IJG", ["third_party/notices/ijg-libjpeg-9f.txt"]),
 }
 
 

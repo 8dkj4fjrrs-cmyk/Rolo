@@ -39,6 +39,7 @@ add_executable(rolo_tests
     scene/test_tilemap.cpp
     assets/test_assets.cpp
     assets/test_animation.cpp
+    assets/test_game_pack.cpp
     gameplay/test_input.cpp
     gameplay/test_button_icons.cpp
     gameplay/test_controls.cpp

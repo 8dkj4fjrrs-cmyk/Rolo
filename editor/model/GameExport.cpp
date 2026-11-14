@@ -1,5 +1,6 @@
 #include "GameExport.hpp"
 
+#include "rolo/assets/GamePack.hpp"
 #include "rolo/core/Files.hpp"
 #include "rolo/scene/Project.hpp"
 
@@ -117,6 +118,123 @@ std::string readme(const ExportOptions& o, const std::string& gameName, const st
              "licenses folder, which must stay with the game when you share it.\n";
 }
 
+// Text made safe inside an HTML page.
+std::string htmlEscaped(const std::string& text)
+{
+    std::string out;
+    for (const char c : text) {
+        switch (c) {
+        case '&': out += "&amp;"; break;
+        case '<': out += "&lt;"; break;
+        case '>': out += "&gt;"; break;
+        case '"': out += "&quot;"; break;
+        default: out += c;
+        }
+    }
+    return out;
+}
+
+std::string webReadme(const ExportOptions& o, const std::string& gameName)
+{
+    return gameName + " (for the web)\n" + std::string(gameName.size() + 14, '=') + "\n\n"
+           + "This folder is the game, ready for a web host. Players open its page in a browser:\n"
+             "nothing to download or install.\n\n"
+             "To share it\n"
+             "-----------\n"
+             "- itch.io: zip the CONTENTS of this folder (so that index.html is at the top of the zip),\n"
+             "  create a project, choose \"HTML\" as the kind of project, upload the zip and tick\n"
+             "  \"This file will be played in the browser\". Set the viewport to 1280 x 720.\n"
+             "- Any web host (GitHub Pages, Netlify, your own site): upload this folder as it is.\n"
+             "  No special server settings are needed.\n\n"
+             "To try it on this computer\n"
+             "--------------------------\n"
+             "Opening index.html straight from the folder does not work: browsers only let a page load\n"
+             "its files from a web address. Start a small web server in this folder instead, e.g. with\n"
+             "Python (already on macOS and Linux):\n\n"
+             "    python3 -m http.server 8000\n\n"
+             "and open http://localhost:8000 in a browser.\n\n"
+             "Good to know\n"
+             "------------\n"
+             "- Saved games are kept by the player's browser, for this web address.\n"
+             "- Sound starts with the player's first click or key press (browsers insist on that).\n"
+             "- You may edit index.html (colours, text around the game); see the comment at its top.\n"
+             "- It needs a browser with WebAssembly and WebGL 2: Chrome, Firefox, Edge or Safari of\n"
+             "  the last few years.\n\n"
+           + "Made with Rolo Engine " + o.version + " (MIT License).\n"
+           + "This game contains Rolo and the libraries it is built on; their licenses are in the\n"
+             "licenses folder, which must stay with the game when you share it.\n";
+}
+
+// A game for the web: Rolo's web runtime, its page with the game's name, and
+// the project's files as one pack.
+ExportResult exportWebGame(const ExportOptions& o, ExportResult result, const std::string& name)
+{
+    const auto fail = [&](std::string message) {
+        result.ok = false;
+        result.error = std::move(message);
+        return result;
+    };
+    std::error_code ec;
+    for (const char* file : kWebPlayerFiles) {
+        if (o.webPlayer.empty() || !fs::exists(o.webPlayer / file, ec)) {
+            return fail("Rolo's web runtime was not found"
+                        + (o.webPlayer.empty() ? std::string() : " (" + (o.webPlayer / file).string() + " is missing)")
+                        + ". It comes with Rolo's download; when working from source, build it first "
+                          "(docs/building.md, \"For the web\").");
+        }
+    }
+    Copier copy{result, {}};
+    for (const char* file : kWebPlayerFiles) {
+        if (std::string_view(file) == "index.html") {
+            continue;
+        }
+        if (!copy.file(o.webPlayer / file, result.game / file)) {
+            return fail(copy.error);
+        }
+    }
+    // The page, with the game's name where the template has {{TITLE}}.
+    auto page = readTextFile(o.webPlayer / "index.html");
+    if (!page) {
+        return fail("Could not read " + (o.webPlayer / "index.html").string() + ".");
+    }
+    const std::string title = htmlEscaped(o.gameName.empty() ? name : o.gameName);
+    for (std::size_t at = page->find("{{TITLE}}"); at != std::string::npos; at = page->find("{{TITLE}}", at + title.size())) {
+        page->replace(at, 9, title);
+    }
+    if (const Status s = writeTextFileAtomically(result.game / "index.html", *page); !s) {
+        return fail(s.message);
+    }
+    result.files += 1;
+    result.bytes += page->size();
+
+    const auto projectFile = [](const fs::path& p) { return !isHidden(p); };   // no .git, .DS_Store...
+    const GamePackResult pack = writeGamePack(o.project, result.game / "game.pack",
+                                              o.gameName.empty() ? name : o.gameName, gamePackSavesName(name),
+                                              projectFile);
+    if (!pack.status) {
+        return fail(pack.status.message);
+    }
+    result.files += 1;
+    result.bytes += pack.bytes;
+
+    const auto anyFile = [](const fs::path& p) { return !isBuildLeftover(p); };
+    if (!copy.tree(o.licenses, result.game / "licenses", anyFile)) {
+        return fail(copy.error);
+    }
+    const std::string text = webReadme(o, name);
+    if (const Status s = writeTextFileAtomically(result.game / "README.txt", text); !s) {
+        return fail(s.message);
+    }
+    result.files += 1;
+    result.bytes += text.size();
+    if (const Status s = writeTextFileAtomically(result.game / kMarker, "Exported by Rolo " + o.version + "\n"); !s) {
+        return fail(s.message);
+    }
+    result.program = result.game / "index.html";
+    result.ok = true;
+    return result;
+}
+
 } // namespace
 
 std::string exportFileName(const std::string& gameName)
@@ -149,7 +267,8 @@ ExportResult exportGame(const ExportOptions& o)
     if (!isProjectFolder(o.project)) {
         return fail(o.project.string() + " is not a Rolo project (it has no project.rolo).");
     }
-    if (o.player.empty() || !fs::exists(o.player, ec)) {
+    const bool web = o.target == ExportTarget::Web;
+    if (!web && (o.player.empty() || !fs::exists(o.player, ec))) {
         return fail("Rolo's game runtime (rolo_player) was not found"
                     + (o.player.empty() ? std::string() : " at " + o.player.string())
                     + ". Reinstall Rolo, or build the rolo_player target when working from source.");
@@ -167,8 +286,8 @@ ExportResult exportGame(const ExportOptions& o)
     }
 
     const std::string name = exportFileName(o.gameName);
-    const bool mac = o.os == HostOs::MacOS;
-    result.game = o.output / (mac ? name + ".app" : name);
+    const bool mac = !web && o.os == HostOs::MacOS;
+    result.game = o.output / (web ? name + " Web" : mac ? name + ".app" : name);
     if (fs::exists(result.game, ec)) {
         if (!fs::exists(result.game / kMarker, ec) && !fs::exists(result.game / "Contents/Resources" / kMarker, ec)) {
             return fail(result.game.string() + " already exists and is not an earlier export of a game. Choose "
@@ -178,6 +297,10 @@ ExportResult exportGame(const ExportOptions& o)
         if (ec) {
             return fail("Could not replace the earlier export " + result.game.string() + ": " + ec.message());
         }
+    }
+
+    if (web) {
+        return exportWebGame(o, std::move(result), name);
     }
 
     Copier copy{result, {}};

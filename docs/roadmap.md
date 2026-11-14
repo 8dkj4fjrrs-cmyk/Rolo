@@ -100,7 +100,8 @@ In order:
    **Still to do:** making and removing objects from scripts (spawning),
    one script for many objects, a script profiler in the editor, native
    code where allowed.
-4. **Web export** (WebAssembly).
+4. ~~**Web export** (WebAssembly).~~ **Done** ([ADR 0022](adr/0022-web-export.md)):
+   Export Game… › Web browsers; keyboard, mouse, gamepads, saves, sound.
 5. **Touch controls** (taps, an on-screen stick and buttons, as actions)
    and **screen sizes** (scaling for any shape of screen).
 6. **Android**, then **iOS**.

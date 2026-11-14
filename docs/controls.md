@@ -132,6 +132,8 @@ Which pads rumble:
 - **Linux**: pads whose driver supports force feedback, if the user may
   write to the device (usual on desktop Linux).
 
+- **Web browsers**: not yet.
+
 Pads that cannot rumble are simply not shaken.
 
 ## Device in use

@@ -28,8 +28,15 @@ if(MSVC)
 else()
     target_compile_options(rolo_box2d PRIVATE -w -ffp-contract=off)   # -w: its warnings are not ours to fix
 endif()
-find_package(Threads REQUIRED)   # its optional task scheduler uses threads (Rolo runs it on one)
-target_link_libraries(rolo_box2d PUBLIC Threads::Threads)
-if(UNIX AND NOT APPLE)
+if(EMSCRIPTEN)
+    # WebAssembly's SIMD, through Emscripten's SSE2 headers (as Box2D's own
+    # build does for the web; Axmol is built with -msimd128 too).
+    target_compile_options(rolo_box2d PRIVATE -msimd128 -msse2)
+endif()
+if(NOT EMSCRIPTEN)   # (the web build has no threads)
+    find_package(Threads REQUIRED)   # its optional task scheduler uses threads (Rolo runs it on one)
+    target_link_libraries(rolo_box2d PUBLIC Threads::Threads)
+endif()
+if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
     target_link_libraries(rolo_box2d PUBLIC m)
 endif()

@@ -8,6 +8,7 @@
 #include "rolo/scene/Project.hpp"
 #include "rolo/scene/SceneFile.hpp"
 
+#include <algorithm>
 #include <cstdio>
 
 namespace rolo::editor {
@@ -94,6 +95,32 @@ ProjectCheck checkProject(const std::filesystem::path& folder, const ComponentRe
     return check;
 }
 
+std::vector<std::string> moduleComponentsUsed(const std::filesystem::path& folder, const ComponentRegistry& registry)
+{
+    // Rolo's own components: what every runtime has, the web one too.
+    ComponentRegistry own = ComponentRegistry::withBuiltins();
+    registerGameplayComponents(own);
+    std::vector<std::string> used;
+    AssetDatabase assets(folder, AssetDatabase::Access::ReadOnly);
+    static_cast<void>(assets.refresh());
+    for (const AssetRecord* scene : assets.all(AssetType::Scene)) {
+        const SceneLoadResult loaded = loadSceneFile(assets.absolutePath(*scene), registry);
+        if (!loaded.ok()) {
+            continue;
+        }
+        loaded.scene->forEach([&](const Entity& e, int) {
+            for (const auto& c : e.components()) {
+                const ComponentType& type = c->type();
+                if (&type != &UnknownComponent::unknownType() && own.find(type.id) == nullptr
+                    && std::find(used.begin(), used.end(), type.displayName) == used.end()) {
+                    used.push_back(type.displayName);
+                }
+            }
+        });
+    }
+    return used;
+}
+
 #if defined(__APPLE__)
 namespace {
 // Signs an app bundle ad hoc with the codesign tool every Mac has. False,
@@ -126,7 +153,7 @@ bool signAdHoc(const std::filesystem::path& app, std::string& error)
 
 ExportRun exportProject(const std::filesystem::path& project, const std::filesystem::path& output,
                         const std::string& gameName, const RoloResources& resources,
-                        const ComponentRegistry& registry, const Logger& log)
+                        const ComponentRegistry& registry, const Logger& log, ExportTarget target)
 {
     ExportRun run;
     log.info(kCategory, "Checking " + project.string() + " before exporting...");
@@ -140,6 +167,8 @@ ExportRun exportProject(const std::filesystem::path& project, const std::filesys
         return run;
     }
     ExportOptions options;
+    options.target = target;
+    options.webPlayer = resources.webPlayer;
     options.project = project;
     options.output = output;
     options.gameName = gameName;
@@ -152,7 +181,18 @@ ExportRun exportProject(const std::filesystem::path& project, const std::filesys
         log.error(kCategory, run.message);
         return run;
     }
+    if (target == ExportTarget::Web) {
+        // The web player has Rolo's own components and Luau scripts, not the
+        // C++ game modules this editor was built with.
+        for (const std::string& type : moduleComponentsUsed(project, registry)) {
+            ++run.check.warnings;
+            log.warning(kCategory, "The game uses " + type + ", a C++ behaviour from a game module. Rolo's web "
+                                   "runtime does not contain game modules, so it will do nothing in a browser "
+                                   "(docs/exporting.md, \"For the web\").");
+        }
+    }
 #if defined(__APPLE__)
+    if (target == ExportTarget::Desktop) {
     // The exported app was copied, renamed and given the game: its old
     // signature no longer matches. Apple silicon Macs call a downloaded app
     // with no valid signature "damaged" and refuse to open it, so sign it
@@ -162,6 +202,7 @@ ExportRun exportProject(const std::filesystem::path& project, const std::filesys
         log.warning(kCategory, "Could not sign " + run.result.game.filename().string() + " (" + error
                                    + "). Other Macs may call it damaged. Run: codesign --force --deep --sign - \""
                                    + run.result.game.string() + "\"");
+    }
     }
 #endif
     char size[32];

@@ -25,8 +25,37 @@ permissions:
   contents: write
 
 jobs:
+  # The web runtime (WebAssembly) is the same for every system: built once,
+  # here, and put into each system's package so its editor can export games
+  # for the web.
+  web-runtime:
+    name: web runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.9
+      - name: Build
+        run: |
+          emcmake cmake --preset web
+          cmake --build --preset web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-runtime
+          path: |
+            build/web/bin/rolo_player/index.html
+            build/web/bin/rolo_player/rolo_player.js
+            build/web/bin/rolo_player/rolo_player.wasm
+            build/web/bin/rolo_player/rolo_player.data
+          if-no-files-found: error
+
   package:
     name: package / ${{ matrix.os }}
+    needs: web-runtime
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -62,6 +91,12 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      # Where the package looks for it (ROLO_WEB_RUNTIME_DIR's default).
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-runtime
+          path: build/web/bin/rolo_player
+
       - name: Configure and build (release)
         run: |
           cmake --preset release
@@ -81,6 +116,13 @@ jobs:
 
       - name: Package
         run: cmake --build --preset package
+
+      - name: Check the package has the web runtime
+        shell: bash
+        run: |
+          found=$(find dist -name rolo_player.wasm -path "*web-runtime*" | head -1)
+          if [ -z "$found" ]; then echo "The package has no web-runtime/rolo_player.wasm" >&2; exit 1; fi
+          echo "$found"
 
       # A program that cannot find a DLL does not start on players' PCs,
       # while it may still start here (build folders are on the PATH).
@@ -120,6 +162,7 @@ jobs:
           fi
       - uses: actions/download-artifact@v4
         with:
+          pattern: rolo-*   # the packages (not the web-runtime artifact)
           path: dist
           merge-multiple: true
       - name: Draft release with the packages

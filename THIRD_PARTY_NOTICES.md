@@ -97,6 +97,23 @@ libraries, and Luau has no io or package library (see
 `third_party/luau/README.md` and ADR 0020). Its MIT notice, which includes
 Lua's, goes with every game in `licenses/luau.txt`.
 
+## Games for the web (the web runtime)
+
+The web runtime (ADR 0022) is the player built with
+[Emscripten](https://emscripten.org) 4.0.9. Web games contain what the
+desktop runtime contains, compiled to WebAssembly, and:
+
+| Software | Version | License | In games |
+|---|---|---|---|
+| Emscripten's runtime and JavaScript support code | 4.0.9 | MIT or NCSA | Web games |
+| musl (the C library) | as in Emscripten 4.0.9 | MIT | Web games |
+| LLVM libc++, libc++abi, libunwind, compiler-rt | as in Emscripten 4.0.9 | Apache-2.0 WITH LLVM-exception | Web games |
+| IJG libjpeg (Emscripten's port, in place of libjpeg-turbo) | 9f | IJG | Web games |
+
+Their texts are `licenses/emscripten.txt`, `licenses/llvm-runtime.txt` and
+`licenses/libjpeg.txt`. Emscripten itself is a build tool and is not part
+of this repository.
+
 ## Sound (`engine/audio`)
 
 | Component | Version | License | Shipped? |

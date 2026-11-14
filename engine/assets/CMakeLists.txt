@@ -6,6 +6,7 @@
 add_library(rolo_assets STATIC
     src/Animation.cpp
     src/AssetDatabase.cpp
+    src/GamePack.cpp
     src/Tileset.cpp)
 add_library(rolo::assets ALIAS rolo_assets)
 

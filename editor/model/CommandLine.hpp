@@ -30,6 +30,8 @@ struct EditorOptions {
     /// Export the project (--project) as a playable game into this folder,
     /// then quit without opening a window. See docs/exporting.md.
     std::string exportPath;
+    /// With exportPath: export for the web (--export-web) instead of for this computer.
+    bool exportWeb = false;
 
     /// Ignore the saved panel layout and start with the default one.
     bool resetLayout = false;

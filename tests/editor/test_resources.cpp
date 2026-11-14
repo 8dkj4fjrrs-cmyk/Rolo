@@ -52,6 +52,7 @@ TEST_CASE("An installed copy keeps its files beside the editor", "[editor][resou
     CHECK(r.templates == f.path / "Rolo/templates");
     CHECK(r.licenses == f.path / "Rolo/licenses");
     CHECK(r.player == f.path / "Rolo/runtime/rolo_player");
+    CHECK(r.webPlayer == f.path / "Rolo/web-runtime");
     const auto w = findRoloResources(f.path / "Rolo/rolo_editor.exe", HostOs::Windows, "/src", "");
     CHECK(w.player == f.path / "Rolo/runtime/rolo_player.exe");
 }
@@ -65,6 +66,7 @@ TEST_CASE("An installed macOS app keeps them in its Resources", "[editor][resour
     CHECK(r.installed);
     CHECK(r.examples == app / "Resources/rolo/examples");
     CHECK(r.player == app / "Resources/rolo/runtime/rolo_player.app");
+    CHECK(r.webPlayer == app / "Resources/rolo/web-runtime");
 }
 
 TEST_CASE("A build folder uses the source tree and the player built beside the editor", "[editor][resources]")
@@ -76,6 +78,7 @@ TEST_CASE("A build folder uses the source tree and the player built beside the e
     CHECK(r.templates == f.path / "src/templates");
     CHECK(r.docs == f.path / "src/docs");
     CHECK(r.player == f.path / "build/bin/rolo_player/rolo_player");
+    CHECK(r.webPlayer == f.path / "src/build/web/bin/rolo_player");   // where a web build puts it
 }
 
 TEST_CASE("Templates and examples are listed in order and copied into new projects", "[editor][resources]")

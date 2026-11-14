@@ -1,7 +1,9 @@
 # Exporting games
 
 Exporting makes a copy of your game that runs **without the editor**, to give
-to players. It contains:
+to players: a **program** for the kind of computer you are on, or a
+**web page** that plays in a browser ([for the web](#for-the-web), below).
+It contains:
 - Rolo's game runtime (the player program, renamed after your game);
 - your project's files;
 - the license texts of the software inside it.
@@ -12,6 +14,7 @@ Click **Build** in the toolbar, or **File > Export Game…**:
 
 | Field | Meaning |
 |---|---|
+| Export for | **This computer** (a program for macOS, Windows or Linux, whichever you are on) or **Web browsers** (a folder for a web host). |
 | Game name | Names the game's folder (or macOS app) and its program. Letters, digits, spaces, `-` and `_` are kept. |
 | Export into | The folder the game is made in (by default `Documents/Rolo Exports`). It cannot be inside the project. |
 
@@ -42,7 +45,8 @@ rolo_editor --project "path/to/My Game" --export "path/to/Exports"
 
 This runs the same checks and export without opening a window. It prints
 the game program's path and exits with code 0, or 1 if it failed. It is
-useful in scripts and continuous integration.
+useful in scripts and continuous integration. `--export-web` in place of
+`--export` exports for the web.
 
 ## What you get
 
@@ -68,14 +72,80 @@ for `game/` beside itself (on macOS, in the app's Resources) and plays it:
 - the frame-rate overlay is hidden (`--stats` shows it);
 - saved games go to the player's own user folder, per game.
 
+## For the web
+
+Choose **Web browsers** in the Export dialog (or `--export-web`). You get
+a folder, `My Game Web`, that is a small web site:
+
+```
+My Game Web/
+  index.html          the page players open (your game's name is in it)
+  rolo_player.js      Rolo's game runtime for browsers (WebAssembly)
+  rolo_player.wasm
+  rolo_player.data    its shaders
+  game.pack           your project, as one file
+  licenses/           license texts
+  README.txt          how to share it
+```
+
+It is the same on every system: a web export made on a Mac runs in any
+browser. The Platformer Starter is about 5.7 MB, and about 2.2 MB as web
+servers send it (compressed).
+
+**Sharing it**
+- **itch.io**: zip the *contents* of the folder (so `index.html` is at the
+  top of the zip), make a project of the kind **HTML**, upload the zip and
+  tick **This file will be played in the browser**. Set the viewport to
+  1280 × 720.
+- **Any web host** (GitHub Pages, Netlify, your own site): upload the folder
+  as it is. No special server settings are needed.
+
+**Trying it on your computer.** Opening `index.html` straight from the
+folder does not work (browsers only let a page load its files from a web
+address; the page says so). Start a small web server in the folder:
+
+```sh
+cd "My Game Web"
+python3 -m http.server 8000      # then open http://localhost:8000
+```
+
+**What is different in a browser**
+- **Controls**: keyboard, mouse and gamepads. A gamepad appears to the page
+  once a button on it is pressed. No rumble yet, and **no touch controls
+  yet**, so phones and tablets show the game but cannot play it (next on
+  the [roadmap](roadmap.md)).
+- **Saved games** are kept by the player's browser, for the page's web
+  address. Clearing the browser's site data removes them.
+- **Sound** starts with the player's first click or key press: browsers do
+  not let a page make sound before that.
+- **Quitting** (`game.quit()`, or Escape where it quits) shows "Thanks for
+  playing" and a Play again button: a page cannot close itself.
+- **Scripts**: Luau scripts and all of Rolo's own components work. **C++
+  game modules do not**: the web runtime that comes with Rolo has none
+  (the export warns if your scenes use any). To have yours on the web,
+  build the web runtime yourself with `ROLO_GAME_MODULE_DIRS`
+  ([building](building.md#for-the-web)).
+- **The picture** is drawn at 1280 × 720 and scaled to the window by the
+  page; there is a Fullscreen button.
+- **Browsers**: current Chrome, Firefox, Edge and Safari (WebAssembly with
+  exceptions and SIMD, WebGL 2: Safari 16.4 or newer).
+
+You may edit `index.html` (colours, text around the game); the comment at
+its top says what must stay. Exporting again replaces it, so keep your
+version elsewhere.
+
+The page loads `game.pack`, whose format is described in
+[formats/game-pack.md](formats/game-pack.md).
+
 ## Each system exports its own games
 
-An export contains the runtime of the computer it was made on, so:
+A program export contains the runtime of the computer it was made on, so:
 - export on macOS to make the macOS version;
 - export on Windows for Windows;
 - export on Linux for Linux.
 
-There is no cross-export yet.
+There is no cross-export of programs yet (web exports are the same from
+every system).
 
 - **macOS**: the editor signs the exported app "ad hoc", but it is not
   signed or notarized with an Apple Developer ID. So the first time, players:

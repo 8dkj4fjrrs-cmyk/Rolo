@@ -93,6 +93,10 @@ struct RunReport {
     double elapsedSeconds = 0.0;
     int finalWindowWidth = 0;   // window size (points) when the run ended
     int finalWindowHeight = 0;
+    /// Only in a web browser: run() returned although the game goes on (the
+    /// browser calls its frames from now on). Keep the Application, and all
+    /// it was given, alive: do not destroy them.
+    bool continuesInBackground = false;
     double averageFps() const { return elapsedSeconds > 0.0 ? static_cast<double>(framesRendered) / elapsedSeconds : 0.0; }
 };
 
@@ -198,6 +202,8 @@ public:
 
     /// Opens the window and blocks until it closes (user closes it, Escape is
     /// pressed, requestQuit() is called, or RunOptions::maxFrames is reached).
+    /// In a web browser it returns at once while the game goes on: see
+    /// RunReport::continuesInBackground.
     Status run(const RunOptions& options = {});
 
     /// Asks the main loop to finish after the current frame. Safe to call from

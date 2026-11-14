@@ -84,6 +84,7 @@ the window. A guide to the panels is in [editor.md](editor.md).
 | `release` | Optimised build with the Axmol runtime. `cmake --workflow --preset release` also tests and packages it (below). |
 | `core` | Core library, editor logic and their tests only — no Axmol, no window. Builds in seconds. |
 | `asan` | `core` + AddressSanitizer/UBSan, for hunting memory bugs. |
+| `web` | The game runtime for web browsers (WebAssembly), built with Emscripten: see [For the web](#for-the-web). |
 
 Each preset builds into its own folder under `build/`. Downloaded Axmol lives
 in `external/` and is shared by all presets. To start completely fresh,
@@ -102,6 +103,38 @@ it: the editor, the game runtime used for exports, templates, examples,
 licenses and docs, laid out as the editor expects (see
 [releasing](releasing.md)). On a headless Linux machine, run the test step
 under a virtual display: `xvfb-run -a ctest --preset release`.
+
+### For the web
+
+Games exported for the web use Rolo's **web runtime**: the player, built
+for WebAssembly with [Emscripten](https://emscripten.org). A downloaded
+Rolo has it already. Building from source, make it once (and again when
+the engine changes):
+
+```sh
+# One time: Emscripten 4.0.9 (the version Rolo is built and tested with).
+git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
+~/emsdk/emsdk install 4.0.9 && ~/emsdk/emsdk activate 4.0.9
+source ~/emsdk/emsdk_env.sh            # in each new terminal
+
+emcmake cmake --preset web
+cmake --build --preset web             # about as long as a release build
+```
+
+It lands in `build/web/bin/rolo_player/` (`index.html`, `rolo_player.js`,
+`.wasm`, `.data`), which is where the editor of a source build looks when
+you export for the web, and where packaging takes it from
+(`ROLO_WEB_RUNTIME_DIR`).
+
+- Only the player is built for the web: no editor, no tests.
+- It is built **without threads**, so games run from any web host (pages
+  that use threads need special server headers), and with WebAssembly
+  exceptions and SIMD.
+- Your own C++ game modules can be built in:
+  `emcmake cmake --preset web -DROLO_GAME_MODULE_DIRS=...`.
+- To check an exported game in a real browser, as CI does:
+  `node tools/web/check_web_game.js "path/to/My Game Web"` (needs Node and
+  Playwright: `npm install playwright && npx playwright install chromium`).
 
 ### Your game's code
 

@@ -31,6 +31,11 @@ struct RoloResources {
     std::filesystem::path licenses;    // license texts shipped with every game
     std::filesystem::path docs;
     std::filesystem::path player;      // rolo_player(.exe), or rolo_player.app on macOS; empty if unknown
+    /// The web runtime's folder (index.html, rolo_player.js, .wasm, .data),
+    /// for exporting games for the web: "web-runtime" beside the other
+    /// resources when installed; in a source tree, where a web build puts it
+    /// (build/web/bin/rolo_player). May not exist: exporting says so.
+    std::filesystem::path webPlayer;
     bool installed = false;            // false: running from a build folder
 };
 

@@ -110,6 +110,13 @@ TEST_CASE("Editor command line: templates and exporting", "[editor][cli]")
     const auto exported = parse({"--project", "Game", "--export", "/tmp/out"});
     REQUIRE(exported.ok());
     CHECK(exported.options.exportPath == "/tmp/out");
+    CHECK_FALSE(exported.options.exportWeb);
+    const auto web = parse({"--project", "Game", "--export-web", "/tmp/web"});
+    REQUIRE(web.ok());
+    CHECK(web.options.exportPath == "/tmp/web");
+    CHECK(web.options.exportWeb);
+    CHECK(parse({"--export-web", "/tmp/web"}).error.find("--project") != std::string::npos);
+    CHECK_FALSE(parse({"--project", "Game", "--export", "/a", "--export-web", "/b"}).ok());
     CHECK(parse({"--export", "/tmp/out"}).error.find("--project") != std::string::npos);
     CHECK_FALSE(parse({"--project", "Game", "--export", ""}).ok());
 }

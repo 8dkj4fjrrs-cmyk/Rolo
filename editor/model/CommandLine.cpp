@@ -42,15 +42,20 @@ EditorParseResult parseEditorCommandLine(std::span<const std::string_view> args)
                 return result;
             }
             (arg == "--project" ? opt.projectPath : opt.newProjectPath) = std::string(value);
-        } else if (arg == "--template" || arg == "--export") {
+        } else if (arg == "--template" || arg == "--export" || arg == "--export-web") {
             if (!nextValue(value)) {
                 return result;
             }
             if (value.empty()) {
-                result.error = std::string(arg) + (arg == "--export" ? " needs a folder path." : " needs a template name.");
+                result.error = std::string(arg) + (arg == "--template" ? " needs a template name." : " needs a folder path.");
+                return result;
+            }
+            if (arg != "--template" && !opt.exportPath.empty()) {
+                result.error = "Give --export or --export-web once: one game is exported at a time.";
                 return result;
             }
             (arg == "--template" ? opt.templateId : opt.exportPath) = std::string(value);
+            opt.exportWeb = opt.exportWeb || arg == "--export-web";
         } else if (arg == "--config-dir") {
             if (!nextValue(value)) {
                 return result;
@@ -95,7 +100,8 @@ EditorParseResult parseEditorCommandLine(std::span<const std::string_view> args)
         result.error = "--template goes with --new-project FOLDER.";
     }
     if (!opt.exportPath.empty() && opt.projectPath.empty()) {
-        result.error = "--export needs the project to export: --project FOLDER --export OUTPUT.";
+        result.error = opt.exportWeb ? "--export-web needs the project to export: --project FOLDER --export-web OUTPUT."
+                                     : "--export needs the project to export: --project FOLDER --export OUTPUT.";
     }
     return result;
 }
@@ -111,6 +117,7 @@ std::string editorHelpText()
            "  --new-project FOLDER  Create a new project in FOLDER and open it\n"
            "  --template NAME     With --new-project: start from a template, e.g. topdown\n"
            "  --export OUTPUT     With --project: export the game into OUTPUT and quit\n"
+           "  --export-web OUTPUT With --project: export the game for web browsers into OUTPUT and quit\n"
            "  --no-project        Start without opening the last project\n"
            "  --reset-layout      Start with the default panel layout\n"
            "  --play              Start playing the scene at once (tests)\n"

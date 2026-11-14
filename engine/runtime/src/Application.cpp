@@ -27,6 +27,9 @@
 #include "UiHost.hpp"
 
 #include <axmol.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 #include <renderer/backend/DriverBase.h>
 
 #include <algorithm>
@@ -815,6 +818,27 @@ Status Application::run(const RunOptions& options)
     // --- Run. ----------------------------------------------------------------
     int exitCode = 0;
     const auto start = std::chrono::steady_clock::now();
+#ifdef __EMSCRIPTEN__
+    // In a web browser a page's code must return to the browser after every
+    // frame, so there the backend's run() only arranges for the browser to
+    // call its frame function, and comes straight back: the game goes on
+    // after this function has returned. What the frames need is therefore
+    // made to outlive it (never destroyed: the page is simply closed), and
+    // the caller is told the run goes on (RunReport::continuesInBackground),
+    // so that it keeps this Application and everything it uses alive too.
+    {
+        auto* logBridge = new detail::AxmolLogBridge(impl.engine.logger()); // backend logs → our logger
+        impl.log().info(kCategory, "Opening window...");
+        auto* backend = new BackendApp(impl);
+        exitCode = backend->run();
+        if (exitCode == 0 && impl.startupError.empty()) {
+            impl.report.continuesInBackground = true;
+            return Status::success();
+        }
+        delete backend;
+        delete logBridge;
+    }
+#else
     {
         detail::AxmolLogBridge logBridge(impl.engine.logger()); // backend logs → our logger
         impl.log().info(kCategory, "Opening window...");
@@ -828,6 +852,7 @@ Status Application::run(const RunOptions& options)
             static_cast<void>(impl.ui.release());
         }
     }
+#endif
     const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - start;
     impl.report.elapsedSeconds = elapsed.count();
     g_backendInUse = false;
@@ -850,3 +875,16 @@ Status Application::run(const RunOptions& options)
 }
 
 } // namespace rolo
+
+#ifdef __EMSCRIPTEN__
+// Axmol's web main loop calls this once the game has ended (the "window"
+// closed: game.quit(), or Escape where that quits). A web page cannot close
+// itself, so the page is told, and shows that the game is over
+// (player/web/shell.html).
+void axmol_wasm_app_exit()
+{
+    // clang-format off
+    EM_ASM({ if (Module["onRoloGameEnded"]) { Module["onRoloGameEnded"](); } });
+    // clang-format on
+}
+#endif

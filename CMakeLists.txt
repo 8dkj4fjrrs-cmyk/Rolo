@@ -70,6 +70,24 @@ if(NOT ROLO_RUNTIME_BACKEND MATCHES "^(axmol|none)$")
     message(FATAL_ERROR "ROLO_RUNTIME_BACKEND must be 'axmol' or 'none', not '${ROLO_RUNTIME_BACKEND}'.")
 endif()
 
+# ---------------------------------------------------------------------------
+# The web (WebAssembly, built with Emscripten): only the game runtime, the
+# player, is built (docs/building.md, "For the web"; ADR 0022).
+# ---------------------------------------------------------------------------
+if(EMSCRIPTEN)
+    set(ROLO_BUILD_EDITOR OFF CACHE BOOL "" FORCE)
+    set(ROLO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    # No threads: a page that uses them must be served with special headers
+    # (cross-origin isolation), which plain web hosts do not send. Rolo games
+    # should run from any web page. (Axmol's default is 4 threads.)
+    set(AX_WASM_THREADS "none" CACHE STRING "" FORCE)
+    # C++ exceptions, in WebAssembly's own form (Emscripten's default is none
+    # at all; Luau's errors are exceptions). Everything must be built the
+    # same way, Axmol included, so these come before any target.
+    add_compile_options(-fwasm-exceptions -sSUPPORT_LONGJMP=wasm)
+    add_link_options(-fwasm-exceptions -sSUPPORT_LONGJMP=wasm)
+endif()
+
 if(ROLO_ENABLE_SANITIZERS AND NOT MSVC)
     add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address,undefined)
@@ -113,7 +131,9 @@ foreach(dir IN LISTS ROLO_GAME_MODULE_DIRS)
     add_subdirectory("${dir}" "${CMAKE_BINARY_DIR}/game_modules/${_name}")
 endforeach()
 
-add_subdirectory(tools/stress)   # rolo_stress: gameplay frame times (examples/stress)
+if(NOT EMSCRIPTEN)
+    add_subdirectory(tools/stress)   # rolo_stress: gameplay frame times (examples/stress)
+endif()
 
 if(ROLO_RUNTIME_BACKEND STREQUAL "axmol")
     add_subdirectory(engine/runtime)

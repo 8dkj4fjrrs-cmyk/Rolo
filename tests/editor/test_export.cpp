@@ -4,6 +4,7 @@
 #include "support/TempFolder.hpp"
 #include "GameExport.hpp"
 
+#include "rolo/assets/GamePack.hpp"
 #include "rolo/core/Files.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -145,4 +146,59 @@ TEST_CASE("Exports refuse what they cannot do safely, saying why", "[editor][exp
     CHECK_FALSE(r.ok);
     CHECK(r.error.find("not an earlier export") != std::string::npos);
     CHECK(fs::exists(s.root / "exports/My Game/precious.txt"));
+}
+
+TEST_CASE("A web export is the web runtime, the page with the game's name, and the game as a pack", "[editor][export]")
+{
+    Setup s;
+    s.file("web/index.html", "<title>{{TITLE}}</title><h1>{{TITLE}}</h1>");
+    s.file("web/rolo_player.js", "js");
+    s.file("web/rolo_player.wasm", "wasm");
+    s.file("web/rolo_player.data", "data");
+    s.file("web/rolo_player.wasm.map", "not part of the runtime");
+    s.options.target = ExportTarget::Web;
+    s.options.webPlayer = s.root / "web";
+    s.options.gameName = "Cats & <Dogs>";
+    // (No desktop runtime is needed for a web export: options.player is empty.)
+    const ExportResult r = exportGame(s.options);
+    INFO(r.error);
+    REQUIRE(r.ok);
+    const fs::path game = s.root / "exports/Cats  Dogs Web";
+    CHECK(r.game == game);
+    CHECK(r.program == game / "index.html");
+    CHECK(*readTextFile(game / "index.html") == "<title>Cats &amp; &lt;Dogs&gt;</title><h1>Cats &amp; &lt;Dogs&gt;</h1>");
+    CHECK(*readTextFile(game / "rolo_player.js") == "js");
+    CHECK(fs::exists(game / "rolo_player.wasm"));
+    CHECK(fs::exists(game / "rolo_player.data"));
+    CHECK_FALSE(fs::exists(game / "rolo_player.wasm.map"));
+    CHECK_FALSE(fs::exists(game / "game"));   // the project is in the pack, not a folder
+    CHECK(fs::exists(game / "licenses/axmol.txt"));
+    const std::string readme = *readTextFile(game / "README.txt");
+    CHECK(readme.find("itch.io") != std::string::npos);
+    CHECK(readme.find("python3 -m http.server") != std::string::npos);
+    CHECK(readme.find("Rolo Engine 0.8.0") != std::string::npos);
+
+    const auto index = readGamePackIndex(game / "game.pack");
+    REQUIRE(index);
+    CHECK(index->name == "Cats & <Dogs>");
+    CHECK(index->saves == "cats-dogs");
+    REQUIRE(index->files.size() == 3);   // hidden files (.git) stay behind
+    CHECK(index->files[0].path == "assets/hero.png");
+    CHECK(index->files[1].path == "project.rolo");
+    CHECK(index->files[2].path == "scenes/main.lscene");
+    CHECK(r.files >= 8);
+
+    // Exporting again replaces the earlier export; the desktop export of the same game is another folder.
+    s.file("project/scenes/second.lscene", "{}");
+    REQUIRE(exportGame(s.options).ok);
+    CHECK(readGamePackIndex(game / "game.pack")->files.size() == 4);
+
+    // Without the web runtime, it says what is missing and how to get it.
+    fs::remove(s.root / "web/rolo_player.wasm");
+    const ExportResult missing = exportGame(s.options);
+    CHECK_FALSE(missing.ok);
+    CHECK(missing.error.find("web runtime") != std::string::npos);
+    CHECK(missing.error.find("rolo_player.wasm") != std::string::npos);
+    s.options.webPlayer.clear();
+    CHECK(exportGame(s.options).error.find("web runtime") != std::string::npos);
 }

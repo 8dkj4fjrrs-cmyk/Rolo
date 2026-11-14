@@ -126,8 +126,27 @@ int openLibraries(lua_State* L)
     return 0;
 }
 
+// Raises the "ran for too long" error in the script that is running.
+[[noreturn]] void raiseTimeLimit(lua_State* L, double limit)
+{
+    // Level 0: the script's own function is running here (no C function
+    // in between), so this names its file and line.
+    luaL_where(L, 0);
+    if (limit >= 1.0) {
+        const int seconds = static_cast<int>(limit);
+        lua_pushfstring(L, "the script ran for more than %d second%s without finishing (is there a loop that "
+                           "never ends?)",
+                        seconds, seconds == 1 ? "" : "s");
+    } else {
+        lua_pushstring(L, "the script ran for too long without finishing (is there a loop that never ends?)");
+    }
+    lua_concat(L, 2);
+    lua_error(L);
+}
+
+#if ROLO_SCRIPT_WATCHDOG_THREAD
 // Called by Luau at safe points once the watchdog asked it to (see
-// ScriptHost::Watchdog): stops a call that has run for too long.
+// ScriptHost::watch): stops a call that has run for too long.
 void stopLongCall(lua_State* L, int gc)
 {
     if (gc >= 0) {
@@ -136,22 +155,24 @@ void stopLongCall(lua_State* L, int gc)
     lua_callbacks(L)->interrupt = nullptr;
     ScriptHost& host = ScriptHost::of(L);
     if (host.callTimedOut()) {
-        // Level 0: the script's own function is running here (no C function
-        // in between), so this names its file and line.
-        luaL_where(L, 0);
-        const double limit = host.timeLimit();
-        if (limit >= 1.0) {
-            const int seconds = static_cast<int>(limit);
-            lua_pushfstring(L, "the script ran for more than %d second%s without finishing (is there a loop that "
-                               "never ends?)",
-                            seconds, seconds == 1 ? "" : "s");
-        } else {
-            lua_pushstring(L, "the script ran for too long without finishing (is there a loop that never ends?)");
-        }
-        lua_concat(L, 2);
-        lua_error(L);
+        raiseTimeLimit(L, host.timeLimit());
     }
 }
+#else
+// Without threads: Luau calls this at every safe point (each turn of a loop,
+// each call). Looking at the clock that often would be slow, so it counts,
+// and looks every few thousand times.
+void stopLongCall(lua_State* L, int gc)
+{
+    if (gc >= 0) {
+        return; // inside the garbage collector: an error cannot be raised here
+    }
+    ScriptHost& host = ScriptHost::of(L);
+    if (host.callRanTooLong()) {
+        raiseTimeLimit(L, host.timeLimit());
+    }
+}
+#endif
 
 // Counts the memory scripts ask for (garbage included), for measuring.
 void countAllocation(lua_State* L, void*, std::size_t, std::size_t nsize, std::uint8_t, int, int)
@@ -190,17 +211,23 @@ ScriptHost::ScriptHost(Game& game, const Logger& log) : m_game(game), m_log(log)
         m_hookNames[i] = lua_ref(m_L, -1);
         lua_pop(m_L, 1);
     }
+#if ROLO_SCRIPT_WATCHDOG_THREAD
     m_watchdog = std::thread([this] { watch(); });
+#else
+    lua_callbacks(m_L)->interrupt = stopLongCall;
+#endif
 }
 
 ScriptHost::~ScriptHost()
 {
+#if ROLO_SCRIPT_WATCHDOG_THREAD
     {
         const std::lock_guard<std::mutex> lock(m_watchMutex);
         m_stopWatching = true;
     }
     m_watchWake.notify_all();
     m_watchdog.join();
+#endif
     lua_close(m_L);
 }
 
@@ -232,6 +259,7 @@ void* ScriptHost::allocate(void* ud, void* block, std::size_t oldSize, std::size
     return grown;
 }
 
+#if ROLO_SCRIPT_WATCHDOG_THREAD
 // The watchdog: a thread that looks every quarter of a second whether one
 // script call has been running for longer than the limit. Then it asks Luau
 // to call stopLongCall at its next safe point. Scripts that finish in time
@@ -258,6 +286,17 @@ void ScriptHost::watch()
 }
 
 // --- Calling scripts ------------------------------------------------------------------------------------
+#else
+bool ScriptHost::callRanTooLong()
+{
+    constexpr int kChecksPerLook = 4096;
+    if (++m_interrupts < kChecksPerLook) {
+        return false;
+    }
+    m_interrupts = 0;
+    return std::chrono::steady_clock::now() - m_callStarted > std::chrono::duration<double>(m_timeLimit);
+}
+#endif
 
 std::optional<std::string> ScriptHost::call(int arguments, const std::string& file)
 {
@@ -275,11 +314,17 @@ std::optional<std::string> ScriptHost::call(int arguments, const std::string& fi
         m_timedOut.store(false, std::memory_order_relaxed);
         m_callNumber.fetch_add(1, std::memory_order_relaxed);
         m_inCall.store(true, std::memory_order_relaxed);
+#if !ROLO_SCRIPT_WATCHDOG_THREAD
+        m_interrupts = 0;
+        m_callStarted = std::chrono::steady_clock::now();
+#endif
     }
     const int status = lua_pcall(m_L, arguments, 0, handler);
     if (outermost) {
         m_inCall.store(false, std::memory_order_relaxed);
+#if ROLO_SCRIPT_WATCHDOG_THREAD
         lua_callbacks(m_L)->interrupt = nullptr;
+#endif
     }
     m_currentFile = previousFile;
 

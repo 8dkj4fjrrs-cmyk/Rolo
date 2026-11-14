@@ -60,9 +60,12 @@ int main(int argc, char** argv)
         const auto project = rolo::Project::open(parsed.options.projectPath);
         const std::string name = project ? project->settings().name : std::string("Game");
         const auto run = rolo::editor::exportProject(parsed.options.projectPath, parsed.options.exportPath, name,
-                                                        resources, registry, engine.logger());
+                                                        resources, registry, engine.logger(),
+                                                        parsed.options.exportWeb ? rolo::editor::ExportTarget::Web
+                                                                                 : rolo::editor::ExportTarget::Desktop);
         if (run.ok) {
-            std::cout << "Game program: " << run.result.program.string() << "\n";
+            std::cout << (parsed.options.exportWeb ? "Game page: " : "Game program: ") << run.result.program.string()
+                      << "\n";
         }
         engine.shutdown();
         return run.ok ? 0 : 1;
