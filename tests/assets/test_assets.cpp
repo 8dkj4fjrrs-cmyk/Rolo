@@ -1,10 +1,12 @@
 #include "support/TempFolder.hpp"
 #include "rolo/assets/AssetDatabase.hpp"
+#include "rolo/assets/ImageDecode.hpp"
 #include "rolo/core/Files.hpp"
 #include "rolo/scene/Scene.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 
@@ -262,4 +264,52 @@ TEST_CASE("A read-only database (games) never writes .meta files", "[assets]")
     CHECK(db.refresh().empty());
     REQUIRE(db.findByPath("assets/hero.png") != nullptr); // usable for this run
     CHECK_FALSE(fs::exists(project.path / "assets/hero.png.meta"));
+}
+
+TEST_CASE("Rolo decodes JPEG and PNG files itself", "[assets][image]")
+{
+    // The renderer uses this for JPEG files: no separate JPEG library is in the engine.
+    std::string error;
+    const auto photo = decodeImageFile(kData / "photo.jpg", &error);
+    INFO(error);
+    REQUIRE(photo);
+    CHECK(photo->width > 0);
+    CHECK(photo->height > 0);
+    CHECK(photo->rgba.size() == static_cast<std::size_t>(photo->width) * static_cast<std::size_t>(photo->height) * 4);
+    CHECK(photo->rgba[3] == 255);   // JPEG has no transparency
+
+    // A progressive JPEG (the kind cameras and web sites often make): a
+    // gradient, red growing to the right, green downwards, top row first.
+    const auto gradient = decodeImageFile(kData / "gradient_progressive.jpg", &error);
+    INFO(error);
+    REQUIRE(gradient);
+    REQUIRE(gradient->width == 48);
+    REQUIRE(gradient->height == 32);
+    const auto pixel = [&](int x, int y, int channel) {
+        return static_cast<int>(gradient->rgba[static_cast<std::size_t>((y * 48 + x) * 4 + channel)]);
+    };
+    CHECK(pixel(40, 2, 0) > pixel(4, 2, 0) + 120);    // red: 200 against 20
+    CHECK(pixel(4, 30, 1) > pixel(4, 2, 1) + 150);    // green: 240 against 16
+    CHECK(std::abs(pixel(20, 16, 2) - 128) < 12);     // blue: 128 everywhere (JPEG is not exact)
+    CHECK(pixel(20, 16, 3) == 255);
+
+    // Greyscale JPEGs come out as grey pixels.
+    const auto grey = decodeImageFile(kData / "grey.jpg", &error);
+    REQUIRE(grey);
+    CHECK(grey->rgba[0] == grey->rgba[1]);
+    CHECK(grey->rgba[1] == grey->rgba[2]);
+
+    const auto hero = decodeImageFile(kData / "hero.png", &error);
+    REQUIRE(hero);
+    CHECK(hero->width > 0);
+
+    CHECK_FALSE(decodeImageFile(kData / "broken.png", &error));
+    CHECK(error.find("not a readable") != std::string::npos);
+    CHECK_FALSE(decodeImageFile(kData / "no_such_file.jpg", &error));
+    CHECK(error.find("could not be opened") != std::string::npos);
+
+    CHECK(isJpegFileName("a/Photo.JPG"));
+    CHECK(isJpegFileName("b.jpeg"));
+    CHECK_FALSE(isJpegFileName("hero.png"));
+    CHECK_FALSE(isJpegFileName("jpg"));
 }

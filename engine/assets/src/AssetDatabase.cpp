@@ -1,4 +1,5 @@
 #include "rolo/assets/AssetDatabase.hpp"
+#include "rolo/assets/ImageDecode.hpp"
 #include "rolo/core/Names.hpp"
 
 #include "rolo/core/Files.hpp"
@@ -812,6 +813,55 @@ std::vector<FileIssue> checkAssetReferences(const Scene& scene, const AssetDatab
         }
     });
     return issues;
+}
+
+// --- Decoding images (ImageDecode.hpp) ----------------------------------------------------------------
+// Here because stb_image is compiled into this file only (see the top).
+
+std::optional<DecodedImage> decodeImage(const std::uint8_t* bytes, std::size_t size, std::string* error)
+{
+    const auto fail = [error](std::string why) -> std::optional<DecodedImage> {
+        if (error != nullptr) {
+            *error = std::move(why);
+        }
+        return std::nullopt;
+    };
+    if (bytes == nullptr || size == 0 || size > static_cast<std::size_t>(INT32_MAX)) {
+        return fail("the file is empty or too large");
+    }
+    int w = 0;
+    int h = 0;
+    int channels = 0;
+    stbi_uc* pixels = stbi_load_from_memory(bytes, static_cast<int>(size), &w, &h, &channels, 4);
+    if (pixels == nullptr) {
+        const char* why = stbi_failure_reason();
+        return fail(std::string("it is not a readable PNG or JPEG image") + (why != nullptr ? std::string(" (") + why + ")" : ""));
+    }
+    DecodedImage image;
+    image.width = w;
+    image.height = h;
+    image.rgba.assign(pixels, pixels + static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4);
+    stbi_image_free(pixels);
+    return image;
+}
+
+std::optional<DecodedImage> decodeImageFile(const fs::path& path, std::string* error)
+{
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        if (error != nullptr) {
+            *error = "the file could not be opened";
+        }
+        return std::nullopt;
+    }
+    const std::vector<char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    return decodeImage(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size(), error);
+}
+
+bool isJpegFileName(const fs::path& path)
+{
+    const std::string ext = lower(path.extension().string());
+    return ext == ".jpg" || ext == ".jpeg";
 }
 
 } // namespace rolo

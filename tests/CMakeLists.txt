@@ -142,6 +142,17 @@ set_tests_properties(player.plays_scene_file PROPERTIES
     TIMEOUT 60)
 
 
+# JPEG images (plain, progressive, greyscale; .jpg, .jpeg, .JPG) are decoded
+# by Rolo itself: the engine has no JPEG library (ADR 0023). A file that
+# could not be loaded is a warning, which fails this.
+add_test(NAME player.draws_jpeg_images
+    COMMAND rolo_player --project "${CMAKE_CURRENT_SOURCE_DIR}/data/jpeg_project" --frames 30 --no-stats
+            --screenshot "${CMAKE_CURRENT_BINARY_DIR}/player_jpeg.png")
+set_tests_properties(player.draws_jpeg_images PROPERTIES
+    PASS_REGULAR_EXPRESSION "Showing scene 'Photos' \\(3 entities\\).*Screenshot saved"
+    FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|\\[WARN"
+    TIMEOUT 60)
+
 add_test(NAME player.window_smoke COMMAND rolo_player --frames 120)
 set_tests_properties(player.window_smoke PROPERTIES
     PASS_REGULAR_EXPRESSION "Window closed after 12[0-9] frames"

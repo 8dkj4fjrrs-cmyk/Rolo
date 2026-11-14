@@ -24,7 +24,6 @@ Their license texts are in this folder; games carry a copy of it.
 | `freetype.txt` | FreeType 2.14.1 | FreeType License (FTL) |
 | `glad.txt` | Glad 2.0.8 | MIT |
 | `glfw.txt` | GLFW 3.4 (modified by Axmol), with SDL_GameControllerDB's gamepad layouts | zlib |
-| `libjpeg-turbo.txt` | libjpeg-turbo 3.1.3 | IJG, BSD-3-Clause, zlib |
 | `mio.txt` | mio | MIT |
 | `openssl.txt` | OpenSSL 3.0.18 | Apache-2.0 |
 | `libpng.txt` | libpng 1.6.53 | PNG Reference Library License v2 |
@@ -40,4 +39,3 @@ Their license texts are in this folder; games carry a copy of it.
 | `zlib.txt` | zlib 1.3.1 | zlib |
 | `emscripten.txt` | Emscripten 4.0.9 (games for the web: its runtime, and musl, its C library) | MIT or NCSA; musl: MIT |
 | `llvm-runtime.txt` | LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web) | Apache-2.0 WITH LLVM-exception |
-| `libjpeg.txt` | IJG libjpeg 9f (games for the web) | IJG |

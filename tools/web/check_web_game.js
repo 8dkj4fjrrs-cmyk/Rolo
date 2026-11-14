@@ -93,6 +93,7 @@ function fail(message, log) {
     if (!seen(text)) fail('the log never said "' + text + '"', log);
   }
   if (log.some(line => line.includes('[ERROR]'))) fail('the game logged an error', log);
+  if (log.some(line => line.includes('Could not load the image'))) fail('an image could not be loaded', log);
 
   // The picture must not be one flat colour: something was drawn. (A WebGL
   // canvas cannot be read back between frames, so a screenshot of it is

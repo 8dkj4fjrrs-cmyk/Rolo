@@ -10,6 +10,7 @@ The patches in this folder are applied to `external/axmol`:
 |---|---|---|
 | `0001-optional-network-and-yasio.patch` | Adds `AX_ENABLE_NETWORK` (core) and `AX_WITH_YASIO` (3rdparty) switches, both on by default. In `ParticleSystem.cpp`, logs a mask's four-letter code as text instead of through `htonl()`. | Rolo builds without networking and yasio ([ADR 0012](../../docs/adr/0012-no-yasio.md)). `htonl()` only compiled because the network console's socket headers were included. |
 | `0002-keyword-link-delayimp.patch` | `ax_add_delay_load_options` links `delayimp` with `PRIVATE`. | On Windows, Axmol's app setup linked it in CMake's old "plain" form, and CMake refuses to mix that with the keyword form (`PRIVATE`) that Rolo uses for the editor and player. |
+| `0003-optional-jpeg-on-wasm.patch` | For WebAssembly, asks Emscripten for its libjpeg port only when `AX_WITH_JPEG` is on (it was always asked for). | Rolo builds Axmol without a JPEG library ([ADR 0023](../../docs/adr/0023-no-jpeg-library.md)); on other systems `AX_WITH_JPEG=OFF` already left it out. |
 
 Rules for patches:
 - Keep them **small**: add switches or fix build problems. Do not change

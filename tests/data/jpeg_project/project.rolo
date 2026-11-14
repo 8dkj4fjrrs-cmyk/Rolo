@@ -1,0 +1,6 @@
+{
+  "format": "rolo.project",
+  "version": 1,
+  "name": "JPEG Test",
+  "startScene": "scenes/photos.lscene"
+}

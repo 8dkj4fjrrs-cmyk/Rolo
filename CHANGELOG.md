@@ -5,6 +5,11 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **No JPEG library in Rolo or its games** ([ADR 0023](docs/adr/0023-no-jpeg-library.md)):
+  JPEG images are decoded by Rolo itself, with stb_image (MIT or public
+  domain), which was in every game already. libjpeg-turbo (desktop) and
+  IJG libjpeg (web) are gone, with their licenses. JPEG files in games
+  work as before: plain, progressive and greyscale.
 - **Games for the web** ([ADR 0022](docs/adr/0022-web-export.md),
   [exporting](docs/exporting.md#for-the-web)): **Export Game… › Web
   browsers** (or `--export-web`) makes a folder for any web host (itch.io,
@@ -18,8 +23,8 @@ All notable changes to Rolo Engine. Versions follow the milestones in
   - Rolo's download contains the web runtime; from source it is built
     with Emscripten 4.0.9 (`emcmake cmake --preset web`,
     [building](docs/building.md#for-the-web)).
-  - New in web games' licenses folder: Emscripten and musl (MIT), LLVM's
-    runtime libraries (Apache-2.0 with LLVM exception), IJG libjpeg.
+  - New in web games' licenses folder: Emscripten and musl (MIT), and
+    LLVM's runtime libraries (Apache-2.0 with LLVM exception).
   - `tools/web/check_web_game.js` plays an exported web game in a
     headless browser; CI does so with two templates.
 - **Much faster with many objects** ([ADR 0021](docs/adr/0021-performance-layer.md),

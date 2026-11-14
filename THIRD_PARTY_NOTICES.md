@@ -43,7 +43,6 @@ copy of Rolo, carries that folder.
 | FreeType | 2.14.1 | FreeType License (BSD-style) |
 | Glad | 2.0.8 | MIT |
 | GLFW (modified by Axmol), with SDL_GameControllerDB's gamepad layouts (Rolo reads gamepads with it, ADR 0017) | 3.4 | zlib |
-| libjpeg-turbo | 3.1.3 | IJG / BSD-3-Clause / zlib |
 | mio (header-only) | git 8b6b7d8 | MIT |
 | OpenSSL (Axmol's core uses its digests and AES) | 3.0.18 | Apache-2.0 |
 | libpng | 1.6.53 | PNG Reference Library License v2 |
@@ -108,10 +107,9 @@ desktop runtime contains, compiled to WebAssembly, and:
 | Emscripten's runtime and JavaScript support code | 4.0.9 | MIT or NCSA | Web games |
 | musl (the C library) | as in Emscripten 4.0.9 | MIT | Web games |
 | LLVM libc++, libc++abi, libunwind, compiler-rt | as in Emscripten 4.0.9 | Apache-2.0 WITH LLVM-exception | Web games |
-| IJG libjpeg (Emscripten's port, in place of libjpeg-turbo) | 9f | IJG | Web games |
 
-Their texts are `licenses/emscripten.txt`, `licenses/llvm-runtime.txt` and
-`licenses/libjpeg.txt`. Emscripten itself is a build tool and is not part
+Their texts are `licenses/emscripten.txt` and `licenses/llvm-runtime.txt`.
+(No JPEG library: Rolo decodes JPEG files with stb_image, ADR 0023.) Emscripten itself is a build tool and is not part
 of this repository.
 
 ## Sound (`engine/audio`)
@@ -172,7 +170,7 @@ must accompany shipped games: it is in `licenses/`, which exports include.
 
 | Component | Version | License | Shipped? |
 |---|---|---|---|
-| [stb_image](https://github.com/nothings/stb) (`third_party/stb/stb_image.h`) | 2.30 (`003501f6`, the same stb commit as stb_truetype) | MIT or public domain (Unlicense), at our choice: MIT | Yes: checks image files (size, validity) in the editor and in games |
+| [stb_image](https://github.com/nothings/stb) (`third_party/stb/stb_image.h`) | 2.30 (`003501f6`, the same stb commit as stb_truetype) | MIT or public domain (Unlicense), at our choice: MIT | Yes: checks image files (size, validity) in the editor and in games, and decodes JPEG images for drawing (ADR 0023) |
 
 Compiled into `AssetDatabase.cpp` only, with every function `static` and
 only the PNG and JPEG decoders, because Axmol carries its own copy of

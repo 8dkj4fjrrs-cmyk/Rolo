@@ -215,6 +215,10 @@ set(AX_WITH_CURL OFF CACHE BOOL "" FORCE)
 set(AX_WITH_LLHTTP OFF CACHE BOOL "" FORCE)
 set(AX_WITH_WEBSOCKET_PARSER OFF CACHE BOOL "" FORCE)
 set(AX_UPDATE_BUILD_VERSION OFF CACHE BOOL "" FORCE)
+# No JPEG library (ADR 0023): Rolo decodes JPEG files itself, with the
+# decoder it already has (rolo/assets/ImageDecode.hpp). This leaves out
+# libjpeg-turbo, and on the web Emscripten's IJG libjpeg (patch 0003).
+set(AX_WITH_JPEG OFF CACHE BOOL "" FORCE)
 
 # ---------------------------------------------------------------------------
 # 6. Add Axmol's core library
@@ -233,6 +237,8 @@ add_subdirectory("${_AX_ROOT}/core" "${ENGINE_BINARY_PATH}/axmol/core" SYSTEM)
 if(NOT TARGET ${_AX_CORE_LIB})
     message(FATAL_ERROR "Axmol did not create its core library target.")
 endif()
+# Axmol's image code without its JPEG parts (see AX_WITH_JPEG above).
+target_compile_definitions(${_AX_CORE_LIB} PUBLIC AX_USE_JPEG=0)
 
 # Rolo's replacement for the yasio headers Axmol's core includes (ADR 0012).
 # Linked through Axmol's "3rdparty" interface target, which the core and

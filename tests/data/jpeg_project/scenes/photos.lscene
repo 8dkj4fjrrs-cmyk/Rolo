@@ -1,0 +1,97 @@
+{
+  "format": "rolo.scene",
+  "version": 1,
+  "name": "Photos",
+  "entities": [
+    {
+      "id": "0000000000000001",
+      "name": "Photo",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            330,
+            360
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "4a50454700000001",
+          "size": [
+            600,
+            400
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000002",
+      "name": "Gradient",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            900,
+            500
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "4a50454700000002",
+          "size": [
+            480,
+            320
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000003",
+      "name": "Grey",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            900,
+            170
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "4a50454700000003",
+          "size": [
+            480,
+            240
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    }
+  ]
+}

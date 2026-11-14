@@ -46,9 +46,6 @@ LIBRARIES = {
     "glad": ("Glad 2.0.8", "MIT", [GH + "Dav1dde/glad/v2.0.8/LICENSE"]),
     "glfw": ("GLFW 3.4 (modified by Axmol), with SDL_GameControllerDB's gamepad layouts", "zlib",
              [GH + "glfw/glfw/3.4/LICENSE.md", "sdlmappings:external/axmol/3rdparty/glfw/src/mappings.h"]),
-    "libjpeg-turbo": ("libjpeg-turbo 3.1.3", "IJG, BSD-3-Clause, zlib",
-                      [GH + "libjpeg-turbo/libjpeg-turbo/3.1.3/LICENSE.md",
-                       GH + "libjpeg-turbo/libjpeg-turbo/3.1.3/README.ijg"]),
     "mio": ("mio", "MIT", [GH + "vimpunk/mio/master/LICENSE"]),
     "openssl": ("OpenSSL 3.0.18", "Apache-2.0", [GH + "openssl/openssl/openssl-3.0.18/LICENSE.txt"]),
     "libpng": ("libpng 1.6.53", "PNG Reference Library License v2", ["external/axmol/3rdparty/png/LICENSE"]),
@@ -71,7 +68,6 @@ LIBRARIES = {
     "llvm-runtime": ("LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web)",
                      "Apache-2.0 WITH LLVM-exception",
                      [GH + "emscripten-core/emscripten/4.0.9/system/lib/libcxx/LICENSE.TXT"]),
-    "libjpeg": ("IJG libjpeg 9f (games for the web)", "IJG", ["third_party/notices/ijg-libjpeg-9f.txt"]),
 }
 
 

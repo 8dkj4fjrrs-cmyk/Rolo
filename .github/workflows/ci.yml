@@ -147,6 +147,7 @@ jobs:
         run: |
           xvfb-run -a build/dev/bin/rolo_editor/rolo_editor --project templates/platformer/project --export-web web-export
           xvfb-run -a build/dev/bin/rolo_editor/rolo_editor --project templates/topdown/project --export-web web-export
+          xvfb-run -a build/dev/bin/rolo_editor/rolo_editor --project tests/data/jpeg_project --export-web web-export
           ls -la "web-export/Platformer Starter Web"
 
       - name: Play the exported games in a browser
@@ -157,6 +158,8 @@ jobs:
             --keys ArrowRight,Space,Escape,ArrowDown,Enter,Escape
           node tools/web/check_web_game.js "web-export/Top-Down Starter Web" --screenshot topdown.png \
             --keys ArrowRight,F5 --expect "Saved to slot 'quick'"
+          # JPEG images, which Rolo decodes itself (ADR 0023).
+          node tools/web/check_web_game.js "web-export/JPEG Test Web" --screenshot jpeg.png
 
       - uses: actions/upload-artifact@v4
         if: always()

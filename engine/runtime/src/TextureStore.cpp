@@ -1,5 +1,7 @@
 #include "TextureStore.hpp"
 
+#include "rolo/assets/ImageDecode.hpp"
+
 namespace rolo::detail {
 
 namespace {
@@ -56,7 +58,21 @@ ax::Texture2D* TextureStore::get(const std::filesystem::path& path, bool pixelAr
     entry.pixelArt = pixelArt;
     if (!ec) {
         auto* image = new ax::Image();
-        if (image->initWithImageFile(key)) {
+        bool loaded = false;
+        if (isJpegFileName(path)) {
+            // JPEG files are decoded by Rolo (rolo/assets/ImageDecode.hpp):
+            // Axmol is built without a JPEG library (ADR 0023).
+            std::string why;
+            if (const auto decoded = decodeImageFile(path, &why)) {
+                loaded = image->initWithRawData(decoded->rgba.data(), static_cast<ssize_t>(decoded->rgba.size()),
+                                                decoded->width, decoded->height, 8, false);
+            } else {
+                m_log.warning(kCategory, key + ": " + why + ".");
+            }
+        } else {
+            loaded = image->initWithImageFile(key);
+        }
+        if (loaded) {
             auto* texture = new ax::Texture2D();
             if (texture->initWithImage(image)) {
                 applyFilter(*texture, pixelArt);

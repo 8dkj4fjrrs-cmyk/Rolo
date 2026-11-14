@@ -64,15 +64,15 @@ web; a source build takes it from `build/web`.
 
 ## New software in web games
 
-Web games contain Emscripten's runtime and system libraries, and IJG
-libjpeg from Emscripten's ports, in place of the desktop's libjpeg-turbo:
+Web games contain Emscripten's runtime and system libraries. (At first
+also IJG libjpeg from Emscripten's ports; ADR 0023 removed every JPEG
+library, on the web and the desktop.)
 
 | Software | License |
 |---|---|
 | Emscripten 4.0.9 (runtime, JavaScript support code) | MIT or NCSA |
 | musl (the C library) | MIT |
 | LLVM libc++, libc++abi, libunwind, compiler-rt | Apache-2.0 with LLVM exception |
-| IJG libjpeg 9f | IJG (permissive, BSD-like) |
 
 All permissive, none copyleft; their texts are in `licenses/` and go into
 every export.

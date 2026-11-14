@@ -1,0 +1,20 @@
+diff --git a/cmake/Modules/AXConfigDefine.cmake b/cmake/Modules/AXConfigDefine.cmake
+index 1102ef6..e27e317 100644
+--- a/cmake/Modules/AXConfigDefine.cmake
++++ b/cmake/Modules/AXConfigDefine.cmake
+@@ -239,8 +239,13 @@ endfunction()
+ if(EMSCRIPTEN)
+   # Tell emcc build port libjpeg in cache and add link flag manually to
+   # fix build fail on windows host when cmake invoking emscan-deps (raise unknown options)
+-  set(_AX_EM_C_FLAGS "-sUSE_LIBJPEG=1")
+-  set(_AX_EM_LD_FLAGS -ljpeg)
++  if(NOT DEFINED AX_WITH_JPEG OR AX_WITH_JPEG)
++    set(_AX_EM_C_FLAGS "-sUSE_LIBJPEG=1")
++    set(_AX_EM_LD_FLAGS -ljpeg)
++  else()
++    set(_AX_EM_C_FLAGS "")
++    set(_AX_EM_LD_FLAGS "")
++  endif()
+ 
+   set(AX_WASM_THREADS "4" CACHE STRING "Wasm threads count")
+   set(_threads_hint "")
