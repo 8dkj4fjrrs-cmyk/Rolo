@@ -153,6 +153,11 @@ Vec2 Input::moveDirection() const noexcept
     if (isActionDown(kMoveUp)) {
         y += 1.0f;
     }
+    // The on-screen stick gives values in between too (it holds the move
+    // actions past half way, so it is asked first).
+    if (m_touchStick.x != 0.0f || m_touchStick.y != 0.0f) {
+        return m_touchStick;
+    }
     if (x == 0.0f && y == 0.0f) {
         return leftStick();
     }
@@ -231,8 +236,98 @@ void Input::release(MouseButton button) noexcept
     }
 }
 
+void Input::touchBegan(int id, Vec2 worldPosition)
+{
+    m_lastDevice = InputDevice::Touch;
+    for (TouchPoint& t : m_touches) {
+        if (t.id == id && !t.ended) {
+            t.position = worldPosition;
+            return;
+        }
+    }
+    const bool first = std::none_of(m_touches.begin(), m_touches.end(), [](const TouchPoint& t) { return !t.ended; });
+    m_touches.push_back({id, worldPosition, true, false});
+    if (first) {
+        m_pointer = worldPosition;
+        down(m_buttons[static_cast<std::size_t>(MouseButton::Left)]);
+    }
+}
+
+void Input::touchMoved(int id, Vec2 worldPosition)
+{
+    bool first = true;
+    for (TouchPoint& t : m_touches) {
+        if (t.ended) {
+            continue;
+        }
+        if (t.id == id) {
+            t.position = worldPosition;
+            if (first) {
+                m_pointer = worldPosition;
+            }
+            return;
+        }
+        first = false;
+    }
+}
+
+void Input::touchEnded(int id)
+{
+    bool first = true;
+    for (TouchPoint& t : m_touches) {
+        if (t.ended) {
+            continue;
+        }
+        if (t.id == id) {
+            t.ended = true;
+            if (first) {
+                up(m_buttons[static_cast<std::size_t>(MouseButton::Left)]);
+            }
+            return;
+        }
+        first = false;
+    }
+}
+
+void Input::setTouchStick(Vec2 direction)
+{
+    if (!std::isfinite(direction.x) || !std::isfinite(direction.y)) {
+        direction = {};
+    }
+    const float len = length(direction);
+    m_touchStick = len > 1.0f ? Vec2{direction.x / len, direction.y / len} : direction;
+    if (len > 0.0f) {
+        m_lastDevice = InputDevice::Touch;
+    }
+    setTouchAction(kMoveLeft, m_touchStick.x < -0.5f);
+    setTouchAction(kMoveRight, m_touchStick.x > 0.5f);
+    setTouchAction(kMoveDown, m_touchStick.y < -0.5f);
+    setTouchAction(kMoveUp, m_touchStick.y > 0.5f);
+}
+
+void Input::setTouchAction(std::string_view name, bool held)
+{
+    const auto found = m_actions.find(name);
+    if (found == m_actions.end()) {
+        return;
+    }
+    if (held) {
+        m_lastDevice = InputDevice::Touch;
+        down(found->second.touch);
+    } else {
+        up(found->second.touch);
+    }
+}
+
 void Input::releaseAll() noexcept
 {
+    for (TouchPoint& t : m_touches) {
+        t.ended = true;
+    }
+    m_touchStick = {};
+    for (auto& [name, action] : m_actions) {
+        up(action.touch);
+    }
     for (State& s : m_keys) {
         up(s);
     }
@@ -409,6 +504,14 @@ bool Input::wasNudged(GamepadButton direction) const noexcept
 
 void Input::endFrame() noexcept
 {
+    std::erase_if(m_touches, [](const TouchPoint& t) { return t.ended; });
+    for (TouchPoint& t : m_touches) {
+        t.began = false;
+    }
+    for (auto& [name, action] : m_actions) {
+        action.touch.pressed = false;
+        action.touch.released = false;
+    }
     for (State& s : m_keys) {
         s.pressed = false;
         s.released = false;
@@ -535,6 +638,9 @@ bool Input::bindingIs(const Binding& b, bool (Input::*keyQ)(Key) const noexcept,
 
 bool Input::isActionDown(std::string_view name) const
 {
+    if (const Action* action = findAction(name); action != nullptr && action->touch.down) {
+        return true;
+    }
     for (const Binding& b : bindings(name)) {
         if (bindingIs(b, &Input::isDown, &Input::isDown, &Input::isDown)) {
             return true;
@@ -545,6 +651,9 @@ bool Input::isActionDown(std::string_view name) const
 
 bool Input::wasActionPressed(std::string_view name) const
 {
+    if (const Action* action = findAction(name); action != nullptr && action->touch.pressed) {
+        return true;
+    }
     for (const Binding& b : bindings(name)) {
         if (bindingIs(b, &Input::wasPressed, &Input::wasPressed, &Input::wasPressed)) {
             return true;
@@ -555,6 +664,9 @@ bool Input::wasActionPressed(std::string_view name) const
 
 bool Input::wasActionReleased(std::string_view name) const
 {
+    if (const Action* action = findAction(name); action != nullptr && action->touch.released) {
+        return true;
+    }
     for (const Binding& b : bindings(name)) {
         if (bindingIs(b, &Input::wasReleased, &Input::wasReleased, &Input::wasReleased)) {
             return true;

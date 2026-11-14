@@ -755,10 +755,36 @@ int inputResetControls(lua_State* L)
     return 0;
 }
 
-// input.lastDevice() -> "keyboard" or "gamepad"
+// input.lastDevice() -> "keyboard", "gamepad" or "touch"
 int inputLastDevice(lua_State* L)
 {
-    lua_pushstring(L, std::as_const(gameOf(L)).input().lastDevice() == InputDevice::Gamepad ? "gamepad" : "keyboard");
+    const InputDevice device = std::as_const(gameOf(L)).input().lastDevice();
+    lua_pushstring(L, device == InputDevice::Gamepad ? "gamepad" : device == InputDevice::Touch ? "touch" : "keyboard");
+    return 1;
+}
+
+// input.touches() -> a list of the fingers on the screen that are not on
+// Rolo's on-screen controls: { {id = 1, x = .., y = .., began = true}, ... }
+// (x, y in world coordinates; `ended` is true in the frame a finger lifts).
+int inputTouches(lua_State* L)
+{
+    const auto& touches = std::as_const(gameOf(L)).input().touches();
+    lua_createtable(L, static_cast<int>(touches.size()), 0);
+    int index = 1;
+    for (const TouchPoint& t : touches) {
+        lua_createtable(L, 0, 5);
+        lua_pushinteger(L, t.id);
+        lua_setfield(L, -2, "id");
+        lua_pushnumber(L, static_cast<lua_Number>(t.position.x));
+        lua_setfield(L, -2, "x");
+        lua_pushnumber(L, static_cast<lua_Number>(t.position.y));
+        lua_setfield(L, -2, "y");
+        lua_pushboolean(L, t.began);
+        lua_setfield(L, -2, "began");
+        lua_pushboolean(L, t.ended);
+        lua_setfield(L, -2, "ended");
+        lua_rawseti(L, -2, index++);
+    }
     return 1;
 }
 
@@ -1203,6 +1229,7 @@ void openScriptApi(ScriptHost& host)
         {"trigger", guarded<inputTrigger>},
         {"gamepad", guarded<inputGamepad>},
         {"pointer", guarded<inputPointer>},
+        {"touches", guarded<inputTouches>},
         {nullptr, nullptr},
     };
     lua_newtable(L);

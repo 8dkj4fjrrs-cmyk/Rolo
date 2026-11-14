@@ -171,3 +171,20 @@ TEST_CASE("The frame-times report gives the mean, the slow frames and the worst"
     CHECK(report.find("Gameplay: mean 2.00 ms") != std::string::npos);
     CHECK(frameTimesReport({}, {}).find("too few frames") != std::string::npos);
 }
+
+TEST_CASE("Test fingers and mouse-as-touch are read", "[player][cli][touch]")
+{
+    const ParseResult r = parse({"--touch", "--finger", "1150,110@30-40", "--finger", "200,200>330,200@5", "--frames", "60"});
+    REQUIRE(r.ok());
+    CHECK(r.options.touch);
+    REQUIRE(r.options.fingers.size() == 2);
+    using Finger = rolo::player::PlayerOptions::Finger;
+    CHECK(r.options.fingers[0] == Finger{1150.0f, 110.0f, 1150.0f, 110.0f, 30, 40});   // stays put
+    CHECK(r.options.fingers[1] == Finger{200.0f, 200.0f, 330.0f, 200.0f, 5, 6});        // slides
+    CHECK_FALSE(parse({}).options.touch);
+
+    CHECK_FALSE(parse({"--finger", "100@3"}).ok());
+    CHECK_FALSE(parse({"--finger", "100,100"}).ok());
+    CHECK_FALSE(parse({"--finger", "100,100@9-3"}).ok());
+    CHECK(parse({"--finger", "a,b@3"}).error.find("--finger") != std::string::npos);
+}

@@ -111,9 +111,10 @@ python3 -m http.server 8000      # then open http://localhost:8000
 
 **What is different in a browser**
 - **Controls**: keyboard, mouse and gamepads. A gamepad appears to the page
-  once a button on it is pressed. No rumble yet, and **no touch controls
-  yet**, so phones and tablets show the game but cannot play it (next on
-  the [roadmap](roadmap.md)).
+  once a button on it is pressed. No rumble yet.
+- **Phones and tablets** get an on-screen stick and a button for each of
+  your game's actions ([touch screens](controls.md#touch-screens)), with
+  nothing for you to set up.
 - **Saved games** are kept by the player's browser, for the page's web
   address. Clearing the browser's site data removes them.
 - **Sound** starts with the player's first click or key press: browsers do

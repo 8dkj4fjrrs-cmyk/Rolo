@@ -49,6 +49,17 @@ struct PlayerOptions {
         friend bool operator==(const Tap&, const Tap&) = default;
     };
     std::vector<Tap> tappedKeys;  // --tap KEY@FRAME or KEY@FROM-TO
+    struct Finger {
+        float x = 0.0f;           // where it touches down, in the game's resolution, (0, 0) bottom-left
+        float y = 0.0f;
+        float toX = 0.0f;         // where it slides to on the next frame (the same place: it stays put)
+        float toY = 0.0f;
+        std::uint64_t from = 0;
+        std::uint64_t to = 1;
+        friend bool operator==(const Finger&, const Finger&) = default;
+    };
+    std::vector<Finger> fingers;  // --finger X,Y@FROM-TO or X,Y>X2,Y2@FROM-TO (tests of touch)
+    bool touch = false;           // --touch: the left mouse button is a finger (to try touch controls)
     bool fixedStep = false;       // --fixed-step: every frame counts as 1/60 s
     std::string saveDir;          // --save-dir: where save slots go (default: the user's data folder)
 };

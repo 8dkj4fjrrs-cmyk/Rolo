@@ -38,8 +38,10 @@ My Game/
 | `startScene` | The scene the player opens first. |
 | `escapeQuits` | Optional, `true` when left out. `false`: Escape does not close the game (it is an ordinary key; quit with `game.quit()`). |
 | `quickSaveKeys` | Optional, `true` when left out. `false`: F5 and F9 do not save and load the "quick" slot. |
+| `touchControls` | Optional, `true` when left out. `false`: no on-screen stick and buttons on touch screens (the game reads touches itself). |
+| `touchButtons` | Optional. A list of action names: the actions that get an on-screen button, in order. Left out: Rolo chooses (every action). |
 
-The two options are written only when `false`, so they need no new format
+These options are written only when changed, so they need no new format
 version: files without them mean what they always did. (Rolo before 0.10
 ignores them: Escape quits and F5 / F9 save there.)
 

@@ -232,10 +232,33 @@ ax::Node* padButton(GamepadButton b, GamepadStyle style, float h, const std::str
     }
 }
 
+// An on-screen touch button, as Rolo draws them: a dark round-ended shape
+// with a light rim and the action's name. The stick: a ring with its knob.
+ax::Node* touchButton(const std::string& label, float h, const std::string& font)
+{
+    auto* d = ax::DrawNode::create();
+    if (label == "stick") {
+        darkCircle(*d, {h * 0.5f, h * 0.5f}, h * 0.5f);
+        d->drawSolidCircle({h * 0.5f, h * 0.5f}, h * 0.22f, 0.0f, 24, kCap);
+        d->setContentSize({h, h});
+        return d;
+    }
+    const float size = h * 0.5f;
+    const float w = std::max(h, labelWidth(label, font, size) + h * 0.7f);
+    roundedRect(*d, 0.0f, 0.0f, w, h, h * 0.5f, kRim);
+    roundedRect(*d, h * 0.07f, h * 0.07f, w - h * 0.07f, h - h * 0.07f, h * 0.43f, kDark);
+    addLabel(*d, label, font, size, {w * 0.5f, h * 0.5f}, kWhite, w - h * 0.4f);
+    d->setContentSize({w, h});
+    return d;
+}
+
 } // namespace
 
 ax::Node* makeButtonIcon(const ButtonIcon& icon, float height, const std::string& font)
 {
+    if (!icon.touch.empty()) {
+        return touchButton(icon.touch, height, font);
+    }
     const Binding& b = icon.binding;
     switch (b.kind) {
     case Binding::Kind::Key: return keyCap(b.key, height, font);

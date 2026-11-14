@@ -501,6 +501,12 @@ TEST_CASE("The project's game options are changed through undoable steps", "[edi
     REQUIRE(f.doc.redo());
     CHECK_FALSE(settings().escapeQuits);
     CHECK_FALSE(f.doc.execute(std::make_unique<SetGameOption>(SetGameOption::Option::EscapeQuits, false)));   // already
+    // On-screen touch controls: on unless turned off.
+    CHECK(settings().touchControls);
+    REQUIRE(f.doc.execute(std::make_unique<SetGameOption>(SetGameOption::Option::TouchControls, false)));
+    CHECK_FALSE(settings().touchControls);
+    REQUIRE(f.doc.undo());
+    CHECK(settings().touchControls);
 }
 
 TEST_CASE("Content files are edited through undoable steps", "[editor][commands][assets]")

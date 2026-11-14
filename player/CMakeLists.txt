@@ -34,6 +34,8 @@ if(EMSCRIPTEN)
         -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2     # Axmol draws with WebGL 2
         -sSTACK_SIZE=4mb)                               # as Axmol's own web apps
     set_property(TARGET rolo_player APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/web/pre.js")
+    # The page is copied after linking; a changed page links again (LINK_DEPENDS), so it is copied again.
+    set_property(TARGET rolo_player APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/web/index.html")
     add_custom_command(TARGET rolo_player POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/web/index.html" "$<TARGET_FILE_DIR:rolo_player>/index.html"

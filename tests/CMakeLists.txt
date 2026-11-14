@@ -45,6 +45,7 @@ add_executable(rolo_tests
     gameplay/test_controls.cpp
     gameplay/test_collision.cpp
     gameplay/test_game.cpp
+    gameplay/test_touch_controls.cpp
     gameplay/test_animation_play.cpp
     gameplay/test_builtin_behaviours.cpp
     gameplay/test_game_content.cpp
@@ -213,6 +214,20 @@ if(TARGET sample_game)
     set_tests_properties(player.escape_off PROPERTIES
         PASS_REGULAR_EXPRESSION "Showing scene 'Meadow'"
         FAIL_REGULAR_EXPRESSION "Escape pressed|\\[ERROR\\]"
+        TIMEOUT 120)
+
+    # Touch: the Platformer Starter played with fingers on the on-screen
+    # controls only (--finger). Run right and jump, press Pause, push the
+    # stick down twice (Resume -> Controls -> Quit) and pick with Jump: the
+    # game quits long before its 400 frames are over.
+    add_test(NAME player.touch_controls
+        COMMAND rolo_player --project "${PROJECT_SOURCE_DIR}/templates/platformer/project" --frames 400 --fixed-step
+                --no-stats --mute --save-dir "${CMAKE_CURRENT_BINARY_DIR}/player-test-touch-saves"
+                --finger "200,200>330,200@5-25" --finger "1170,110@15-18" --finger "640,641@30-33"
+                --finger "200,200>200,60@50-55" --finger "200,200>200,60@70-75" --finger "1170,110@90-93")
+    set_tests_properties(player.touch_controls PROPERTIES
+        PASS_REGULAR_EXPRESSION "Window closed after (9[0-9]|1[0-2][0-9]) frames"
+        FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|\\[WARN"
         TIMEOUT 120)
 
     # The stress test's busy scene plays in a window, and --frame-times reports.

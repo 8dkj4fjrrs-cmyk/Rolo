@@ -784,12 +784,16 @@ void SetStartScene::revert(Scene&)
 
 std::string SetGameOption::label() const
 {
-    return m_option == Option::EscapeQuits ? "Escape Quits the Game" : "F5 / F9 Quick Save";
+    return m_option == Option::EscapeQuits     ? "Escape Quits the Game"
+           : m_option == Option::QuickSaveKeys ? "F5 / F9 Quick Save"
+                                               : "On-Screen Touch Controls";
 }
 
 bool& SetGameOption::in(ProjectSettings& settings, Option option)
 {
-    return option == Option::EscapeQuits ? settings.escapeQuits : settings.quickSaveKeys;
+    return option == Option::EscapeQuits     ? settings.escapeQuits
+           : option == Option::QuickSaveKeys ? settings.quickSaveKeys
+                                             : settings.touchControls;
 }
 
 bool SetGameOption::write(bool on) const

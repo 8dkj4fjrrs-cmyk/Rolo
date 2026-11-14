@@ -104,3 +104,26 @@ TEST_CASE("A project's game options are read and written only when changed", "[p
     CHECK_FALSE(Project::parseSettings(R"({"format": "rolo.project", "version": 1, "escapeQuits": "no"})", &error));
     CHECK(error.find("escapeQuits") != std::string::npos);
 }
+
+TEST_CASE("A project's touch choices are read and written only when changed", "[project][touch]")
+{
+    const ProjectSettings defaults;
+    CHECK(defaults.touchControls);
+    CHECK(defaults.touchButtons.empty());
+    const std::string plain = Project::serializeSettings(defaults);
+    CHECK(plain.find("touch") == std::string::npos);
+
+    ProjectSettings changed;
+    changed.touchControls = false;
+    changed.touchButtons = {"jump", "pause"};
+    const auto back = Project::parseSettings(Project::serializeSettings(changed));
+    REQUIRE(back);
+    CHECK_FALSE(back->touchControls);
+    CHECK(back->touchButtons == std::vector<std::string>{"jump", "pause"});
+
+    std::string error;
+    CHECK_FALSE(Project::parseSettings(R"({"format": "rolo.project", "version": 1, "touchButtons": "jump"})", &error));
+    CHECK(error.find("touchButtons") != std::string::npos);
+    CHECK_FALSE(Project::parseSettings(R"({"format": "rolo.project", "version": 1, "touchButtons": [1, 2]})", &error));
+    CHECK_FALSE(Project::parseSettings(R"({"format": "rolo.project", "version": 1, "touchControls": 1})", &error));
+}

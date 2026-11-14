@@ -9,7 +9,8 @@
 //
 // While the game runs, Game turns each {button:...} into an icon token for
 // the device the player is using (the gamepad's button, drawn as it looks on
-// that kind of pad, or the keyboard key), e.g. "{icon:pad:A:playstation}".
+// that kind of pad, the keyboard key, or on a touch screen the on-screen
+// button), e.g. "{icon:pad:A:playstation}".
 // The runtime draws icon tokens as small pictures in the line of text
 // (SceneRenderer). This header is shared by both, and tested without a window.
 
@@ -26,10 +27,14 @@ namespace rolo {
 struct ButtonIcon {
     Binding binding;
     GamepadStyle style = GamepadStyle::Generic;   // pad buttons: drawn as on this kind of pad
+    /// Not empty: an on-screen touch button with this written on it (e.g.
+    /// "Jump"), or the on-screen stick ("stick"); `binding` is then unused.
+    std::string touch;
     friend bool operator==(const ButtonIcon&, const ButtonIcon&) = default;
 };
 
-/// The token for an icon: "{icon:key:Space}", "{icon:mouse:Left}", "{icon:pad:A:xbox}".
+/// The token for an icon: "{icon:key:Space}", "{icon:mouse:Left}",
+/// "{icon:pad:A:xbox}", "{icon:touch:Jump}".
 std::string iconToken(const ButtonIcon& icon);
 
 /// A piece of a line of text: words, or an icon.

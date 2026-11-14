@@ -15,6 +15,7 @@
 #include "rolo/gameplay/Components.hpp"
 #include "rolo/gameplay/Game.hpp"
 #include "rolo/gameplay/GameModule.hpp"
+#include "rolo/gameplay/TouchControls.hpp"
 #include "rolo/runtime/Application.hpp"
 #include "rolo/scene/Project.hpp"
 #include "rolo/scene/SceneFile.hpp"
@@ -88,7 +89,8 @@ struct Player {
     std::unique_ptr<rolo::Engine> engine;
     rolo::ComponentRegistry registry;
     std::unique_ptr<rolo::AssetDatabase> assets;
-    rolo::ProjectSettings gameOptions;   // the project's Escape, F5 and F9 choices
+    rolo::ProjectSettings gameOptions;   // the project's Escape, F5, F9 and touch choices
+    rolo::TouchControls touchControls;   // the on-screen stick and buttons (touch screens)
     rolo::ContentLibrary content;
     std::unique_ptr<rolo::FolderSaveStore> saveFiles;
     std::unique_ptr<rolo::SaveStore> browserSaves;   // only in a web browser
@@ -103,7 +105,30 @@ struct Player {
 
     /// Sets the game up and plays it. Returns the program's exit code.
     int run();
+    std::vector<std::string> touchButtonsNow() const;
 };
+
+// The actions that get an on-screen button now: the project's list, or else
+// the game's own actions in the order it defined them, then Rolo's
+// "interact" if the scene has someone who can interact (or a dialogue is
+// open, which "interact" moves on).
+std::vector<std::string> Player::touchButtonsNow() const
+{
+    if (!gameOptions.touchButtons.empty()) {
+        return gameOptions.touchButtons;
+    }
+    std::vector<std::string> names;
+    for (const std::string& name : game->input().actions()) {
+        if (name != rolo::Input::kInteract) {
+            names.push_back(name);
+        }
+    }
+    const auto scene = game->sharedScene();
+    if (game->isInDialogue() || (scene != nullptr && !scene->all<rolo::Interactor>().empty())) {
+        names.emplace_back(rolo::Input::kInteract);
+    }
+    return names;
+}
 
 int Player::run()
 {
@@ -279,6 +304,9 @@ int Player::run()
     app->setAssets(assets.get());
     if (game->isRunning()) {
         app->setGameInput(&game->input());
+        if (gameOptions.touchControls) {
+            app->setTouchControls(&touchControls, opt.touch);
+        }
         std::shared_ptr<const rolo::Scene> shown = game->sharedScene();
         app->setFrameCallback([&, shown](const rolo::FrameInfo& frame) mutable {
             // Keys pressed by tests (--tap KEY@FROM-TO).
@@ -301,6 +329,37 @@ int Player::run()
             }
             if (gameOptions.quickSaveKeys && game->input().wasPressed(rolo::Key::F9)) {
                 game->load("quick");
+            }
+            if (gameOptions.touchControls) {
+                touchControls.setActions(game->input(), touchButtonsNow());
+            }
+            // Fingers put on the screen by tests (--finger): as the window
+            // reports real ones, to the on-screen controls first.
+            for (std::size_t i = 0; i < opt.fingers.size(); ++i) {
+                const auto& finger = opt.fingers[i];
+                const int id = 1000 + static_cast<int>(i);
+                const bool onControls = gameOptions.touchControls;
+                if (frame.frameIndex == finger.from) {
+                    game->input().noteTouchUsed();
+                    if (!onControls || !touchControls.touchBegan(id, {finger.x, finger.y})) {
+                        game->input().touchBegan(id, {finger.x, finger.y});
+                    }
+                } else if (frame.frameIndex == finger.from + 1 && frame.frameIndex < finger.to) {
+                    if (onControls && touchControls.owns(id)) {
+                        touchControls.touchMoved(id, {finger.toX, finger.toY});
+                    } else {
+                        game->input().touchMoved(id, {finger.toX, finger.toY});
+                    }
+                } else if (frame.frameIndex == finger.to) {
+                    if (onControls && touchControls.owns(id)) {
+                        touchControls.touchEnded(id);
+                    } else {
+                        game->input().touchEnded(id);
+                    }
+                }
+                if (onControls) {
+                    touchControls.apply(game->input());
+                }
             }
             const float dt = opt.fixedStep ? 1.0f / 60.0f : static_cast<float>(frame.deltaSeconds);
             const auto updateStart = std::chrono::steady_clock::now();

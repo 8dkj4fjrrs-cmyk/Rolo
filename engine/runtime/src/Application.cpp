@@ -32,12 +32,14 @@
 #include <axmol.h>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include <emscripten/html5.h>
 #endif
 #include <renderer/backend/DriverBase.h>
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <optional>
 #include <string>
@@ -166,6 +168,21 @@ struct Application::Impl {
     RunOptions options;
     std::function<void(const FrameInfo&)> frameCallback;
     Input* gameInput = nullptr;   // filled from the window's keyboard and mouse (not owned)
+    // Touch screens: the on-screen controls (not owned), their picture, and
+    // which fingers the game was told about.
+    TouchControls* touchControls = nullptr;
+    bool mouseActsAsTouch = false;
+    bool mouseFingerDown = false;
+    ax::Node* touchNode = nullptr;              // owned by the scene
+    ax::Node* touchStickBase = nullptr;
+    ax::Node* touchStickKnob = nullptr;
+    std::vector<ax::Node*> touchButtonNodes;    // one per button: [0] its resting look, [1] pressed
+    unsigned touchDrawn = 0;                    // the controls' revision that is drawn
+    unsigned touchLaidOut = 0;
+    enum class TouchPhase { Began, Moved, Ended };
+    void onTouch(TouchPhase phase, int id, ax::Vec2 screen);
+    void listenForTouches();
+    void updateTouchControls();
     std::unique_ptr<GamepadReader> gamepads;   // ...and from gamepads, while there is a game input
     RunReport report;
 
@@ -334,6 +351,12 @@ bool Application::Impl::startWindow()
 
     if (gameInput != nullptr && !uiEnabled()) {
         listenForGameInput(*scene);
+        listenForTouches();
+        if (touchControls != nullptr) {
+            touchNode = ax::Node::create();
+            touchNode->setVisible(false);
+            scene->addChild(touchNode, 90000);   // over the game, under the frame-rate line
+        }
     }
 
     if (options.escapeQuits) {
@@ -518,18 +541,38 @@ void Application::Impl::listenForGameInput(ax::Scene& scene)
     };
     // Axmol's mouse callbacks return whether the event was used; returning
     // false lets other listeners see it too.
-    mouse->onMouseMove = [track](ax::EventMouse* event) {
+    // With mouseActsAsTouch, the left button is a finger (number 0) instead.
+    const auto finger = [this](ax::EventMouse* event) {
+        return mouseActsAsTouch && event->getMouseButton() == ax::EventMouse::MouseButton::BUTTON_LEFT;
+    };
+    mouse->onMouseMove = [this, track](ax::EventMouse* event) {
+        if (mouseActsAsTouch) {
+            if (mouseFingerDown) {
+                onTouch(TouchPhase::Moved, 0, event->getLocation());
+            }
+            return false;
+        }
         track(event);
         return false;
     };
-    mouse->onMouseDown = [this, track](ax::EventMouse* event) {
+    mouse->onMouseDown = [this, track, finger](ax::EventMouse* event) {
+        if (finger(event)) {
+            mouseFingerDown = true;
+            onTouch(TouchPhase::Began, 0, event->getLocation());
+            return false;
+        }
         track(event);
         if (const auto button = toRoloButton(event->getMouseButton())) {
             gameInput->press(*button);
         }
         return false;
     };
-    mouse->onMouseUp = [this, track](ax::EventMouse* event) {
+    mouse->onMouseUp = [this, track, finger](ax::EventMouse* event) {
+        if (finger(event)) {
+            mouseFingerDown = false;
+            onTouch(TouchPhase::Ended, 0, event->getLocation());
+            return false;
+        }
         track(event);
         if (const auto button = toRoloButton(event->getMouseButton())) {
             gameInput->release(*button);
@@ -537,6 +580,196 @@ void Application::Impl::listenForGameInput(ax::Scene& scene)
         return false;
     };
     dispatcher->addEventListenerWithSceneGraphPriority(mouse, &scene);
+}
+
+// --- Touch screens -------------------------------------------------------------------------------
+//
+// A finger is offered to the on-screen controls first; one they do not take
+// is the game's (Input::touches), in world coordinates. `screen` is in the
+// game's resolution, (0, 0) at the bottom-left of the picture.
+void Application::Impl::onTouch(TouchPhase phase, int id, ax::Vec2 screen)
+{
+    if (gameInput == nullptr) {
+        return;
+    }
+    gameInput->noteTouchUsed();
+    const Vec2 at{screen.x, screen.y};
+    const auto inWorld = [&]() -> Vec2 {
+        const ax::Vec2 p = world != nullptr ? world->convertToNodeSpace(screen) : screen;
+        return {p.x, p.y};
+    };
+    switch (phase) {
+    case TouchPhase::Began:
+        if (touchControls != nullptr && touchControls->touchBegan(id, at)) {
+            return;
+        }
+        gameInput->touchBegan(id, inWorld());
+        break;
+    case TouchPhase::Moved:
+        if (touchControls != nullptr && touchControls->owns(id)) {
+            touchControls->touchMoved(id, at);
+            return;
+        }
+        gameInput->touchMoved(id, inWorld());
+        break;
+    case TouchPhase::Ended:
+        if (touchControls != nullptr && touchControls->owns(id)) {
+            touchControls->touchEnded(id);
+            return;
+        }
+        gameInput->touchEnded(id);
+        break;
+    }
+}
+
+#ifdef __EMSCRIPTEN__
+namespace {
+// The browser's touch events, read directly: each event lists every finger
+// on the screen and marks the ones it is about (isChanged). Returning true
+// stops the browser from also scrolling the page, zooming, or making a
+// mouse click out of the touch.
+EM_BOOL onBrowserTouch(int type, const EmscriptenTouchEvent* event, void* user)
+{
+    auto* impl = static_cast<Application::Impl*>(user);
+    const auto* view = ax::Director::getInstance()->getRenderView();
+    int canvasWidth = 0;
+    int canvasHeight = 0;
+    double cssWidth = 0.0;
+    double cssHeight = 0.0;
+    emscripten_get_canvas_element_size("#canvas", &canvasWidth, &canvasHeight);
+    emscripten_get_element_css_size("#canvas", &cssWidth, &cssHeight);
+    if (view == nullptr || cssWidth <= 0.0 || cssHeight <= 0.0 || view->getScaleX() <= 0.0f || view->getScaleY() <= 0.0f) {
+        return EM_TRUE;
+    }
+    const ax::Rect& port = view->getViewPortRect();
+    for (int i = 0; i < event->numTouches; ++i) {
+        const EmscriptenTouchPoint& t = event->touches[i];
+        if (!t.isChanged) {
+            continue;
+        }
+        // Page pixels -> the canvas's own pixels (y up) -> the game's resolution.
+        const double px = static_cast<double>(t.targetX) * canvasWidth / cssWidth;
+        const double py = canvasHeight - static_cast<double>(t.targetY) * canvasHeight / cssHeight;
+        const ax::Vec2 screen(static_cast<float>((px - port.origin.x) / view->getScaleX()),
+                              static_cast<float>((py - port.origin.y) / view->getScaleY()));
+        const auto phase = type == EMSCRIPTEN_EVENT_TOUCHSTART  ? Application::Impl::TouchPhase::Began
+                           : type == EMSCRIPTEN_EVENT_TOUCHMOVE ? Application::Impl::TouchPhase::Moved
+                                                                : Application::Impl::TouchPhase::Ended;
+        impl->onTouch(phase, static_cast<int>(t.identifier), screen);
+    }
+    return EM_TRUE;
+}
+} // namespace
+#endif
+
+void Application::Impl::listenForTouches()
+{
+#ifdef __EMSCRIPTEN__
+    // On the canvas, not through Axmol: its web touch code ends every finger
+    // when one lifts, which breaks holding the stick while pressing a button.
+    emscripten_set_touchstart_callback("#canvas", this, 1, onBrowserTouch);
+    emscripten_set_touchmove_callback("#canvas", this, 1, onBrowserTouch);
+    emscripten_set_touchend_callback("#canvas", this, 1, onBrowserTouch);
+    emscripten_set_touchcancel_callback("#canvas", this, 1, onBrowserTouch);
+    // A phone or tablet (no mouse to hover with): show the controls from the start.
+    const bool touchOnly = EM_ASM_INT({
+        return window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-hover: hover)').matches;
+    }) != 0;
+    if (touchOnly) {
+        gameInput->noteTouchUsed();
+    }
+#endif
+}
+
+// Applies the on-screen controls to the game's input and keeps their picture
+// up to date. They are drawn only while touch is what the player is using.
+void Application::Impl::updateTouchControls()
+{
+    if (touchControls == nullptr || gameInput == nullptr || touchNode == nullptr) {
+        return;
+    }
+    const auto w = static_cast<float>(presentation.worldWidth);
+    const auto h = static_cast<float>(presentation.worldHeight);
+    if (touchLaidOut == 0) {
+        touchControls->layout(w, h);
+    }
+    const bool shown = gameInput->lastDevice() == InputDevice::Touch;
+    if (!shown && touchNode->isVisible()) {
+        touchControls->releaseAll();   // the player went back to keys or a gamepad
+    }
+    touchNode->setVisible(shown);
+    touchControls->apply(*gameInput);
+
+    const auto colour = [](float r, float g, float b, float a) { return ax::Color4F(r, g, b, a); };
+    const ax::Color4F kFill = colour(0.07f, 0.08f, 0.11f, 0.34f);
+    const ax::Color4F kRim = colour(1.0f, 1.0f, 1.0f, 0.5f);
+    const ax::Color4F kPressed = colour(0.95f, 0.66f, 0.23f, 0.62f);   // Rolo's orange
+    const auto disc = [&](float radius, const ax::Color4F& fill) {
+        auto* d = ax::DrawNode::create();
+        // The fill, and around it a rim made of its own triangles (drawn as a
+        // thick line, a see-through rim comes out dotted where pieces overlap).
+        const float rim = std::max(1.5f, radius * 0.045f);
+        const float inner = radius - rim;
+        d->drawSolidCircle({0.0f, 0.0f}, inner, 0.0f, 64, fill);
+        constexpr int kPieces = 64;
+        for (int i = 0; i < kPieces; ++i) {
+            const float a0 = 6.2831853f * static_cast<float>(i) / kPieces;
+            const float a1 = 6.2831853f * static_cast<float>(i + 1) / kPieces;
+            const ax::Vec2 in0(std::cos(a0) * inner, std::sin(a0) * inner);
+            const ax::Vec2 in1(std::cos(a1) * inner, std::sin(a1) * inner);
+            const ax::Vec2 out0(std::cos(a0) * radius, std::sin(a0) * radius);
+            const ax::Vec2 out1(std::cos(a1) * radius, std::sin(a1) * radius);
+            d->drawTriangle(in0, out0, out1, kRim);
+            d->drawTriangle(in0, out1, in1, kRim);
+        }
+        return d;
+    };
+
+    if (touchLaidOut != touchControls->layoutRevision()) {
+        // The controls changed (other buttons, another size): draw them anew.
+        touchLaidOut = touchControls->layoutRevision();
+        touchDrawn = 0;
+        touchNode->removeAllChildren();
+        touchButtonNodes.clear();
+        const TouchStick& stick = touchControls->stick();
+        touchStickBase = disc(stick.radius, kFill);
+        touchStickKnob = disc(stick.radius * 0.45f, colour(1.0f, 1.0f, 1.0f, 0.38f));
+        touchNode->addChild(touchStickBase);
+        touchNode->addChild(touchStickKnob);
+        for (const TouchButton& b : touchControls->buttons()) {
+            auto* button = ax::Node::create();
+            button->setPosition(b.center.x, b.center.y);
+            button->addChild(disc(b.radius, kFill));
+            button->addChild(disc(b.radius, kPressed));
+            // The action's name, drawn at twice the size and scaled to fit inside.
+            detail::TextSpriteOptions middle;
+            middle.anchor = {0.5f, 0.5f};
+            const float size = b.radius * (b.small ? 0.52f : 0.42f);
+            const detail::TextSprite label =
+                detail::makeTextSprite(std::string(), b.label, size * 2.0f, Color{255, 255, 255, 235}, middle);
+            if (label.sprite != nullptr) {
+                const float room = b.radius * 1.7f;
+                label.sprite->setScale(std::min(0.5f, room / std::max(1.0f, label.width)));
+                button->addChild(label.sprite);
+            }
+            touchNode->addChild(button);
+            touchButtonNodes.push_back(button);
+        }
+    }
+    if (touchDrawn != touchControls->revision()) {
+        touchDrawn = touchControls->revision();
+        const TouchStick& stick = touchControls->stick();
+        touchStickBase->setPosition(stick.base.x, stick.base.y);
+        touchStickKnob->setPosition(stick.knob.x, stick.knob.y);
+        touchStickBase->setOpacity(stick.held ? 255 : 150);
+        const auto& buttons = touchControls->buttons();
+        for (std::size_t i = 0; i < buttons.size() && i < touchButtonNodes.size(); ++i) {
+            const auto& parts = touchButtonNodes[i]->getChildren();
+            parts.at(0)->setVisible(!buttons[i].down);
+            parts.at(1)->setVisible(buttons[i].down);
+            touchButtonNodes[i]->setScale(buttons[i].down ? 0.94f : 1.0f);
+        }
+    }
 }
 
 void Application::Impl::startUi(ax::Scene& scene, ax::RenderView& view)
@@ -581,6 +814,7 @@ void Application::Impl::onFrame(float deltaSeconds)
             gamepads = std::make_unique<GamepadReader>(log());
         }
         gamepads->read(*gameInput);   // before the game's update reads them
+        updateTouchControls();
     }
     if (frameCallback) {
         frameCallback(FrameInfo{report.framesRendered, static_cast<double>(deltaSeconds)});
@@ -693,6 +927,11 @@ void Application::Impl::releaseBackendObjects()
     AX_SAFE_RELEASE_NULL(worldTexture);
     world = nullptr;
     statsNode = nullptr;
+    touchNode = nullptr;
+    touchStickBase = nullptr;
+    touchStickKnob = nullptr;
+    touchButtonNodes.clear();
+    touchLaidOut = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -853,6 +1092,12 @@ void Application::requestQuit()
 void Application::setGameInput(Input* input)
 {
     m_impl->gameInput = input;
+}
+
+void Application::setTouchControls(TouchControls* controls, bool mouseActsAsTouch)
+{
+    m_impl->touchControls = controls;
+    m_impl->mouseActsAsTouch = mouseActsAsTouch;
 }
 
 void Application::setFrameCallback(std::function<void(const FrameInfo&)> callback)

@@ -128,7 +128,15 @@ struct RumbleRequest {
 };
 
 /// The device the player used last, for prompts.
-enum class InputDevice { Keyboard, Gamepad };
+enum class InputDevice { Keyboard, Gamepad, Touch };
+
+/// A finger on a touch screen.
+struct TouchPoint {
+    int id = 0;            // the same finger keeps its number until it lifts
+    Vec2 position;         // in world coordinates
+    bool began = false;    // touched down since the last frame
+    bool ended = false;    // lifted since the last frame (listed for that one frame)
+};
 
 class Input {
 public:
@@ -144,7 +152,17 @@ public:
     bool wasPressed(MouseButton button) const noexcept { return state(button).pressed; }
     bool wasReleased(MouseButton button) const noexcept { return state(button).released; }
     /// Where the mouse pointer is, in world coordinates (as last reported).
+    /// On a touch screen: where the first finger is, or last was.
     Vec2 pointer() const noexcept { return m_pointer; }
+
+    // --- Touch screens -----------------------------------------------------------------------
+    /// The fingers on the screen that are not on Rolo's on-screen controls
+    /// (TouchControls.hpp), oldest first. The first of them also moves the
+    /// pointer and counts as the left mouse button, so a game made for
+    /// clicking works with taps.
+    const std::vector<TouchPoint>& touches() const noexcept { return m_touches; }
+    /// The on-screen stick, at most 1 long, y up ((0, 0) when not held).
+    Vec2 touchStick() const noexcept { return m_touchStick; }
 
     /// The direction the player is steering in: the arrow keys or W A S D
     /// (each axis -1, 0 or 1), or else a gamepad's d-pad or left stick (the
@@ -170,7 +188,8 @@ public:
     /// For menus: the d-pad or the left stick was just pushed this way
     /// (`direction` is Up, Down, Left or Right).
     bool wasNudged(GamepadButton direction) const noexcept;
-    /// What the player used last: the keyboard (or mouse), or a gamepad.
+    /// What the player used last: the keyboard (or mouse), a gamepad, or a
+    /// touch screen.
     InputDevice lastDevice() const noexcept { return m_lastDevice; }
     /// The style of the gamepad used last (or the first one plugged in).
     GamepadStyle gamepadStyle() const noexcept;
@@ -237,6 +256,19 @@ public:
     void press(MouseButton button) noexcept;
     void release(MouseButton button) noexcept;
     void setPointer(Vec2 worldPosition) noexcept { m_pointer = worldPosition; }
+    /// Fingers on a touch screen (those not on the on-screen controls).
+    void touchBegan(int id, Vec2 worldPosition);
+    void touchMoved(int id, Vec2 worldPosition);
+    void touchEnded(int id);
+    /// The on-screen controls: the stick's direction (at most 1 long), and
+    /// whether the button of an action is held. An action is down while a
+    /// binding of it or its on-screen button is. The stick also holds the
+    /// four move actions (past half way), so menus that ask for "move up"
+    /// work with it.
+    void setTouchStick(Vec2 direction);
+    void setTouchAction(std::string_view name, bool down);
+    /// The player touched the screen (on a control or not).
+    void noteTouchUsed() noexcept { m_lastDevice = InputDevice::Touch; }
     /// A gamepad's state this frame (`pad` 0 to 3). Buttons that changed
     /// since the last report count as pressed or released this frame.
     void setGamepad(int pad, const GamepadState& state) noexcept;
@@ -282,7 +314,10 @@ private:
         std::vector<Binding> defaults;
         std::optional<std::vector<Binding>> chosen;   // the player's, if changed
         int order = 0;
+        State touch;                                  // its on-screen button (or the stick, for move actions)
     };
+    std::vector<TouchPoint> m_touches;
+    Vec2 m_touchStick;
     const Action* findAction(std::string_view name) const;
     bool bindingIs(const Binding& b, bool (Input::*keyQ)(Key) const noexcept,
                    bool (Input::*mouseQ)(MouseButton) const noexcept,

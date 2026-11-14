@@ -245,6 +245,9 @@ void InspectorPanel::buildScene(ui::Column& content)
     addOption("F5 / F9 Saves", "F5 saves to the \"quick\" slot and F9 loads it. Turn off if your game saves in its "
                                "own way.",
               SetGameOption::Option::QuickSaveKeys);
+    addOption("Touch Controls", "On phones and tablets, show a stick and a button for each of the game's actions "
+                                "(jump, interact...). Turn off if your game handles touches itself.",
+              SetGameOption::Option::TouchControls);
 
     // Physics: only Rigid Bodies feel gravity, so it matters only once the scene has one.
     auto& physics = content.emplace<ui::Section>("Physics");

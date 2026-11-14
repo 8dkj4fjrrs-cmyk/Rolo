@@ -61,3 +61,26 @@ TEST_CASE("Pad buttons are labelled as they are printed on each kind of pad", "[
     CHECK(padButtonLabel(GamepadButton::Start, GamepadStyle::Xbox) == "Menu");
     CHECK(padButtonLabel(GamepadButton::Up, GamepadStyle::Generic) == "Up");
 }
+
+TEST_CASE("On a touch screen, {button:action} shows the on-screen button", "[gameplay][icons][touch]")
+{
+    Input input;
+    input.defineAction("jump", {Binding::ofKey(Key::Space), Binding::ofPad(GamepadButton::A)});
+    input.noteTouchUsed();
+    // An action is its on-screen button; the move actions are the stick.
+    CHECK(resolveButtons("Press {button:jump}!", input) == "Press {icon:touch:Jump}!");
+    CHECK(resolveButtons("{button:move left}", input) == "{icon:touch:stick}");
+    // A key named outright stays that key.
+    CHECK(resolveButtons("{button:space}", input) == "{icon:key:Space}");
+    // Back on the keyboard, the key again.
+    input.press(Key::A);
+    CHECK(resolveButtons("Press {button:jump}!", input) == "Press {icon:key:Space}!");
+
+    // The token is split out for drawing like the others.
+    const auto pieces = splitIcons("Tap {icon:touch:Jump} now");
+    REQUIRE(pieces.size() == 3);
+    REQUIRE(pieces[1].icon);
+    CHECK(pieces[1].icon->touch == "Jump");
+    CHECK(iconToken(*pieces[1].icon) == "{icon:touch:Jump}");
+    CHECK(splitIcons("{icon:touch:}").size() == 1);   // nothing written on it: left as words
+}

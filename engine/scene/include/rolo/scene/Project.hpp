@@ -31,6 +31,12 @@ struct ProjectSettings {
     /// F5 saves to the "quick" slot and F9 loads it. Off: the game handles
     /// saving itself, and F5 and F9 are ordinary keys.
     bool quickSaveKeys = true;
+    /// On touch screens, Rolo shows a stick and a button for each of the
+    /// game's actions. Off: the game handles touches itself (input.touches).
+    bool touchControls = true;
+    /// The actions that get an on-screen button, in order (the first is the
+    /// large one under the thumb). Empty: Rolo chooses (every action).
+    std::vector<std::string> touchButtons;
 };
 
 namespace ProjectFormat {

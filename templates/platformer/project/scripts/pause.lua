@@ -23,8 +23,12 @@ local function show(self)
         lines[#lines + 1] = ((i == self.choice) and "> " or "   ") .. item
     end
     lines[#lines + 1] = ""
-    lines[#lines + 1] = "{button:move up} {button:move down} choose   {button:enter} / {button:pad a} pick   "
-                        .. "{button:pause} resume"
+    if input.lastDevice() == "touch" then
+        lines[#lines + 1] = "{button:move up} choose   {button:jump} pick   {button:pause} resume"
+    else
+        lines[#lines + 1] = "{button:move up} {button:move down} choose   {button:enter} / {button:pad a} pick   "
+                            .. "{button:pause} resume"
+    end
     self.words:setText(table.concat(lines, "\n"))
 end
 
@@ -49,7 +53,9 @@ function update(self, dt)
     end
     if input.wasPressed("move down") then self.choice = self.choice % #ITEMS + 1 end
     if input.wasPressed("move up") then self.choice = (self.choice - 2) % #ITEMS + 1 end
-    if input.wasPressed("enter") or input.wasPressed("pad a") then
+    -- On a touch screen, the Jump button picks (there is no Enter key).
+    local touchPick = input.lastDevice() == "touch" and input.wasPressed("jump")
+    if input.wasPressed("enter") or input.wasPressed("pad a") or touchPick then
         local item = ITEMS[self.choice]
         if item == "Resume" then
             game.set("menu", "")

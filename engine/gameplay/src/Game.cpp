@@ -403,7 +403,9 @@ void Game::runTriggers(bool talkedThisFrame)
                 // a Text showing it draws the button's picture instead.
                 if (!trigger.prompt.empty()) {
                     std::string button = "?";
-                    if (const auto b = m_input.bindingFor(Input::kInteract, m_input.lastDevice())) {
+                    if (m_input.lastDevice() == InputDevice::Touch) {
+                        button = "Interact";   // the on-screen button
+                    } else if (const auto b = m_input.bindingFor(Input::kInteract, m_input.lastDevice())) {
                         button = b->isGamepad() ? std::string(padButtonLabel(b->pad, m_input.gamepadStyle()))
                                                 : bindingName(*b);
                     }

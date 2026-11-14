@@ -14,6 +14,7 @@ add_library(rolo_gameplay STATIC
     src/Game.cpp
     src/GameModule.cpp
     src/Input.cpp
+    src/TouchControls.cpp
     src/PhysicsSync.cpp
     src/ScriptApi.cpp
     src/ScriptHost.cpp)

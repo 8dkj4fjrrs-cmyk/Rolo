@@ -216,6 +216,41 @@ TEST_CASE("Scripts ask for rumble and which device is in use", "[gameplay][gamep
     CHECK(p.problems.empty());
 }
 
+TEST_CASE("Scripts see fingers and on-screen buttons", "[gameplay][touch][script]")
+{
+    ControlsProject p;
+    const AssetId script = p.write(R"(
+        function start(self)
+            input.action("jump", {"space"})
+        end
+        function update(self, dt)
+            for _, finger in ipairs(input.touches()) do
+                if finger.began then print("finger " .. finger.id .. " at " .. finger.x .. "," .. finger.y) end
+                if finger.ended then print("finger " .. finger.id .. " lifted") end
+            end
+            if input.wasPressed("jump") then print("jump on " .. input.lastDevice()) end
+            local x, y = input.pointer()
+            if input.wasPressed("mouse left") then print("tap at " .. x .. "," .. y) end
+        end
+    )");
+    auto game = p.makeGame();
+    game->start(sceneWith(script));
+    frames(*game, 1);
+    // A finger on the game: listed, and a click for games made with the mouse.
+    game->input().touchBegan(3, {40.0f, 50.0f});
+    frames(*game, 1);
+    CHECK(p.printedLine("finger 3 at 40,50"));
+    CHECK(p.printedLine("tap at 40,50"));
+    game->input().touchEnded(3);
+    frames(*game, 1);
+    CHECK(p.printedLine("finger 3 lifted"));
+    // The on-screen Jump button is the jump action.
+    game->input().setTouchAction("jump", true);
+    frames(*game, 1);
+    CHECK(p.printedLine("jump on touch"));
+    CHECK(p.problems.empty());
+}
+
 TEST_CASE("Mistakes with actions say what was wrong", "[gameplay][actions][script]")
 {
     for (const char* code : {"input.action('jump', {'hyperspace'})", "input.rebind('nope')", "input.bindings('nope')",

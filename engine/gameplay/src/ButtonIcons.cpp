@@ -1,5 +1,7 @@
 #include "rolo/gameplay/ButtonIcons.hpp"
 
+#include <cctype>
+
 namespace rolo {
 
 namespace {
@@ -49,6 +51,13 @@ std::optional<ButtonIcon> parseToken(std::string_view inside)
         icon.binding = *b;
         return icon;
     }
+    if (kind == "touch") {
+        if (rest.empty()) {
+            return std::nullopt;
+        }
+        icon.touch = std::string(rest);
+        return icon;
+    }
     if (kind == "key" || kind == "mouse") {
         const auto b = parseBinding((kind == "mouse" ? "mouse " : "") + std::string(rest));
         if (!b) {
@@ -64,6 +73,9 @@ std::optional<ButtonIcon> parseToken(std::string_view inside)
 
 std::string iconToken(const ButtonIcon& icon)
 {
+    if (!icon.touch.empty()) {
+        return "{icon:touch:" + icon.touch + "}";
+    }
     const Binding& b = icon.binding;
     switch (b.kind) {
     case Binding::Kind::Key: return "{icon:key:" + std::string(keyName(b.key)) + "}";
@@ -164,6 +176,21 @@ std::string resolveButtons(std::string_view text, const Input& input)
             const std::size_t close = text.find('}', i);
             if (close != std::string_view::npos) {
                 const std::string_view name = text.substr(i + 8, close - i - 8);
+                if (input.lastDevice() == InputDevice::Touch && input.hasAction(name)) {
+                    // On a touch screen an action is its on-screen button (the
+                    // stick, for the four move actions), not a key.
+                    const bool move = name == Input::kMoveLeft || name == Input::kMoveRight || name == Input::kMoveUp
+                                      || name == Input::kMoveDown;
+                    std::string label = move ? std::string("stick") : std::string(name);
+                    if (!move) {
+                        label[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(label[0])));
+                    }
+                    ButtonIcon icon;
+                    icon.touch = std::move(label);
+                    out += iconToken(icon);
+                    i = close + 1;
+                    continue;
+                }
                 std::optional<Binding> binding = input.hasAction(name)
                                                      ? input.bindingFor(name, input.lastDevice())
                                                      : parseBinding(name);

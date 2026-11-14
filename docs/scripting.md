@@ -194,7 +194,8 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `input.wasPressed("space")` | it went down this frame |
 | `input.wasReleased("space")` | it went up this frame |
 | `input.direction()` | where the player steers, `x, y` (up is +1): the arrow keys or W A S D (each -1, 0 or 1), or else a gamepad's d-pad or left stick (values in between too). Never longer than 1 |
-| `input.pointer()` | the mouse position in the world: `x, y` |
+| `input.pointer()` | the mouse position in the world: `x, y` (on a touch screen: the first finger) |
+| `input.touches()` | the fingers on a touch screen that are not on Rolo's [on-screen controls](controls.md#touch-screens): a list of `{id, x, y, began, ended}` |
 | `input.isDown("pad a")` (and `wasPressed`, `wasReleased`) | a gamepad button, on any gamepad; `input.isDown("pad a", 2)` asks gamepad 2 only (1 to 4) |
 | `input.stick("left")`, `input.stick("right")` | a gamepad stick, `x, y`, each -1 to 1 (up is +1), with a small dead zone; `0, 0` without a gamepad |
 | `input.trigger("left")`, `input.trigger("right")` | a gamepad trigger, 0 (released) to 1 |
@@ -204,7 +205,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `input.bindings("jump")` | the action's keys and buttons now, as names: `{"Space", "Pad A"}` |
 | `input.resetControls()`, `input.resetControls("jump")` | back to the defaults |
 | `input.rumble(strength, seconds)`, `input.rumble(strength, seconds, pad)` | shakes the gamepad (strength 0 to 1; a table `{low = , high = }` sets each motor) |
-| `input.lastDevice()` | `"keyboard"` or `"gamepad"`: what the player used last |
+| `input.lastDevice()` | `"keyboard"`, `"gamepad"` or `"touch"`: what the player used last |
 
 Actions, remapping, button pictures (`{button:jump}` in texts) and rumble
 are explained in the [controls guide](controls.md).

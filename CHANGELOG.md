@@ -5,6 +5,24 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Touch controls** ([ADR 0026](docs/adr/0026-touch-controls.md),
+  [guide](docs/controls.md#touch-screens)): on phones and tablets Rolo
+  shows a stick and a round button for each of the game's actions, by
+  itself. Pressing a button is pressing the action, so games that ask for
+  actions (and Rolo's own movement and dialogue) play on a phone with no
+  more work. Web games are now playable on phones.
+  - `input.touches()` gives scripts the other fingers; the first finger
+    is also the pointer and the left mouse button (taps work as clicks).
+  - `input.lastDevice()` can be `"touch"`; `{button:jump}` then draws
+    the on-screen button.
+  - Project options: **Touch Controls** (Inspector, or `"touchControls":
+    false`) and `"touchButtons": [...]` to choose the buttons.
+  - `rolo_player --touch` makes the left mouse button a finger, to try it
+    on a computer.
+  - The web page keeps fingers from scrolling or zooming it, and now
+    fits phone screens: before, the game's picture overflowed the page
+    there.
+  - The Platformer Starter's pause menu takes the Jump button on touch.
 - **No FreeType: Rolo draws game text itself**
   ([ADR 0025](docs/adr/0025-no-freetype.md)), with the font code the
   editor already used (stb_truetype, MIT or public domain). Texts,

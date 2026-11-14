@@ -8,6 +8,7 @@
 #include "rolo/core/Engine.hpp"
 #include "rolo/assets/AssetDatabase.hpp"
 #include "rolo/gameplay/Input.hpp"
+#include "rolo/gameplay/TouchControls.hpp"
 #include "rolo/scene/Scene.hpp"
 #include "rolo/ui/Context.hpp"
 
@@ -232,6 +233,14 @@ public:
     /// layer); the editor feeds its play mode from its own UI instead.
     /// Call before run(); `input` must outlive the run.
     void setGameInput(Input* input);
+
+    /// On-screen controls for touch screens (rolo/gameplay/TouchControls.hpp):
+    /// the window reports fingers to them, draws them while the player is
+    /// using touch, and passes the other fingers on to the game's input.
+    /// `mouseActsAsTouch` makes the left mouse button a finger, to try
+    /// touch controls on a computer. Needs setGameInput. Call before run();
+    /// `controls` must outlive the run.
+    void setTouchControls(TouchControls* controls, bool mouseActsAsTouch = false);
 
     /// Statistics from the last completed run().
     const RunReport& lastRunReport() const noexcept;

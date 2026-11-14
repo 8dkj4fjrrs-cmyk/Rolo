@@ -159,6 +159,10 @@ jobs:
             --keys ArrowRight,Space,Escape,ArrowDown,Enter,Escape
           node tools/web/check_web_game.js "web-export/Top-Down Starter Web" --screenshot topdown.png \
             --keys ArrowRight,F5 --expect "Saved to slot 'quick'"
+          # As a phone, with real touch events on the on-screen controls (ADR 0026):
+          # run and jump, Pause, stick down twice (to Quit), pick with Jump.
+          node tools/web/check_web_game.js "web-export/Platformer Starter Web" --phone --screenshot phone.png \
+            --touches "200,200>330,200;1170,110;640,641;200,200>200,60;200,200>200,60;1170,110" --expect-ended
           # JPEG images, which Rolo decodes itself (ADR 0023).
           node tools/web/check_web_game.js "web-export/JPEG Test Web" --screenshot jpeg.png
           # Every kind of PNG file, which Rolo decodes itself too (ADR 0024).

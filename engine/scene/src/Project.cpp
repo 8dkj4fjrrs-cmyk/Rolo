@@ -91,7 +91,8 @@ std::optional<ProjectSettings> Project::parseSettings(std::string_view text, std
         }
     }
     for (const auto& [key, flag] : {std::pair{"escapeQuits", &settings.escapeQuits},
-                                     std::pair{"quickSaveKeys", &settings.quickSaveKeys}}) {
+                                     std::pair{"quickSaveKeys", &settings.quickSaveKeys},
+                                     std::pair{"touchControls", &settings.touchControls}}) {
         if (j.contains(key)) {
             if (!j[key].is_boolean()) {
                 setError(error, std::string("The project's \"") + key + "\" must be true or false.");
@@ -99,6 +100,16 @@ std::optional<ProjectSettings> Project::parseSettings(std::string_view text, std
             }
             *flag = j[key].get<bool>();
         }
+    }
+    if (j.contains("touchButtons")) {
+        const Json& list = j["touchButtons"];
+        const bool texts = list.is_array()
+                           && std::all_of(list.begin(), list.end(), [](const Json& name) { return name.is_string(); });
+        if (!texts) {
+            setError(error, "The project's \"touchButtons\" must be a list of action names, like [\"jump\", \"pause\"].");
+            return std::nullopt;
+        }
+        settings.touchButtons = list.get<std::vector<std::string>>();
     }
     return settings;
 }
@@ -116,6 +127,12 @@ std::string Project::serializeSettings(const ProjectSettings& settings)
     }
     if (!settings.quickSaveKeys) {
         j["quickSaveKeys"] = false;
+    }
+    if (!settings.touchControls) {
+        j["touchControls"] = false;
+    }
+    if (!settings.touchButtons.empty()) {
+        j["touchButtons"] = settings.touchButtons;
     }
     return j.dump(2) + "\n";
 }

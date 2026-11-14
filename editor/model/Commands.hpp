@@ -338,10 +338,10 @@ private:
 };
 
 /// Turns one of the project's game options on or off (project.rolo's
-/// escapeQuits or quickSaveKeys). Saved straight away.
+/// escapeQuits, quickSaveKeys or touchControls). Saved straight away.
 class SetGameOption final : public Command {
 public:
-    enum class Option { EscapeQuits, QuickSaveKeys };
+    enum class Option { EscapeQuits, QuickSaveKeys, TouchControls };
     SetGameOption(Option option, bool on)
         : m_option(option)
         , m_after(on)

@@ -81,6 +81,8 @@ ParseResult parseCommandLine(std::span<const std::string_view> args)
             opt.sound = false;
         } else if (arg == "--frame-times") {
             opt.frameTimes = true;
+        } else if (arg == "--touch") {
+            opt.touch = true;
         } else if (arg == "--fixed-step") {
             opt.fixedStep = true;
         } else if (arg == "--save-dir") {
@@ -108,6 +110,39 @@ ParseResult parseCommandLine(std::span<const std::string_view> args)
                 return result;
             }
             opt.tappedKeys.push_back({*key, *from, *to});
+        } else if (arg == "--finger") {
+            if (!nextValue(value)) {
+                return result;
+            }
+            // X,Y@FROM-TO: a finger on the screen from frame FROM until TO.
+            // X,Y>X2,Y2@FROM-TO: it slides to the second place.
+            const std::size_t at = value.rfind('@');
+            const std::string_view places = value.substr(0, std::min(at, value.size()));
+            const std::string_view frames = at != std::string_view::npos ? value.substr(at + 1) : std::string_view();
+            const auto place = [](std::string_view text) -> std::optional<std::pair<float, float>> {
+                const std::size_t comma = text.find(',');
+                if (comma == std::string_view::npos) {
+                    return std::nullopt;
+                }
+                const auto x = parseNumber<int>(text.substr(0, comma), 0, 100000);
+                const auto y = parseNumber<int>(text.substr(comma + 1), 0, 100000);
+                return x && y ? std::optional(std::pair(static_cast<float>(*x), static_cast<float>(*y))) : std::nullopt;
+            };
+            const std::size_t arrow = places.find('>');
+            const auto first = place(places.substr(0, arrow));
+            const auto second = arrow == std::string_view::npos ? first : place(places.substr(arrow + 1));
+            const std::size_t dash = frames.find('-');
+            constexpr auto kMax = std::numeric_limits<std::uint64_t>::max();
+            const auto from = parseNumber<std::uint64_t>(frames.substr(0, dash), 0, kMax - 1);
+            const auto to = dash == std::string_view::npos
+                                ? (from ? std::optional<std::uint64_t>(*from + 1) : std::nullopt)
+                                : parseNumber<std::uint64_t>(frames.substr(dash + 1), 0, kMax);
+            if (!first || !second || !from || !to || *to <= *from) {
+                result.error = "--finger needs X,Y@FRAME, X,Y@FROM-TO or X,Y>X2,Y2@FROM-TO, e.g. 1150,110@30-40, got '"
+                               + std::string(value) + "'.";
+                return result;
+            }
+            opt.fingers.push_back({first->first, first->second, second->first, second->second, *from, *to});
         } else if (arg == "--hold") {
             if (!nextValue(value)) {
                 return result;
@@ -190,6 +225,8 @@ std::string helpText()
            "  --stats            Show it (exported games hide it by default)\n"
            "  --mute             Play without sound\n"
            "  --frame-times      When the game ends, report how long frames took\n"
+           "  --finger X,Y@FROM-TO   A finger on the screen during those frames (X,Y>X2,Y2 slides it)\n"
+           "  --touch            The left mouse button is a finger: try the on-screen touch controls\n"
            "  --frames N         Quit automatically after N frames (used by tests)\n"
            "  --screenshot FILE  Save the last frame as a PNG (needs --frames)\n"
            "  --hold KEY         Hold a key down for the whole run, e.g. Right (tests)\n"

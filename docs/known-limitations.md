@@ -47,8 +47,7 @@ Please report what you find.
   pads). Rumble ([controls guide](controls.md)) works on Windows with
   XInput pads (Xbox and alike), on macOS 11+ with pads the system can
   rumble (one strength, not two motors), and on Linux with force-feedback
-  drivers. It was written without a real gamepad to try it on. No touch
-  input. The mouse position is available to C++ behaviours and scripts.
+  drivers. It was written without a real gamepad to try it on. The mouse position is available to C++ behaviours and scripts.
 - Text with button pictures is not wrapped.
 - The window is 1280 × 720 points. There is no fullscreen setting, and no
   built-in title screen or options menu (games make their own; the
@@ -69,8 +68,12 @@ Please report what you find.
 
 ## Editor
 
-- **Web games** ([exporting](exporting.md#for-the-web)): no touch controls
-  yet (phones show the game but cannot play it), no rumble, the picture is
+- **Touch** ([controls](controls.md#touch-screens)): the on-screen stick and
+  buttons have one look and cannot be remapped; no gestures (scripts get the
+  raw fingers); tried only in a desktop browser acting as a phone, not yet
+  on a real phone.
+- **Web games** ([exporting](exporting.md#for-the-web)): no rumble, on a
+  screen of another shape than the game there are bars beside the picture, the picture is
   1280 × 720 scaled by the page (not sharper on high-density screens), and
   the shipped web runtime has no C++ game modules. Tested in headless
   Chromium only (by CI and by hand); Firefox and Safari are expected to

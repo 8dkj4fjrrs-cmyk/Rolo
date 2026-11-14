@@ -136,9 +136,60 @@ Which pads rumble:
 
 Pads that cannot rumble are simply not shaken.
 
+## Touch screens
+
+On a phone or tablet (web games today; Android and iOS later) Rolo shows
+**on-screen controls** by itself ([ADR 0026](adr/0026-touch-controls.md)):
+
+- a **stick** at the bottom left, for moving. Its base comes to wherever
+  the thumb lands in that part of the screen;
+- a **round button for each of your actions**, named after it: the first
+  action you define is the large button in the bottom-right corner, the
+  others sit around it. Actions called `pause` or `menu` become small
+  buttons at the top.
+
+Pressing a button is pressing the action: `input.isDown("jump")`, Rolo's
+movement, talking and dialogue work as they are. So define actions (above)
+and ask for *them*, not for keys, and your game plays on a phone with no
+more work. `{button:jump}` in a text draws the on-screen button there.
+
+To choose the buttons and their order yourself, list the actions in
+`project.rolo`:
+
+```json
+"touchButtons": ["jump", "dash", "pause"]
+```
+
+To handle touches yourself, turn **Touch Controls** off in the Inspector
+(with nothing selected, under *Game (whole project)*; in the file:
+`"touchControls": false`) and read the fingers:
+
+```lua
+for _, finger in ipairs(input.touches()) do
+    if finger.began then spawnSparkAt(finger.x, finger.y) end
+end
+```
+
+`input.touches()` lists the fingers that are not on Rolo's controls, in
+world coordinates, each with `id`, `x`, `y`, `began` and `ended`. The
+first finger also moves `input.pointer()` and counts as the left mouse
+button, so a game made for clicking works with taps.
+
+Menus: the stick counts as `move up`/`move down`/... when pushed past
+half way. There is no Enter key on a phone, so let an action's button
+pick, as the Platformer Starter's pause menu does:
+
+```lua
+local pick = input.wasPressed("enter") or input.wasPressed("pad a")
+             or (input.lastDevice() == "touch" and input.wasPressed("jump"))
+```
+
+Try it on your computer: `rolo_player --project MyGame --touch` makes the
+left mouse button a finger.
+
 ## Device in use
 
-`input.lastDevice()` is `"keyboard"` or `"gamepad"`: what the player touched
-last (for your own prompts or menus).
+`input.lastDevice()` is `"keyboard"`, `"gamepad"` or `"touch"`: what the
+player used last (for your own prompts or menus).
 
 See also: [scripting reference](scripting.md#input), [gameplay in C++](gameplay.md).

@@ -73,6 +73,10 @@ and AI assistants.
   off; ADR 0023, ADR 0024): do not turn them back on, and never hand Axmol an image file to load.
   `engine/runtime/axmol_compat/include/openssl` is Rolo's stand-in (no cryptography in it); never
   copy OpenSSL code into it.
+- Touch (ADR 0026): on-screen controls are made from the game's actions (`rolo/gameplay/TouchControls.hpp`,
+  logic only; `Application` reports fingers and draws them). Gameplay code asks for actions, never for
+  keys, so that it works on touch screens. On the web, touches are read from the canvas directly, not
+  through Axmol.
 - Text: Rolo draws game text itself (`rolo/ui/TextImage.hpp`, stb_truetype; sprites made in
   `engine/runtime/src/TextSprites.hpp`). Axmol is built without FreeType (`AX_WITH_FREETYPE=OFF`,
   ADR 0025): never use `ax::Label`, which cannot make fonts in Rolo.

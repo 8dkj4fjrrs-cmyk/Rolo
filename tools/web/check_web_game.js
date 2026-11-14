@@ -17,18 +17,32 @@ const path = require('path');
 
 const args = process.argv.slice(2);
 if (args.length === 0 || args[0].startsWith('--')) {
-  console.error('Usage: check_web_game.js FOLDER [--screenshot FILE] [--expect TEXT]... [--keys K1,K2,...]');
+  console.error('Usage: check_web_game.js FOLDER [--screenshot FILE] [--expect TEXT]... [--keys K1,K2,...]\n'
+                + '                         [--phone] [--touches "X,Y;X,Y>X2,Y2;..."]\n'
+                + '  --phone    a phone held sideways: a small touch screen, no mouse\n'
+                + '  --expect-ended  the keys or touches quit the game: the page must say so\n'
+                + '  --touches  fingers, one after another, in the game\'s own coordinates\n'
+                + '             ((0,0) bottom-left); X,Y>X2,Y2 slides');
   process.exit(2);
 }
 const folder = path.resolve(args[0]);
 let screenshot = '';
 let keys = [];
+let phone = false;
+let touches = [];
+let expectEnded = false;
 const started = ['Showing scene'];   // the log line that says the game is being drawn
 const expected = [];
 for (let i = 1; i < args.length; i++) {
   if (args[i] === '--screenshot') screenshot = args[++i];
   else if (args[i] === '--expect') expected.push(args[++i]);
   else if (args[i] === '--keys') keys = args[++i].split(',').filter(Boolean);
+  else if (args[i] === '--phone') phone = true;
+  else if (args[i] === '--expect-ended') expectEnded = true;
+  else if (args[i] === '--touches') {
+    touches = args[++i].split(';').filter(Boolean).map(text =>
+      text.split('>').map(place => place.split(',').map(Number)));
+  }
   else { console.error('Unknown option ' + args[i]); process.exit(2); }
 }
 
@@ -61,7 +75,9 @@ function fail(message, log) {
   const browser = await chromium.launch({
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
   });
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const page = await browser.newPage(phone
+    ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true }
+    : { viewport: { width: 1280, height: 720 } });
   const log = [];
   const errors = [];
   page.on('console', message => log.push('[' + message.type() + '] ' + message.text()));
@@ -87,6 +103,30 @@ function fail(message, log) {
     await page.keyboard.press(key, { delay: 80 });
     await page.waitForTimeout(250);
   }
+  if (touches.length > 0) {
+    // Real touch events, through the browser's own input pipeline. A place
+    // in the game's coordinates is found on the page from where the canvas is.
+    const session = await page.context().newCDPSession(page);
+    // (The canvas shows the game's whole picture: 1280 x 720 unless the page says otherwise.)
+    const gameSize = await page.evaluate(() => window.roloGameSize || [1280, 720]);
+    const onPage = async ([x, y]) => {
+      const box = await page.locator('#canvas').boundingBox();
+      return { x: box.x + x / gameSize[0] * box.width, y: box.y + (1 - y / gameSize[1]) * box.height };
+    };
+    for (const places of touches) {
+      const from = await onPage(places[0]);
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from.x, y: from.y, id: 1 }] });
+      await page.waitForTimeout(60);
+      let last = from;
+      if (places.length > 1) {
+        last = await onPage(places[1]);
+        await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: last.x, y: last.y, id: 1 }] });
+      }
+      await page.waitForTimeout(120);
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await page.waitForTimeout(300);
+    }
+  }
   await page.waitForTimeout(500);
   if (errors.length > 0) fail('the game crashed: ' + errors.join('; '), log);
   for (const text of expected) {
@@ -94,6 +134,18 @@ function fail(message, log) {
   }
   if (log.some(line => line.includes('[ERROR]'))) fail('the game logged an error', log);
   if (log.some(line => line.includes('Could not load the image'))) fail('an image could not be loaded', log);
+  if (expectEnded) {
+    // The game was quit (game.quit()): the page shows its "Thanks for playing" panel.
+    const until = Date.now() + 5000;
+    while (!(await page.locator('#ended').isVisible()) && Date.now() < until) await page.waitForTimeout(100);
+    if (screenshot) await page.screenshot({ path: screenshot });
+    if (!(await page.locator('#ended').isVisible())) fail('the game did not end', log);
+    console.log('OK: ' + path.basename(folder) + ' was played and quit in a browser'
+                + (phone ? ' acting as a phone' : '') + ' (' + log.length + ' log lines).');
+    await browser.close();
+    server.close();
+    return;
+  }
 
   // The picture must not be one flat colour: something was drawn. (A WebGL
   // canvas cannot be read back between frames, so a screenshot of it is

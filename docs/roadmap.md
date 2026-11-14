@@ -102,8 +102,11 @@ In order:
    code where allowed.
 4. ~~**Web export** (WebAssembly).~~ **Done** ([ADR 0022](adr/0022-web-export.md)):
    Export Game… › Web browsers; keyboard, mouse, gamepads, saves, sound.
-5. **Touch controls** (taps, an on-screen stick and buttons, as actions)
-   and **screen sizes** (scaling for any shape of screen).
+5. ~~**Touch controls**~~ **Done** ([ADR 0026](adr/0026-touch-controls.md)):
+   an on-screen stick and a button for each action, made by Rolo; taps
+   and `input.touches()`. **Still to do: screen sizes** (a game size of
+   your choice, upright games, using the whole of a screen of another
+   shape).
 6. **Android**, then **iOS**.
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).
