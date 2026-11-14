@@ -81,6 +81,11 @@ class Check:
         if crash.strip():
             print("--- Android's crash report ---")
             print("\n".join(crash.splitlines()[-80:]))
+        mentions = [line for line in self.whole_log().splitlines()
+                    if self.package in line or "AxmolActivity" in line or "ActivityTaskManager" in line]
+        if mentions:
+            print("--- what Android's log says about the app (the last lines) ---")
+            print("\n".join(mentions[-40:]))
         self.save_log()
         sys.exit(1)
 
@@ -101,6 +106,27 @@ class Check:
                 self.fail("the app crashed while waiting for " + what + ": " + crash)
             time.sleep(1.0)
         self.fail("after " + str(seconds) + " seconds the log still had not said \"" + text + "\" (" + what + ")")
+
+    def start(self):
+        """Starts the app, and makes sure it did start: an emulator that has
+        only just booted sometimes loses the request, or covers the app with
+        a "not responding" note about one of its own programs."""
+        for attempt in range(1, 5):
+            print(adb("shell", "am", "start", "-W", "-n", self.package + "/" + ACTIVITY, check=False).strip())
+            until = time.time() + 45
+            while time.time() < until:
+                if self.log():
+                    return
+                time.sleep(1.0)
+            print("The app has not said anything yet (attempt " + str(attempt) + "). What Android shows:")
+            print(adb("shell", "dumpsys", "activity", "activities", check=False, timeout=60)
+                  .partition("ResumedActivity")[1:3][-1][:300].strip())
+            # Tap away a "... isn't responding" note (its Wait button), if there is one.
+            adb("shell", "input", "keyevent", "KEYCODE_DPAD_DOWN", check=False)
+            adb("shell", "input", "keyevent", "KEYCODE_ENTER", check=False)
+            adb("shell", "am", "force-stop", self.package, check=False)
+            time.sleep(5.0)
+        self.fail("the app did not start (it never wrote to the log)")
 
     # --- the screen ----------------------------------------------------------------------------
     def screen(self):
@@ -214,7 +240,7 @@ def main():
     adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed", check=False)
     adb("shell", "am", "force-stop", args.package, check=False)
     adb("logcat", "-c", check=False)
-    adb("shell", "am", "start", "-n", args.package + "/" + ACTIVITY)
+    check.start()
 
     # The first start unpacks the game and compiles shaders; an emulator without
     # a graphics card is slow at it.
