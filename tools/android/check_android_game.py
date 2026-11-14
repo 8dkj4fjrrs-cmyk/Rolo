@@ -29,6 +29,7 @@ The exit code is 0 if everything was as expected.
 """
 
 import argparse
+import base64
 import re
 import struct
 import subprocess
@@ -47,9 +48,10 @@ def adb(*args, check=True, binary=False, timeout=120):
 
 
 class Check:
-    def __init__(self, package, log_file):
+    def __init__(self, package, log_file, pictures_in_output=False):
         self.package = package
         self.log_file = log_file
+        self.pictures_in_output = pictures_in_output
 
     # --- the log -------------------------------------------------------------------------------
     def log(self):
@@ -131,6 +133,12 @@ class Check:
         with open(file, "wb") as out:
             out.write(png)
         print("Screenshot saved: " + file + " (" + str(len(png)) + " bytes)")
+        if self.pictures_in_output:
+            # For reading a screenshot out of a build machine's log when its
+            # files cannot be fetched: the PNG as text (base64).
+            print("-----BEGIN PNG " + file + "-----")
+            print(base64.b64encode(png).decode("ascii"))
+            print("-----END PNG " + file + "-----")
 
     def colours_on_screen(self):
         """How many different colours a grid of points on the screen has."""
@@ -189,13 +197,19 @@ def main():
     parser.add_argument("--reject", action="append", default=[], help="text the game's log must not contain")
     parser.add_argument("--expect-ended", action="store_true", help="playing must end the game and the app")
     parser.add_argument("--log", help="save Android's whole log here")
+    parser.add_argument("--pictures-in-output", action="store_true",
+                        help="also print each screenshot as text (base64), to read it out of a build log")
     args = parser.parse_args()
 
-    check = Check(args.package, args.log)
+    check = Check(args.package, args.log, args.pictures_in_output)
     adb("wait-for-device")
     if not args.keep_installed:
         adb("uninstall", args.package, check=False)   # a clean start: nothing unpacked yet
         print(adb("install", args.apk, timeout=300).strip())
+    # The first time an app fills the whole screen, Android covers it with a
+    # note about how to leave full screen, which swallows touches until it
+    # is tapped away. A test has nobody to do that: say it was seen.
+    adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed", check=False)
     adb("shell", "am", "force-stop", args.package, check=False)
     adb("logcat", "-c", check=False)
     adb("shell", "am", "start", "-n", args.package + "/" + ACTIVITY)
@@ -249,6 +263,9 @@ def main():
         check.fail("an image could not be loaded")
 
     check.save_log()
+    print("--- the game's log ---")
+    for line in lines:
+        print(line)
     print("OK: the game was played on Android (" + str(len(lines)) + " log lines).")
 
 

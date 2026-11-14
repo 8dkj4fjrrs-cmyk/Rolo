@@ -126,7 +126,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            python3 tools/android/check_android_game.py rolo-player-debug.apk --screenshot android-first-scene.png --log android-log-1.txt --expect "Unpacking the game" --expect "Set aside" --expect "Back in front" --expect-ended --play "200,200>330,200;-112,112;back;shot:android-pause-menu.png;back;home;wait:2;return;wait:2;shot:android-after-return.png;50%,-79;200,200>200,60;200,200>200,60;shot:android-quit-chosen.png;-112,112"
+            python3 tools/android/check_android_game.py rolo-player-debug.apk --pictures-in-output --screenshot android-first-scene.png --log android-log-1.txt --expect "Unpacking the game" --expect "Set aside" --expect "Back in front" --expect-ended --play "200,200>330,200;-112,112;back;shot:android-pause-menu.png;back;home;wait:2;return;wait:2;shot:android-after-return.png;50%,-79;200,200>200,60;200,200>200,60;shot:android-quit-chosen.png;-112,112"
             python3 tools/android/check_android_game.py rolo-player-debug.apk --keep-installed --screenshot android-second-start.png --log android-log-2.txt --reject "Unpacking the game" --expect "Playing the game inside this app"
 
       - uses: actions/upload-artifact@v4
