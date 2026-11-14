@@ -10,6 +10,7 @@
 
 #include <android/asset_manager.h>
 
+#include <chrono>
 #include <fstream>
 #include <system_error>
 #include <vector>
@@ -41,7 +42,11 @@ std::string installStamp()
     if (ec) {
         return {};
     }
-    return std::string(apk) + "|" + std::to_string(size) + "|" + std::to_string(changed.time_since_epoch().count());
+    // (Whole seconds as a plain number: the clock's own count is a 128-bit
+    // number on Android, which cannot be written as text directly.)
+    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(changed.time_since_epoch()).count();
+    return std::string(apk) + "|" + std::to_string(static_cast<unsigned long long>(size)) + "|"
+           + std::to_string(static_cast<long long>(seconds));
 }
 
 Status copyPackedFile(std::string_view name, const std::filesystem::path& to)
