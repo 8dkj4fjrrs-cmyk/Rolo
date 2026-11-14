@@ -4,6 +4,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
 
 using namespace rolo;
@@ -22,13 +23,11 @@ struct Fixture {
     }
     const TouchButton& button(std::string_view action) const
     {
-        for (const TouchButton& b : controls.buttons()) {
-            if (b.action == action) {
-                return b;
-            }
-        }
-        FAIL("no button for " << action);
-        return controls.buttons().front();
+        const auto& all = controls.buttons();
+        const auto found = std::find_if(all.begin(), all.end(), [&](const TouchButton& b) { return b.action == action; });
+        INFO("the button for " << action);
+        REQUIRE(found != all.end());
+        return *found;
     }
 };
 } // namespace
