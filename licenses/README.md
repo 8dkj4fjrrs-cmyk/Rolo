@@ -35,4 +35,5 @@ Their license texts are in this folder; games carry a copy of it.
 | `xxhash.txt` | xxHash 0.8.3 | BSD-2-Clause |
 | `zlib.txt` | zlib 1.3.1 | zlib |
 | `emscripten.txt` | Emscripten 4.0.9 (games for the web: its runtime, and musl, its C library) | MIT or NCSA; musl: MIT |
-| `llvm-runtime.txt` | LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web) | Apache-2.0 WITH LLVM-exception |
+| `llvm-runtime.txt` | LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web and Android) | Apache-2.0 WITH LLVM-exception |
+| `android-cpufeatures.txt` | Android NDK's cpufeatures library (games for Android) | BSD-2-Clause |

@@ -61,9 +61,12 @@ LIBRARIES = {
                    "MIT or NCSA; musl: MIT",
                    [GH + "emscripten-core/emscripten/4.0.9/LICENSE",
                     GH + "emscripten-core/emscripten/4.0.9/system/lib/libc/musl/COPYRIGHT"]),
-    "llvm-runtime": ("LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web)",
+    "llvm-runtime": ("LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web and Android)",
                      "Apache-2.0 WITH LLVM-exception",
                      [GH + "emscripten-core/emscripten/4.0.9/system/lib/libcxx/LICENSE.TXT"]),
+    # Only in games for Android (ADR 0028). The notice is kept in third_party/android-ndk.
+    "android-cpufeatures": ("Android NDK's cpufeatures library (games for Android)", "BSD-2-Clause",
+                            ["third_party/android-ndk/cpufeatures-LICENSE.txt"]),
 }
 
 

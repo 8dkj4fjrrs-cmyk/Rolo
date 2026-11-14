@@ -108,10 +108,16 @@ In order:
    ([ADR 0027](adr/0027-screen-sizes.md)): a game size per project
    (upright games too), and Fill the Screen, with scores and menus
    following the screen's edges.
-6. **Android** (planned in [ADR 0028](adr/0028-android.md): Google Play
-   from the start; exported through Android Studio's tools, as Godot and
-   Cocos Creator do; built and tested on GitHub's
-   machines, as it cannot be built where Rolo is developed), then **iOS**.
+6. **Android** ([ADR 0028](adr/0028-android.md): Google Play from the
+   start; exported through Android Studio's tools, as Godot and Cocos
+   Creator do; built and tested on GitHub's machines, as it cannot be
+   built where Rolo is developed), then **iOS**.
+   - ~~Step 1: the player runs on Android.~~ **Done**: a Gradle project
+     (`player/android`) builds the player as an app with one game inside,
+     and an experimental workflow plays it in an emulator. Not yet on a
+     real phone.
+   - Step 2: Export Game… › Android in the editor. Step 3: Google Play.
+     Step 4: polish (gamepads, notches, performance).
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).
 

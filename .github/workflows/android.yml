@@ -1,0 +1,141 @@
+# Android (experimental): builds Rolo's player as an Android app with one
+# game inside (the Platformer Starter) and plays it in an Android emulator.
+# ADR 0028, step 1. Separate from CI (ci.yml) on purpose: Android cannot be
+# built where Rolo is developed, so this workflow is where it is built and
+# tried at all, and an emulator on a build machine is slower and less
+# steady than the other tests. A failure here does not make CI fail.
+#
+# It runs when something Android-specific changes, on any branch whose name
+# starts with "android", and by hand (Actions > Android > Run workflow).
+#
+#   1. rolo_pack (a small tool, built for the build machine) packs the game.
+#   2. Gradle builds the app: the player for phones (arm64-v8a) and for the
+#      emulator (x86_64), Axmol's Java side, the shaders, the game pack.
+#   3. The app's libraries are checked for 16 KB pages (Google Play asks for it).
+#   4. An emulator starts the app; tools/android/check_android_game.py waits
+#      for the first scene, takes screenshots, touches the on-screen
+#      controls, presses Back, sends the app to the background and brings it
+#      back, and quits the game from its pause menu. A second start checks
+#      that the game is not unpacked again.
+#
+# The app, the screenshots and Android's log are kept as "android-check"
+# (on the run's page, under Artifacts).
+name: Android (experimental)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'android**'
+    paths:
+      - '.github/workflows/android.yml'
+      - 'player/android/**'
+      - 'tools/android/**'
+      - 'tools/pack/**'
+      - 'player/CMakeLists.txt'
+      - 'player/runtime/main.cpp'
+      - 'engine/runtime/src/Android.cpp'
+      - 'engine/runtime/src/Application.cpp'
+      - 'engine/runtime/include/rolo/runtime/Android.hpp'
+      - 'cmake/RoloAxmol.cmake'
+      - 'cmake/axmol-patches/**'
+
+jobs:
+  android:
+    name: build and play / emulator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache downloaded Axmol
+        uses: actions/cache@v4
+        with:
+          path: external
+          key: external-${{ runner.os }}-${{ hashFiles('cmake/RoloAxmol.cmake', 'cmake/axmol-patches/**') }}
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      # Gradle (Android's build tool) runs on Java. The Android SDK and NDK
+      # are on GitHub's machines already; Gradle fetches what is missing.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # The Gradle version of player/android/gradle/wrapper/gradle-wrapper.properties.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Pack the game
+        run: |
+          cmake --preset core
+          cmake --build --preset core --target rolo_pack
+          build/core/bin/rolo_pack templates/platformer/project game.pack
+
+      - name: Build the app
+        working-directory: player/android
+        run: |
+          gradle :app:assembleDebug --stacktrace \
+            -ProloGamePack="$GITHUB_WORKSPACE/game.pack" \
+            -ProloAbis=x86_64:arm64-v8a \
+            -ProloAppName="Platformer Starter"
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/rolo-player-debug.apk"
+          ls -la "$GITHUB_WORKSPACE/rolo-player-debug.apk"
+
+      # What is inside, and: every part of each library that is loaded into
+      # memory must be laid out for 16 KB pages (0x4000), or new phones
+      # refuse it and Google Play rejects the app.
+      - name: Check the app's contents and 16 KB pages
+        run: |
+          unzip -l rolo-player-debug.apk | grep -E "lib/|assets/game.pack|classes"
+          echo "Shaders: $(unzip -l rolo-player-debug.apk | grep -c assets/axslc/), license texts: $(unzip -l rolo-player-debug.apk | grep -c assets/licenses/)"
+          mkdir apk && unzip -q rolo-player-debug.apk -d apk
+          test -f apk/assets/game.pack
+          test -f apk/assets/licenses/rolo.txt
+          for abi in arm64-v8a x86_64; do
+            lib="apk/lib/$abi/librolo_player.so"
+            test -f "$lib"
+            echo "$abi:"
+            "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -lW "$lib" | grep LOAD | tee load.txt
+            # The last number of each line is the layout's page size.
+            python3 -c "import sys; sizes = [int(line.split()[-1], 16) for line in open('load.txt')]; sys.exit(0 if sizes and min(sizes) >= 16384 else 1)" \
+              || { echo "::error::$lib is not laid out for 16 KB pages"; exit 1; }
+          done
+
+      # Emulators need the machine's virtualisation (KVM), which GitHub's
+      # Linux machines allow once this rule is in place.
+      - name: Allow the emulator to use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # A phone with a long screen (2400 x 1080), Android 14, no graphics
+      # card (drawn by the processor). The game is played as a player would:
+      # run right, jump, Back (opens the pause menu, as Escape does), Back
+      # again (closes it), Home and back to the app, then the Pause button,
+      # down twice to Quit, and Jump to pick it.
+      - name: Play the game in an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            python3 tools/android/check_android_game.py rolo-player-debug.apk --screenshot android-first-scene.png --log android-log-1.txt --expect "Unpacking the game" --expect "Set aside" --expect "Back in front" --expect-ended --play "200,200>330,200;-112,112;back;shot:android-pause-menu.png;back;home;wait:2;return;wait:2;shot:android-after-return.png;50%,-79;200,200>200,60;200,200>200,60;shot:android-quit-chosen.png;-112,112"
+            python3 tools/android/check_android_game.py rolo-player-debug.apk --keep-installed --screenshot android-second-start.png --log android-log-2.txt --reject "Unpacking the game" --expect "Playing the game inside this app"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-check
+          path: |
+            rolo-player-debug.apk
+            android-*.png
+            android-log-*.txt

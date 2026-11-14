@@ -67,6 +67,16 @@ and AI assistants.
   player keeps a running game's state in its `Player` object. Browser-only code is behind
   `__EMSCRIPTEN__`, in `engine/runtime` and `player/` only. Check web changes with
   `tools/web/check_web_game.js`.
+- Android (ADR 0028; experimental): the player also builds as an Android app, by the Gradle project
+  in `player/android` (which runs this CMake build with the NDK). It cannot be built where Rolo is
+  developed: build and test it with the **Android (experimental)** workflow
+  (`.github/workflows/android.yml`, `tools/android/check_android_game.py`), which is separate from CI
+  and must stay so. Android-only code is behind `__ANDROID__`, in `engine/runtime`, `player/` and
+  `engine/core/src/Log.cpp` only; there is no `main()` and no GLFW there (`rolo/runtime/Android.hpp`,
+  `UiHostNone.hpp`, `Gamepads_none.cpp`), and `Application::run` returns while the game goes on, as on
+  the web. The app's Java is Axmol's plus `RoloActivity`; classes Axmol mentions but Rolo leaves out
+  are Rolo's own stand-ins in `player/android/app/src/axmol_compat` (never copy the originals), and
+  the app asks for no permissions and has no Maven dependencies: keep it so.
 - Images: Rolo decodes PNG and JPEG files itself (`rolo/assets/ImageDecode.hpp`, stb_image inside
   `rolo_assets`) and writes screenshots itself (`ImageEncode.hpp`, stb_image_write). Axmol is built
   with no JPEG library, no libpng and no OpenSSL (`AX_WITH_JPEG`, `AX_WITH_PNG`, `AX_WITH_OPENSSL`

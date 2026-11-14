@@ -219,6 +219,29 @@ TEST_CASE("Pausing holds every sound, and resuming continues it", "[audio]")
     CHECK(p.listen(0.05f) < kSilent);
 }
 
+TEST_CASE("Suspending silences everything, and sounds go on from where they were", "[audio]")
+{
+    // An Android app in the background (ADR 0028): the sound output rests.
+    SoundProject p;
+    const SoundHandle handle = p.audio.play(p.id("sounds/tone.wav"), {.loop = true});
+    CHECK(p.listen(0.1f) > kHeard);
+    p.audio.setSuspended(true);
+    CHECK(p.audio.isSuspended());
+    CHECK(p.listen(0.5f) < kSilent);
+    CHECK(p.audio.isPlaying(handle));   // not finished, and not the game's own pause
+    p.audio.setSuspended(false);
+    CHECK(p.listen(0.05f) > kHeard);
+
+    // The game's own pause is kept through a suspension.
+    p.audio.setPaused(true);
+    p.settle();
+    p.audio.setSuspended(true);
+    p.audio.setSuspended(false);
+    CHECK(p.listen(0.2f) < kSilent);
+    p.audio.setPaused(false);
+    CHECK(p.listen(0.05f) > kHeard);
+}
+
 TEST_CASE("A sound that cannot be read is reported once, and the rest keeps playing", "[audio]")
 {
     SoundProject p;

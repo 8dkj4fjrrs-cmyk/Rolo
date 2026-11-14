@@ -1,0 +1,22 @@
+// Settings shared by the whole Gradle project: where Google's build plugin
+// comes from, and its version.
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // The Android Gradle Plugin: Google's rules for building apps.
+        // (The version Axmol 2.11.5's own Android projects use, with the
+        // Gradle version in gradle/wrapper/gradle-wrapper.properties.)
+        classpath 'com.android.tools.build:gradle:9.3.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}

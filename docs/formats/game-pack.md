@@ -6,9 +6,15 @@ is a pack beside Rolo's web runtime: the page downloads it and unpacks it
 into the runtime's memory, where the game finds its project as it does on a
 desktop.
 
+An Android app (experimental, [ADR 0028](../adr/0028-android.md)) carries
+its game the same way, as `game.pack` among the app's assets; the player
+unpacks it into the app's own folder on the first start.
+
 Written by `rolo::writeGamePack` (`engine/assets`, used by the editor's
-export) and read by `player/web/pre.js` in the page, and by
-`rolo::readGamePackIndex` / `extractGamePack` (tests, tools).
+export and by the command-line tool `rolo_pack PROJECT OUTPUT.pack`,
+`tools/pack`) and read by `player/web/pre.js` in the page, and by
+`rolo::readGamePackIndex` / `extractGamePack` (the Android player, tests,
+tools).
 
 ## Layout (version 1)
 

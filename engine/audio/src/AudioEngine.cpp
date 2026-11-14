@@ -55,6 +55,7 @@ struct AudioEngine::Impl {
     AssetId musicId;
     std::vector<SoundPtr> fadingOut;            // music fading out before it is freed
     std::vector<ma_sound*> paused;              // held by setPaused(true)
+    bool suspended = false;                     // setSuspended(true): the output rests
     float volumes[3] = {1.0f, 1.0f, 1.0f};
 
     Impl(const Logger& logger, Settings s)
@@ -226,10 +227,38 @@ std::size_t AudioEngine::playingCount() const
     return m->playing.size();
 }
 
+void AudioEngine::setSuspended(bool suspended)
+{
+    if (!m->ready || m->suspended == suspended) {
+        return;
+    }
+    m->suspended = suspended;
+    if (m->settings.device) {
+        // Stopping the output stops the clock every sound is read by, so each
+        // one continues from where it was. (Without a device, mix() is that
+        // clock, and gives silence while suspended.)
+        const ma_result result = suspended ? ma_engine_stop(&m->engine) : ma_engine_start(&m->engine);
+        if (result != MA_SUCCESS) {
+            m->log.info(kCategory, std::string(suspended ? "The sound output could not be stopped ("
+                                                         : "The sound output could not be started again (")
+                                       + ma_result_description(result) + ").");
+        }
+    }
+}
+
+bool AudioEngine::isSuspended() const noexcept
+{
+    return m->suspended;
+}
+
 std::size_t AudioEngine::mix(std::span<float> stereo)
 {
     if (!m->ready || m->settings.device) {
         return 0;
+    }
+    if (m->suspended) {
+        std::fill(stereo.begin(), stereo.end(), 0.0f);
+        return stereo.size() / 2;
     }
     ma_uint64 read = 0;
     ma_engine_read_pcm_frames(&m->engine, stereo.data(), stereo.size() / 2, &read);

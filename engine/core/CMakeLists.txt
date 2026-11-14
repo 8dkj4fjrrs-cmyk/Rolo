@@ -27,3 +27,8 @@ target_include_directories(rolo_core
 
 target_compile_features(rolo_core PUBLIC cxx_std_20)
 rolo_set_warnings(rolo_core)
+
+# Android: the console sink writes to the system's log, "logcat" (src/Log.cpp).
+if(ANDROID)
+    target_link_libraries(rolo_core PUBLIC log)
+endif()

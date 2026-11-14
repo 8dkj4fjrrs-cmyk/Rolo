@@ -1,4 +1,4 @@
-LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web)
+LLVM's libc++, libc++abi, libunwind and compiler-rt (games for the web and Android)
 License: Apache-2.0 WITH LLVM-exception
 
 ==============================================================================

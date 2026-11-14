@@ -109,6 +109,32 @@ Their texts are `licenses/emscripten.txt` and `licenses/llvm-runtime.txt`.
 (No JPEG library, no libpng, no OpenSSL and no FreeType: Rolo decodes images with stb_image and draws text with stb_truetype, ADR 0023 to ADR 0025.) Emscripten itself is a build tool and is not part
 of this repository.
 
+## Games for Android (experimental)
+
+The Android player (ADR 0028) is the player built with the Android NDK
+(r27d, 27.3.13750724) and packed into an app by Google's build tools.
+Android games contain what the desktop runtime contains (without GLFW:
+Android has no desktop window), and:
+
+| Software | Version | License | In games |
+|---|---|---|---|
+| Axmol's Android Java classes (`dev.axmol.lib`, part of Axmol), without its video player | 2.11.5 | MIT | Android games |
+| Android NDK `cpufeatures` (asks what the processor can do; used by Axmol's maths code) | as in NDK r27d | BSD-2-Clause | Android games |
+| LLVM libc++, libc++abi, libunwind, compiler-rt | as in NDK r27d | Apache-2.0 WITH LLVM-exception | Android games |
+
+Their texts are `licenses/axmol.txt`, `licenses/android-cpufeatures.txt`
+and `licenses/llvm-runtime.txt`; the app carries `licenses/` among its
+assets. Left out on purpose: Google's media libraries (androidx.media3,
+Guava), ProcessPhoenix and Google's expansion-file reader, which Axmol's
+Java code mentions. Rolo provides its own small stand-ins for those
+classes (`player/android/app/src/axmol_compat`), so an Android game has no
+Maven dependencies.
+
+Build tools, not in games and not in this repository: the Android SDK and
+NDK, Gradle 9.7.1 and the Android Gradle Plugin 9.3.2 (Apache-2.0), and on
+GitHub the emulator and the `reactivecircus/android-emulator-runner`,
+`gradle/actions` and `actions/setup-java` actions.
+
 ## Sound (`engine/audio`)
 
 | Component | Version | License | Shipped? |

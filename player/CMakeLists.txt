@@ -9,7 +9,18 @@ target_compile_features(rolo_player_cli PUBLIC cxx_std_20)
 target_link_libraries(rolo_player_cli PUBLIC rolo::gameplay)   # key names
 rolo_set_warnings(rolo_player_cli)
 
-add_executable(rolo_player runtime/main.cpp)
+if(ANDROID)
+    # An Android app's program is a library that Android loads into the app
+    # (player/android has the app around it: the Gradle project, ADR 0028).
+    add_library(rolo_player SHARED runtime/main.cpp)
+    # Axmol's functions that the app's Java side calls (touches, frames, the
+    # surface). Nothing in the program refers to them, so a linker taking
+    # only what is used from a static library would leave them out:
+    # "whole archive" takes all of it.
+    target_link_libraries(rolo_player PRIVATE -Wl,--whole-archive cpp_android_spec -Wl,--no-whole-archive)
+else()
+    add_executable(rolo_player runtime/main.cpp)
+endif()
 target_link_libraries(rolo_player PRIVATE rolo_player_cli rolo::runtime rolo::audio)
 rolo_set_warnings(rolo_player)
 rolo_link_game_modules(rolo_player)   # the game's behaviours

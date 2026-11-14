@@ -238,6 +238,12 @@ set(AX_WITH_FREETYPE OFF CACHE BOOL "" FORCE)
 # ---------------------------------------------------------------------------
 set(_AX_ROOT "${ROLO_AXMOL_DIR}")
 set(_is_axmol_embed TRUE)
+if(ANDROID AND NOT _AX_ANDROID_PROJECT_DIR)
+    # Axmol puts its compiled shaders in <this folder>/build/runtime/axslc,
+    # where the Gradle project picks them up for the app's assets
+    # (player/android/app/build.gradle, which also passes this folder).
+    set(_AX_ANDROID_PROJECT_DIR "${PROJECT_SOURCE_DIR}/player/android/app")
+endif()
 set(_AX_USE_PREBUILT FALSE)
 list(APPEND CMAKE_MODULE_PATH "${_AX_ROOT}/cmake/Modules/")
 
@@ -265,4 +271,12 @@ add_library(rolo_axmol_compat INTERFACE)
 target_include_directories(rolo_axmol_compat SYSTEM INTERFACE
     "${PROJECT_SOURCE_DIR}/engine/runtime/axmol_compat/include")
 target_link_libraries(3rdparty INTERFACE rolo_axmol_compat)
+
+if(ANDROID)
+    # Axmol's maths code asks Android what the processor can do
+    # (cpu-features.h, a small library that comes with the NDK). In Axmol's
+    # own build the core only gets it by way of libpng's settings, and Rolo
+    # builds Axmol without libpng (ADR 0024): so hand it over directly.
+    target_link_libraries(3rdparty INTERFACE cpufeatures)
+endif()
 

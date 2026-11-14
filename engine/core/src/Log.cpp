@@ -4,6 +4,10 @@
 #include <iostream>
 #include <utility>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 namespace rolo {
 
 std::string_view toString(LogLevel level) noexcept
@@ -46,10 +50,27 @@ void Logger::log(LogLevel level, std::string_view category, std::string_view tex
 
 LogSink makeConsoleSink()
 {
+#ifdef __ANDROID__
+    // An Android app has no console: what it prints goes nowhere. Its log is
+    // "logcat" (seen in Android Studio, or with `adb logcat -s Rolo`), where
+    // every line has a level and a tag; Rolo's tag is "Rolo".
+    return [](const LogMessage& message) {
+        int priority = ANDROID_LOG_INFO;
+        switch (message.level) {
+        case LogLevel::Trace: priority = ANDROID_LOG_VERBOSE; break;
+        case LogLevel::Debug: priority = ANDROID_LOG_DEBUG; break;
+        case LogLevel::Info: priority = ANDROID_LOG_INFO; break;
+        case LogLevel::Warning: priority = ANDROID_LOG_WARN; break;
+        case LogLevel::Error: priority = ANDROID_LOG_ERROR; break;
+        }
+        __android_log_print(priority, "Rolo", "%s: %s", message.category.c_str(), message.text.c_str());
+    };
+#else
     return [](const LogMessage& message) {
         std::ostream& out = (message.level >= LogLevel::Warning) ? std::cerr : std::cout;
         out << '[' << toString(message.level) << "] " << message.category << ": " << message.text << '\n';
     };
+#endif
 }
 
 } // namespace rolo

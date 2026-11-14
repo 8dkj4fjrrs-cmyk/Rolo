@@ -55,6 +55,14 @@ public:
     /// Call once per frame: frees the effects that have finished.
     void update();
 
+    /// Silences everything and lets the sound output rest, or starts it
+    /// again where it was: for when the whole program is set aside (a phone
+    /// app in the background, the screen switched off). Unlike setPaused,
+    /// which is the game's own pause, it knows nothing of which sounds were
+    /// held: a game paused in its menu is still paused afterwards.
+    void setSuspended(bool suspended);
+    bool isSuspended() const noexcept;
+
     /// Effects playing now (tests, the editor's status).
     std::size_t playingCount() const;
     /// Without a device: mixes the next stretch of sound into `stereo`

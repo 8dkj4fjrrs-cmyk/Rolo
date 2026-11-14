@@ -88,6 +88,16 @@ if(EMSCRIPTEN)
     add_link_options(-fwasm-exceptions -sSUPPORT_LONGJMP=wasm)
 endif()
 
+# ---------------------------------------------------------------------------
+# Android (built by the Gradle project in player/android, which runs CMake
+# with the Android NDK): only the game runtime, the player, as the library
+# an Android app loads (docs/building.md, "For Android"; ADR 0028).
+# ---------------------------------------------------------------------------
+if(ANDROID)
+    set(ROLO_BUILD_EDITOR OFF CACHE BOOL "" FORCE)
+    set(ROLO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+endif()
+
 if(ROLO_ENABLE_SANITIZERS AND NOT MSVC)
     add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address,undefined)
@@ -131,8 +141,9 @@ foreach(dir IN LISTS ROLO_GAME_MODULE_DIRS)
     add_subdirectory("${dir}" "${CMAKE_BINARY_DIR}/game_modules/${_name}")
 endforeach()
 
-if(NOT EMSCRIPTEN)
+if(NOT EMSCRIPTEN AND NOT ANDROID)
     add_subdirectory(tools/stress)   # rolo_stress: gameplay frame times (examples/stress)
+    add_subdirectory(tools/pack)     # rolo_pack: a project folder as one game pack
 endif()
 
 if(ROLO_RUNTIME_BACKEND STREQUAL "axmol")
