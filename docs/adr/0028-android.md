@@ -9,10 +9,14 @@
 Decided by the owner on 2026-11-14:
 
 - **Google Play from the start**, not only an installable file.
-- **One click in Rolo**: Rolo ships a ready-made Android runtime and packs
-  the game into it, as it does for the web. Nobody using Rolo installs
-  Android Studio.
-- There is **no Android device** to try things on.
+- **Export through Google's tools, as Godot and Cocos Creator do**
+  (changed the same evening, after comparing engines: first chosen was
+  "one click, nothing to install", as Defold does). The maker installs
+  Android Studio (which brings the Android SDK, NDK and a JDK) once and
+  tells Rolo where it is; Rolo writes the Android project and runs
+  Google's build for them. Signing is done by Google's tools.
+- There is **no Android device** to try things on. Android Studio's
+  emulator, which the maker now has anyway, is the way to try games.
 
 ## What was found
 
@@ -63,29 +67,46 @@ Decided by the owner on 2026-11-14:
    game pack unpacked to the app's own folder on first start (Rolo reads
    games from real folders), saves in the app's folder, pausing with the
    app, the back button as Escape.
-2. **One-click export.** Rolo's download carries the Android runtime
-   built in step 1 (as it carries the web runtime). Exporting puts the
-   game pack in, and sets the app's name, package name, version, icon and
-   orientation, **without Google's tools**: an `.aab` (and an `.apk` for
-   trying) is a zip of known formats. The hard part is **signing**: it
-   needs RSA keys, SHA-256 and certificates, and Rolo has no cryptography
-   library since ADR 0024. To be decided then, with the owner: write the
-   small, well-specified pieces needed (signing only, checked against
-   Google's own verifier on every build), or ask the maker to have Java
-   installed for this one step (its `keytool` and `jarsigner` do it).
+2. **Export from the editor.** Rolo's settings get the place of the
+   Android SDK (found by itself where Android Studio puts it). **Export
+   Game… › Android** asks for the app's name, package name, version,
+   icon and orientation, writes the Gradle project of step 1 with the
+   game pack inside into a build folder, and runs Gradle: an `.apk` to
+   try (signed with a debug key Google's tools make) and an `.aab` for
+   Google Play (signed with the maker's upload key, which Rolo helps
+   make with the JDK's `keytool` and never stores the password of).
+   Rolo checks the tools first and says in plain words what is missing
+   or the wrong version: wrong SDK and NDK versions are where beginners
+   get stuck in every engine that works this way.
 3. **Google Play.** A guide from account to release, the upload key kept
    safely (losing it locks the maker out of updating the game), version
    codes, the store's forms, and what the pre-launch report said.
 4. **Polish**, as far as an emulator and reports allow: sound, rumble
    (vibration), the notch and rounded corners, performance.
 
+## Alternatives considered
+
+- **One click with nothing to install** (Defold's way): Rolo would pack
+  and sign the app itself. Friendlier, but Rolo would need cryptography
+  code for signing (it has none since ADR 0024) and its own writers for
+  Google's bundle formats, and would have to follow every change Google
+  makes to them. First chosen, then set aside by the owner in favour of
+  the usual way.
+- **A build service in the cloud** (GDevelop's way): somebody has to run
+  and pay for the servers.
+
 ## Risks to be honest about
 
 - With no device and no local builds, progress is slower and blinder than
   anything so far in Rolo. Bugs that only real phones show will be found
   by players or by Google's report, not before.
-- Step 2's signing is the first place where the "nobody installs Google's
-  tools" wish and the "no home-made cryptography" caution pull against
-  each other.
+- Exporting depends on several GB of Google's tools on the maker's
+  computer, in versions Rolo must keep up with. In return Rolo needs no
+  cryptography of its own, and follows Google's changes by changing
+  version numbers.
+- What Rolo's download must carry for Android is its sources for the
+  player and Axmol's Android parts (built on the maker's computer by the
+  NDK), or prebuilt libraries per phone type to save that build; to be
+  settled in step 2.
 - Google changes Play's requirements about once a year; a Rolo release
   can fall behind them.

@@ -109,7 +109,8 @@ In order:
    (upright games too), and Fill the Screen, with scores and menus
    following the screen's edges.
 6. **Android** (planned in [ADR 0028](adr/0028-android.md): Google Play
-   from the start, one-click export; built and tested on GitHub's
+   from the start; exported through Android Studio's tools, as Godot and
+   Cocos Creator do; built and tested on GitHub's
    machines, as it cannot be built where Rolo is developed), then **iOS**.
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).
