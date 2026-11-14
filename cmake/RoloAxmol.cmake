@@ -272,3 +272,11 @@ target_include_directories(rolo_axmol_compat SYSTEM INTERFACE
     "${PROJECT_SOURCE_DIR}/engine/runtime/axmol_compat/include")
 target_link_libraries(3rdparty INTERFACE rolo_axmol_compat)
 
+if(ANDROID)
+    # Axmol's maths code asks Android what the processor can do
+    # (cpu-features.h, a small library that comes with the NDK). In Axmol's
+    # own build the core only gets it by way of libpng's settings, and Rolo
+    # builds Axmol without libpng (ADR 0024): so hand it over directly.
+    target_link_libraries(3rdparty INTERFACE cpufeatures)
+endif()
+
