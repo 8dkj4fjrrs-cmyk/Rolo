@@ -28,7 +28,7 @@ struct TouchButton {
     std::string label;      // what is written on it, e.g. "Jump"
     Vec2 center;
     float radius = 0.0f;
-    bool small = false;     // a menu button (pause), out of the way at the top
+    bool menu = false;      // a menu button (pause): small, out of the way at the top
     bool down = false;
 };
 

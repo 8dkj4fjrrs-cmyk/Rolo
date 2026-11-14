@@ -92,7 +92,7 @@ TEST_CASE("On-screen buttons are made from the game's actions", "[input][touch]"
     }
     CHECK(f.button("interact").center.x > 900.0f);
     CHECK(f.button("jump").center.x > 900.0f);
-    CHECK(f.button("pause").small);
+    CHECK(f.button("pause").menu);
     CHECK(f.button("pause").center.y > 600.0f);
     CHECK(f.controls.stick().rest.x < 300.0f);
 

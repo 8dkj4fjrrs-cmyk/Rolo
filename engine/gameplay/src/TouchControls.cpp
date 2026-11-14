@@ -50,7 +50,7 @@ void TouchControls::setActions(const Input& input, const std::vector<std::string
         TouchButton button;
         button.action = name;
         button.label = labelOf(name);
-        button.small = isMenuAction(name);
+        button.menu = isMenuAction(name);
         buttons.push_back(std::move(button));
     }
     const auto same = [](const TouchButton& a, const TouchButton& b) { return a.action == b.action; };
@@ -103,11 +103,11 @@ void TouchControls::layout(float width, float height)
     };
     static constexpr Place kPlaces[] = {{180.0f, 1.0f}, {90.0f, 1.0f}, {135.0f, 1.45f}, {180.0f, 2.0f}, {90.0f, 2.0f}};
     const auto menus = static_cast<float>(
-        std::count_if(m_buttons.begin(), m_buttons.end(), [](const TouchButton& b) { return b.small; }));
+        std::count_if(m_buttons.begin(), m_buttons.end(), [](const TouchButton& b) { return b.menu; }));
     int main = 0;
     int menu = 0;
     for (TouchButton& b : m_buttons) {
-        if (b.small) {
+        if (b.menu) {
             // Top middle, side by side: clear of scores in the corners.
             b.radius = menuRadius;
             b.center = {width * 0.5f + (static_cast<float>(menu) - (menus - 1.0f) * 0.5f) * menuRadius * 2.6f,

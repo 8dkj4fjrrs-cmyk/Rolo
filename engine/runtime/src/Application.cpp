@@ -744,7 +744,7 @@ void Application::Impl::updateTouchControls()
             // The action's name, drawn at twice the size and scaled to fit inside.
             detail::TextSpriteOptions middle;
             middle.anchor = {0.5f, 0.5f};
-            const float size = b.radius * (b.small ? 0.52f : 0.42f);
+            const float size = b.radius * (b.menu ? 0.52f : 0.42f);
             const detail::TextSprite label =
                 detail::makeTextSprite(std::string(), b.label, size * 2.0f, Color{255, 255, 255, 235}, middle);
             if (label.sprite != nullptr) {
