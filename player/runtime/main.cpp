@@ -4,6 +4,9 @@
 // (--scene), or Rolo's own start scene. The game's behaviours (C++ code
 // from the game modules linked into this program) run every frame; doors and
 // other gameplay can change to other scenes of the project.
+//
+// On Android the same program is an app's library: there is no main(), and
+// the game is packed inside the app (see the end of this file, and ADR 0028).
 
 #include "CommandLine.hpp"
 
@@ -24,6 +27,12 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#endif
+#ifdef __ANDROID__
+#include "rolo/assets/GamePack.hpp"
+#include "rolo/runtime/Android.hpp"
+
+#include <jni.h>
 #endif
 
 #include <chrono>
@@ -80,12 +89,58 @@ private:
 };
 #endif
 
+#ifdef __ANDROID__
+// On Android the game is inside the app as one packed file (a game pack,
+// "game.pack" among the app's assets), and Rolo reads games from real
+// folders: so it is unpacked into the app's own folder, once after every
+// install or update. A note beside it (game.stamp) says which installation
+// it was unpacked from. Returns the project folder; nothing, with `error`
+// set, if the game could not be unpacked.
+std::filesystem::path unpackBundledGame(const rolo::Logger& log, std::string& error)
+{
+    namespace fs = std::filesystem;
+    const fs::path files = rolo::android::filesFolder();
+    const fs::path game = files / "game";
+    const fs::path stampFile = files / "game.stamp";
+    const std::string stamp = rolo::android::installStamp();
+    std::error_code ec;
+    if (!stamp.empty() && fs::exists(game / rolo::ProjectFormat::kFileName, ec)) {
+        if (const auto unpackedFrom = rolo::readTextFile(stampFile); unpackedFrom && *unpackedFrom == stamp) {
+            return game;   // unpacked on an earlier start
+        }
+    }
+    log.info("player", "Unpacking the game into the app's folder (the first start after installing)...");
+    // The note is removed first and written last: an unpacking that was
+    // interrupted (the app closed, the battery empty) is done again.
+    fs::remove(stampFile, ec);
+    fs::remove_all(game, ec);
+    const fs::path pack = files / "game.pack";
+    if (const rolo::Status copied = rolo::android::copyPackedFile("game.pack", pack); !copied) {
+        error = copied.message;
+        return {};
+    }
+    const rolo::Status unpacked = rolo::extractGamePack(pack, game);
+    fs::remove(pack, ec);
+    if (!unpacked) {
+        error = "The game inside the app could not be unpacked: " + unpacked.message;
+        return {};
+    }
+    if (!stamp.empty()) {
+        if (const rolo::Status noted = rolo::writeTextFileAtomically(stampFile, stamp); !noted) {
+            log.warning("player", "The game will be unpacked again at the next start: " + noted.message);
+        }
+    }
+    return game;
+}
+#endif
+
 } // namespace
 
 // A game being played: everything the player sets up and keeps while the game
-// runs. It is one object (not variables of main) because of web browsers:
-// there, starting the game returns at once and the browser calls each frame
-// afterwards, so all of this has to outlive main() (see main, below).
+// runs. It is one object (not variables of main) because of web browsers
+// and Android: there, starting the game returns at once and the browser (or
+// Android) calls each frame afterwards, so all of this has to outlive the
+// function that started it (see main, below).
 struct Player {
     rolo::player::PlayerOptions opt;
     std::unique_ptr<rolo::Engine> engine;
@@ -103,7 +158,8 @@ struct Player {
     std::vector<double> frameMs;
     std::vector<double> gameplayMs;
     std::unique_ptr<rolo::Application> app;
-    bool continues = false;   // a web browser: the game goes on after run() returned
+    bool continues = false;   // a web browser, Android: the game goes on after run() returned
+    std::string lastError;    // Android: the last error logged, to show the player if the game cannot start
 
     /// Sets the game up and plays it. Returns the program's exit code.
     int run();
@@ -141,6 +197,29 @@ int Player::run()
         engine->logger().error("player", "Engine failed to start: " + status.message);
         return 1;
     }
+
+#ifdef __ANDROID__
+    // A phone has no terminal to read errors in: the last one is kept, and
+    // shown in a message if the game cannot start (startOnAndroid, below).
+    engine->logger().addSink([this](const rolo::LogMessage& message) {
+        if (message.level >= rolo::LogLevel::Error) {
+            lastError = message.text;
+        }
+    });
+    // The game is packed inside the app; its saved games go to the app's own folder.
+    {
+        std::string error;
+        const std::filesystem::path game = unpackBundledGame(engine->logger(), error);
+        if (game.empty()) {
+            engine->logger().error("player", error);
+            return 1;
+        }
+        opt.projectPath = game.string();
+        opt.showStats = false;
+        opt.saveDir = (rolo::android::filesFolder() / "saves").string();
+        engine->logger().info("player", "Playing the game inside this app (" + game.string() + ").");
+    }
+#endif
 
     // An exported game: the player was copied beside the game's files, and
     // started without saying what to play.
@@ -315,6 +394,16 @@ int Player::run()
         *engine, rolo::WindowSettings{.title = title, .width = opt.width, .height = opt.height},
         std::move(presentation));
     app->setAssets(assets.get());
+#ifndef __EMSCRIPTEN__
+    // Set aside (the window minimised; on a phone, another app in front or
+    // the screen off): no frames are made, so the sound rests too, and goes
+    // on from the same place. (A web browser quietens a hidden page itself.)
+    app->setBackgroundCallback([this](bool inBackground) {
+        if (audio) {
+            audio->setSuspended(inBackground);
+        }
+    });
+#endif
     if (game->isRunning()) {
         app->setGameInput(&game->input());
         if (gameOptions.touchControls) {
@@ -405,8 +494,8 @@ int Player::run()
     });
 
     if (app->lastRunReport().continuesInBackground) {
-        // A web browser: the game goes on after this returns (the browser
-        // calls its frames), so everything above must stay as it is.
+        // A web browser, or Android: the game goes on after this returns
+        // (its frames are called from outside), so everything above must stay as it is.
         continues = true;
         return 0;
     }
@@ -420,6 +509,39 @@ int Player::run()
     engine->shutdown();
     return runStatus ? 0 : 1;
 }
+
+#ifdef __ANDROID__
+namespace {
+
+// The program's start on Android, run when the app's screen is ready.
+void startOnAndroid()
+{
+    // On the heap, and kept: the game outlives this function (Android calls
+    // its frames from now on). It ends with the app.
+    auto player = std::make_unique<Player>();
+    const int code = player->run();
+    if (player->continues) {
+        static_cast<void>(player.release());
+        return;
+    }
+    if (code != 0) {
+        rolo::android::showMessage("This game could not start",
+                                   player->lastError.empty() ? std::string("Something went wrong while starting.")
+                                                             : player->lastError);
+    }
+}
+
+} // namespace
+
+// An Android app has no main(). Android loads the program as a library and
+// Axmol calls this function straight away (it looks for it by this name),
+// before there is a screen: it only says what starting means.
+void axmol_android_app_init(JNIEnv* /*env*/)
+{
+    rolo::android::setStart(startOnAndroid);
+}
+
+#else
 
 int main(int argc, char** argv)
 
@@ -455,3 +577,5 @@ int main(int argc, char** argv)
     }
     return code;
 }
+
+#endif

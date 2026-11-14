@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What Android is told about the app. ${...} are filled in by app/build.gradle. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Rolo draws with OpenGL ES 2 or newer. -->
+    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+    <!-- Games are played by touch, but a touch screen is not demanded (TVs, Chromebooks). -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <!-- No permissions: a Rolo game does not use the internet, files outside
+         its own folder, or anything else a player would be asked about. -->
+
+    <!-- allowBackup: off for now. Whether saved games should be copied to a
+         player's Google account is decided with the Google Play step (ADR 0028). -->
+    <application
+        android:label="${roloAppName}"
+        android:icon="@mipmap/ic_launcher"
+        android:appCategory="game"
+        android:isGame="true"
+        android:allowBackup="false">
+
+        <!-- The library Axmol's activity loads: librolo_player.so. -->
+        <meta-data android:name="android.app.lib_name" android:value="rolo_player" />
+
+        <!-- configChanges: none of these restarts the activity (turning the
+             device, a keyboard or controller being connected, dark mode...):
+             the game keeps running and is told the new screen size.
+             enableOnBackInvokedCallback false: the Back button or gesture
+             reaches the game as a key (Escape), as on older Androids. -->
+        <activity
+            android:name="dev.roloengine.player.RoloActivity"
+            android:label="${roloAppName}"
+            android:screenOrientation="${roloOrientation}"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|navigation|uiMode|locale|layoutDirection|fontScale|touchscreen"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:launchMode="singleTask"
+            android:enableOnBackInvokedCallback="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

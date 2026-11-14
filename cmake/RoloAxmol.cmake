@@ -238,6 +238,12 @@ set(AX_WITH_FREETYPE OFF CACHE BOOL "" FORCE)
 # ---------------------------------------------------------------------------
 set(_AX_ROOT "${ROLO_AXMOL_DIR}")
 set(_is_axmol_embed TRUE)
+if(ANDROID AND NOT _AX_ANDROID_PROJECT_DIR)
+    # Axmol puts its compiled shaders in <this folder>/build/runtime/axslc,
+    # where the Gradle project picks them up for the app's assets
+    # (player/android/app/build.gradle, which also passes this folder).
+    set(_AX_ANDROID_PROJECT_DIR "${PROJECT_SOURCE_DIR}/player/android/app")
+endif()
 set(_AX_USE_PREBUILT FALSE)
 list(APPEND CMAKE_MODULE_PATH "${_AX_ROOT}/cmake/Modules/")
 

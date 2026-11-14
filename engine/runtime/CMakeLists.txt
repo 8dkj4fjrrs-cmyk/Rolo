@@ -11,16 +11,27 @@ add_library(rolo_runtime STATIC
     src/RumbleTimer.cpp
     src/SceneRenderer.cpp
     src/TextSprites.cpp
-    src/TextureStore.cpp
-    src/UiHost.cpp)
+    src/TextureStore.cpp)
 
 add_library(rolo::runtime ALIAS rolo_runtime)
 
 # Gamepads: through GLFW, or in a web browser the browser's own Gamepad API.
+# (Android: none yet, ADR 0028.)
 if(EMSCRIPTEN)
     target_sources(rolo_runtime PRIVATE src/Gamepads_web.cpp)
+elseif(ANDROID)
+    target_sources(rolo_runtime PRIVATE src/Gamepads_none.cpp)
 else()
     target_sources(rolo_runtime PRIVATE src/Gamepads.cpp)
+endif()
+
+# The UI layer's host needs a desktop window (GLFW). Android has none, and
+# no editor: there src/UiHostNone.hpp stands in, and src/Android.cpp has the
+# app's folder and its packed files (include/rolo/runtime/Android.hpp).
+if(ANDROID)
+    target_sources(rolo_runtime PRIVATE src/Android.cpp)
+else()
+    target_sources(rolo_runtime PRIVATE src/UiHost.cpp)
 endif()
 
 # Gamepad rumble: each system's own controller API (src/Rumble.hpp, ADR 0018).

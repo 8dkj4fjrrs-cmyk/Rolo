@@ -1,0 +1,8 @@
+// Rolo's player as an Android app (docs/building.md, "For Android"; ADR 0028).
+//
+// This is a Gradle project, the kind Android Studio opens and Google's tools
+// build. It has one module, "app": Rolo's game runtime (built by CMake with
+// the Android NDK, from the sources three folders up), the Java side of
+// Axmol that puts it on the screen, and one game.
+rootProject.name = 'RoloPlayer'
+include ':app'

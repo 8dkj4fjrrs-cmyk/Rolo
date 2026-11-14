@@ -99,9 +99,9 @@ struct RunReport {
     double elapsedSeconds = 0.0;
     int finalWindowWidth = 0;   // window size (points) when the run ended
     int finalWindowHeight = 0;
-    /// Only in a web browser: run() returned although the game goes on (the
-    /// browser calls its frames from now on). Keep the Application, and all
-    /// it was given, alive: do not destroy them.
+    /// Only in a web browser and on Android: run() returned although the
+    /// game goes on (the browser, or Android, calls its frames from now on).
+    /// Keep the Application, and all it was given, alive: do not destroy them.
     bool continuesInBackground = false;
     double averageFps() const { return elapsedSeconds > 0.0 ? static_cast<double>(framesRendered) / elapsedSeconds : 0.0; }
 };
@@ -208,8 +208,9 @@ public:
 
     /// Opens the window and blocks until it closes (user closes it, Escape is
     /// pressed, requestQuit() is called, or RunOptions::maxFrames is reached).
-    /// In a web browser it returns at once while the game goes on: see
-    /// RunReport::continuesInBackground.
+    /// In a web browser and on Android it returns at once while the game
+    /// goes on: see RunReport::continuesInBackground. (On Android, call it
+    /// from the start function: rolo/runtime/Android.hpp.)
     Status run(const RunOptions& options = {});
 
     /// Asks the main loop to finish after the current frame. Safe to call from
@@ -225,6 +226,13 @@ public:
 
     /// Called once per frame before drawing: run the game here.
     void setFrameCallback(std::function<void(const FrameInfo&)> callback);
+
+    /// Called with true when the program is set aside (its window minimised;
+    /// on a phone, another app in front or the screen off: no frames are
+    /// made until it is back), and with false when the player returns.
+    /// Silence the sound here. On Android it is also called with true when
+    /// the game has ended.
+    void setBackgroundCallback(std::function<void(bool inBackground)> callback);
 
     /// Sets the animation clock for the frame being made, in seconds:
     /// Animators show the frame their clip has at this time (see

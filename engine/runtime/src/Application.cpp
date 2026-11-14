@@ -16,6 +16,10 @@
 //          └─ loop ends when the window closes or Director::end() is called
 //     └─ report statistics, restore logging, return a Status
 //
+// In a web browser and on Android the loop is not Axmol's to run: run()
+// sets the game up and returns while it goes on (see run(), and for
+// Android the section "Android" below).
+//
 // Axmol types never appear outside this folder.
 
 #include "rolo/runtime/Gamepads.hpp"
@@ -27,7 +31,12 @@
 #include "SceneRenderer.hpp"
 #include "TextSprites.hpp"
 #include "TextureStore.hpp"
+#ifdef __ANDROID__
+#include "rolo/runtime/Android.hpp"
+#include "UiHostNone.hpp"   // no desktop window, and no UI layer: games only
+#else
 #include "UiHost.hpp"
+#endif
 
 #include <axmol.h>
 #ifdef __EMSCRIPTEN__
@@ -129,6 +138,12 @@ Key toRoloKey(ax::EventKeyboard::KeyCode code)
     case K::KEY_RIGHT_ARROW: return Key::Right;
     case K::KEY_UP_ARROW: return Key::Up;
     case K::KEY_DOWN_ARROW: return Key::Down;
+    // Android: the direction buttons of a TV remote or a controller.
+    case K::KEY_DPAD_LEFT: return Key::Left;
+    case K::KEY_DPAD_RIGHT: return Key::Right;
+    case K::KEY_DPAD_UP: return Key::Up;
+    case K::KEY_DPAD_DOWN: return Key::Down;
+    case K::KEY_DPAD_CENTER: return Key::Enter;
     case K::KEY_LEFT_SHIFT: return Key::LeftShift;
     case K::KEY_RIGHT_SHIFT: return Key::RightShift;
     case K::KEY_LEFT_CTRL: return Key::LeftControl;
@@ -181,11 +196,19 @@ struct Application::Impl {
     unsigned touchLaidOut = 0;
     enum class TouchPhase { Began, Moved, Ended };
     void onTouch(TouchPhase phase, int id, ax::Vec2 screen);
-    void listenForTouches();
+    void listenForTouches(ax::Scene& scene);
     void updateTouchControls();
     Vec2 viewSize;      // how much of the world the window shows (the game size, or more: ScreenFit)
     void fitScreen();
     bool fitLogged = false;
+    // The program was set aside (minimised; on a phone, another app is in
+    // front or the screen is off) or is back.
+    std::function<void(bool)> backgroundCallback;
+    void setInBackground(bool inBackground);
+#ifdef __ANDROID__
+    ax::Vec2 loggedScreen;       // the screen size last written to the log
+    void screenChanged();
+#endif
     std::unique_ptr<GamepadReader> gamepads;   // ...and from gamepads, while there is a game input
     RunReport report;
 
@@ -252,6 +275,22 @@ struct UiFrame::Access {
 
 namespace {
 
+// What Rolo asks of the screen it draws on: full colour, and a depth and
+// stencil buffer (clipping uses the stencil).
+void chooseScreenFormat()
+{
+    ::GfxContextAttrs attrs{}; // Axmol declares this outside namespace ax
+    attrs.redBits = 8;
+    attrs.greenBits = 8;
+    attrs.blueBits = 8;
+    attrs.alphaBits = 8;
+    attrs.depthBits = 24;
+    attrs.stencilBits = 8;
+    attrs.multisamplingCount = 0;
+    ax::RenderView::setGfxContextAttrs(attrs);
+}
+
+#ifndef __ANDROID__
 // Axmol drives the program through an ax::Application subclass. This one
 // simply forwards the interesting moments to Application::Impl.
 class BackendApp final : public ax::Application {
@@ -261,30 +300,108 @@ public:
     {
     }
 
-    void initGfxContextAttrs() override
-    {
-        ::GfxContextAttrs attrs{}; // Axmol declares this outside namespace ax
-        attrs.redBits = 8;
-        attrs.greenBits = 8;
-        attrs.blueBits = 8;
-        attrs.alphaBits = 8;
-        attrs.depthBits = 24;
-        attrs.stencilBits = 8;
-        attrs.multisamplingCount = 0;
-        ax::RenderView::setGfxContextAttrs(attrs);
-    }
+    void initGfxContextAttrs() override { chooseScreenFormat(); }
 
     bool applicationDidFinishLaunching() override { return m_impl.startWindow(); }
 
     // Pause the loop while the app is minimised / in the background.
-    void applicationDidEnterBackground() override { ax::Director::getInstance()->stopAnimation(); }
-    void applicationWillEnterForeground() override { ax::Director::getInstance()->startAnimation(); }
+    void applicationDidEnterBackground() override
+    {
+        ax::Director::getInstance()->stopAnimation();
+        m_impl.setInBackground(true);
+    }
+    void applicationWillEnterForeground() override
+    {
+        ax::Director::getInstance()->startAnimation();
+        m_impl.setInBackground(false);
+    }
 
 private:
     rolo::Application::Impl& m_impl;
 };
+#endif
 
 } // namespace
+
+#ifdef __ANDROID__
+// --- Android -------------------------------------------------------------------------------------
+//
+// On a computer a program starts at main() and opens its window. An Android
+// app is the other way round: Android makes the screen (a Java "activity"
+// with a surface to draw on; Axmol's AxmolActivity), loads the program as a
+// library, and calls into it: when the surface is ready, for every frame,
+// when the player leaves the app and comes back.
+//
+// Axmol passes those calls to the one ax::Application object, which has to
+// exist from the moment the library is loaded: long before there is a
+// rolo::Application. AndroidHost is that object. When the surface is ready
+// it runs the program's start function (rolo::android::setStart), which
+// makes a rolo::Application and calls run(). run() finds the screen there
+// already, sets the game up on it and returns while the game goes on, as in
+// a web browser; from then on the host passes Android's calls to it.
+//
+// (The start function, the host and the running Application are process-wide
+// because Android's calls are: a documented exception to "no global mutable
+// state", like g_backendInUse above.)
+namespace {
+
+std::function<void()> g_androidStart;
+Application::Impl* g_androidGame = nullptr;   // the running Application's, while a game runs
+
+class AndroidHost final : public ax::Application {
+public:
+    void initGfxContextAttrs() override { chooseScreenFormat(); }
+
+    // The surface is ready (called once; on the thread that draws).
+    bool applicationDidFinishLaunching() override
+    {
+        if (g_androidStart) {
+            g_androidStart();
+        }
+        return true;
+    }
+
+    // Another app is in front, or the screen is off: no frames until the
+    // player is back. (Android may also end the app while it waits.)
+    void applicationDidEnterBackground() override
+    {
+        ax::Director::getInstance()->stopAnimation();
+        if (g_androidGame != nullptr) {
+            g_androidGame->log().info(kCategory, "Set aside (another app is in front, or the screen is off): waiting.");
+            g_androidGame->setInBackground(true);
+        }
+    }
+    void applicationWillEnterForeground() override
+    {
+        ax::Director::getInstance()->startAnimation();
+        if (g_androidGame != nullptr) {
+            g_androidGame->log().info(kCategory, "Back in front: the game goes on.");
+            g_androidGame->setInBackground(false);
+        }
+    }
+
+    // The surface has another size: the device was turned, a folding phone
+    // opened. (Also called once at the start, with the real size.)
+    void applicationScreenSizeChanged(int /*newWidth*/, int /*newHeight*/) override
+    {
+        if (g_androidGame != nullptr) {
+            g_androidGame->screenChanged();
+        }
+    }
+};
+
+std::unique_ptr<AndroidHost> g_androidHost;
+
+} // namespace
+
+void android::setStart(std::function<void()> start)
+{
+    g_androidStart = std::move(start);
+    if (!g_androidHost) {
+        g_androidHost = std::make_unique<AndroidHost>();
+    }
+}
+#endif
 
 #ifdef __EMSCRIPTEN__
 // The page gives the game's canvas its size in pixels (it knows the page's
@@ -322,6 +439,15 @@ bool Application::Impl::startWindow()
 {
     ax::Director* director = ax::Director::getInstance();
 
+#ifdef __ANDROID__
+    // Android made the screen already: the app's surface, the whole display.
+    ax::RenderView* view = director->getRenderView();
+    if (view == nullptr) {
+        startupError = "The app's screen is not ready. On Android, call Application::run() from the function "
+                       "given to rolo::android::setStart.";
+        return false;
+    }
+#else
     ax::RenderView* view = ax::RenderViewImpl::createWithRect(
         window.title,
         ax::Rect(0, 0, static_cast<float>(window.width), static_cast<float>(window.height)),
@@ -331,11 +457,12 @@ bool Application::Impl::startWindow()
         startupError = "Could not create the game window. Check that your graphics drivers are up to date.";
         return false;
     }
+    director->setRenderView(view);
+#endif
 
     const auto worldW = static_cast<float>(presentation.worldWidth);
     const auto worldH = static_cast<float>(presentation.worldHeight);
 
-    director->setRenderView(view);
     // Rolo draws its own frame-rate overlay (startStats): Axmol's needs a
     // PNG decoder inside Axmol, which Rolo builds it without (ADR 0024).
     director->setStatsDisplay(false);
@@ -388,16 +515,20 @@ bool Application::Impl::startWindow()
 #ifdef __EMSCRIPTEN__
         applyPageSize();   // the size the page asked for before the window existed
 #endif
+#ifdef __ANDROID__
+        screenChanged();   // later changes come through AndroidHost
+#else
         fitScreen();
         director->getEventDispatcher()->addCustomEventListener(ax::RenderViewImpl::EVENT_WINDOW_RESIZED,
                                                                [this](ax::EventCustom*) { fitScreen(); });
+#endif
     }
 
     director->runWithScene(scene);
 
     if (gameInput != nullptr && !uiEnabled()) {
         listenForGameInput(*scene);
-        listenForTouches();
+        listenForTouches(*scene);
         if (touchControls != nullptr) {
             touchNode = ax::Node::create();
             touchNode->setVisible(false);
@@ -420,6 +551,7 @@ bool Application::Impl::startWindow()
         startUi(*scene, *view);
     }
 
+#ifndef __ANDROID__   // (an Android app has no close button)
     // The window's close button: let the application say "not yet" (e.g. to
     // ask about unsaved changes). Axmol asks through this event.
     director->getEventDispatcher()->addCustomEventListener(
@@ -428,12 +560,22 @@ bool Application::Impl::startWindow()
                 *static_cast<bool*>(event->getUserData()) = false;
             }
         });
+#endif
 
     // Axmol announces EVENT_RESET while shutting down, while the window and
     // graphics context still exist: the right moment to release the UI layer
     // and the world texture (doing it after the window is gone would crash).
-    director->getEventDispatcher()->addCustomEventListener(ax::Director::EVENT_RESET,
-                                                           [this](ax::EventCustom*) { releaseBackendObjects(); });
+    director->getEventDispatcher()->addCustomEventListener(ax::Director::EVENT_RESET, [this](ax::EventCustom*) {
+        releaseBackendObjects();
+#ifdef __ANDROID__
+        // The game was quit: Axmol closes the app's screen next, and
+        // RoloActivity ends the app with it. (No run() is waiting to report.)
+        log().info(kCategory, "The game has ended after " + std::to_string(report.framesRendered) + " frames.");
+        setInBackground(true);   // sound stops now, not when the app is gone
+        g_androidGame = nullptr;
+        g_backendInUse = false;
+#endif
+    });
 
     // Run onFrame() every frame (interval 0) for as long as the loop lives.
     director->getScheduler()->schedule([this](float dt) { onFrame(dt); }, this, 0.0f, false, "rolo.frame");
@@ -544,6 +686,37 @@ void Application::Impl::fitScreen()
     }
     applyGameCamera();
 }
+
+void Application::Impl::setInBackground(bool inBackground)
+{
+    if (inBackground && gamepads) {
+        gamepads->stopRumble();
+    }
+    if (backgroundCallback) {
+        backgroundCallback(inBackground);
+    }
+}
+
+#ifdef __ANDROID__
+// The app's surface has a (new) size: fit the game to it, and say so in the
+// log once per size (tests, and makers looking at a phone's log, read it).
+void Application::Impl::screenChanged()
+{
+    fitScreen();
+    const auto* view = ax::Director::getInstance()->getRenderView();
+    if (view == nullptr) {
+        return;
+    }
+    const ax::Vec2 frame = view->getFrameSize();
+    if (frame.x <= 0.0f || frame.y <= 0.0f || frame == loggedScreen) {
+        return;
+    }
+    loggedScreen = frame;
+    log().info(kCategory, "Screen: " + toString(frame) + " pixels, showing "
+                              + std::to_string(static_cast<int>(viewSize.x + 0.5f)) + "x"
+                              + std::to_string(static_cast<int>(viewSize.y + 0.5f)) + " points of the world");
+}
+#endif
 
 // The frame-rate overlay: one small line in the bottom-left corner, above
 // everything, in the scene and not the world, so the camera does not move it.
@@ -739,8 +912,29 @@ EM_BOOL onBrowserTouch(int type, const EmscriptenTouchEvent* event, void* user)
 } // namespace
 #endif
 
-void Application::Impl::listenForTouches()
+void Application::Impl::listenForTouches(ax::Scene& scene)
 {
+#ifdef __ANDROID__
+    // Android's touches come through Axmol, each finger with its own number
+    // for as long as it is down.
+    auto* fingers = ax::EventListenerTouchAllAtOnce::create();
+    const auto each = [this](TouchPhase phase) {
+        return [this, phase](const std::vector<ax::Touch*>& touches, ax::Event*) {
+            for (const ax::Touch* touch : touches) {
+                onTouch(phase, touch->getID(), touch->getLocation());
+            }
+        };
+    };
+    fingers->onTouchesBegan = each(TouchPhase::Began);
+    fingers->onTouchesMoved = each(TouchPhase::Moved);
+    fingers->onTouchesEnded = each(TouchPhase::Ended);
+    fingers->onTouchesCancelled = each(TouchPhase::Ended);   // Android took the touch away (a system gesture)
+    ax::Director::getInstance()->getEventDispatcher()->addEventListenerWithSceneGraphPriority(fingers, &scene);
+    // A phone or tablet: show the on-screen controls from the start.
+    gameInput->noteTouchUsed();
+#else
+    static_cast<void>(scene);
+#endif
 #ifdef __EMSCRIPTEN__
     // On the canvas, not through Axmol: its web touch code ends every finger
     // when one lifts, which breaks holding the stick while pressing a button.
@@ -849,6 +1043,11 @@ void Application::Impl::updateTouchControls()
 
 void Application::Impl::startUi(ax::Scene& scene, ax::RenderView& view)
 {
+#ifdef __ANDROID__
+    // Never reached: run() refuses a UI layer on Android (UiHostNone.hpp).
+    static_cast<void>(scene);
+    static_cast<void>(view);
+#else
     auto* glfwWindow = static_cast<ax::RenderViewImpl&>(view).getWindow();
     ax::Texture2D* worldImage = worldTexture != nullptr ? worldTexture->getSprite()->getTexture() : nullptr;
     ui = std::make_unique<detail::UiHost>(log(), glfwWindow, scene, worldImage);
@@ -857,6 +1056,7 @@ void Application::Impl::startUi(ax::Scene& scene, ax::RenderView& view)
     UiFrame frame(access);
     presentation.uiSetup(frame);
     log().info(kCategory, "UI layer: Rolo UI");
+#endif
 }
 
 void Application::Impl::logDiagnostics(ax::RenderView& view)
@@ -1128,9 +1328,11 @@ void UiFrame::setWindowTitle(const std::string& title)
 {
     if (auto* view = ax::Director::getInstance()->getRenderView()) {
         view->setViewName(title);
+#ifndef __ANDROID__   // (an Android app's name is its own; there is no title bar)
         if (auto* glfwView = dynamic_cast<ax::RenderViewImpl*>(view)) {
             glfwSetWindowTitle(glfwView->getWindow(), title.c_str());
         }
+#endif
     }
 }
 
@@ -1187,6 +1389,11 @@ void Application::setFrameCallback(std::function<void(const FrameInfo&)> callbac
     m_impl->frameCallback = std::move(callback);
 }
 
+void Application::setBackgroundCallback(std::function<void(bool)> callback)
+{
+    m_impl->backgroundCallback = std::move(callback);
+}
+
 const RunReport& Application::lastRunReport() const noexcept
 {
     return m_impl->report;
@@ -1216,6 +1423,11 @@ Status Application::run(const RunOptions& options)
     if (!options.screenshotPath.empty() && options.maxFrames == 0) {
         return Status::failure("A screenshot needs a frame limit (RunOptions::maxFrames > 0).");
     }
+#ifdef __ANDROID__
+    if (impl.uiEnabled()) {
+        return Status::failure("The UI layer is not available on Android (it is the editor's; games do not use it).");
+    }
+#endif
     if (g_backendInUse.exchange(true)) {
         return Status::failure("Only one Rolo Application can run at a time in a process.");
     }
@@ -1246,6 +1458,25 @@ Status Application::run(const RunOptions& options)
         }
         delete backend;
         delete logBridge;
+    }
+#elif defined(__ANDROID__)
+    // Android made the screen and runs the loop (see "Android" above): the
+    // game is set up on the screen that is there, and goes on after this
+    // function has returned, as in a web browser. What the frames need is
+    // made to outlive it the same way.
+    {
+        auto* logBridge = new detail::AxmolLogBridge(impl.engine.logger()); // backend logs → our logger
+        impl.log().info(kCategory, "Starting on the app's screen...");
+        g_androidGame = &impl;
+        if (impl.startWindow() && impl.startupError.empty()) {
+            impl.report.continuesInBackground = true;
+            return Status::success();
+        }
+        g_androidGame = nullptr;
+        g_backendInUse = false;
+        delete logBridge;
+        return Status::failure(impl.startupError.empty() ? std::string("The game could not be set up on the screen.")
+                                                         : impl.startupError);
     }
 #else
     {

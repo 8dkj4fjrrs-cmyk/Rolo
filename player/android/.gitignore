@@ -1,0 +1,8 @@
+# Made by Gradle, Android Studio and the C++ build
+.gradle/
+build/
+app/build/
+app/.cxx/
+local.properties
+*.iml
+.idea/
