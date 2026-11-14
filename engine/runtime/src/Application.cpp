@@ -774,7 +774,19 @@ void Application::Impl::listenForGameInput(ax::Scene& scene)
 {
     auto* dispatcher = ax::Director::getInstance()->getEventDispatcher();
     auto* keyboard = ax::EventListenerKeyboard::create();
-    keyboard->onKeyPressed = [this](ax::EventKeyboard::KeyCode code, ax::Event*) { gameInput->press(toRoloKey(code)); };
+    keyboard->onKeyPressed = [this](ax::EventKeyboard::KeyCode code, ax::Event*) {
+#ifdef __ANDROID__
+        // Android's Back button (or gesture) arrives as the Escape key, but
+        // it is no keyboard: a player using the touch screen still is, and
+        // the on-screen controls stay.
+        if (code == ax::EventKeyboard::KeyCode::KEY_ESCAPE && gameInput->lastDevice() == InputDevice::Touch) {
+            gameInput->press(Key::Escape);
+            gameInput->noteTouchUsed();
+            return;
+        }
+#endif
+        gameInput->press(toRoloKey(code));
+    };
     keyboard->onKeyReleased = [this](ax::EventKeyboard::KeyCode code, ax::Event*) {
         gameInput->release(toRoloKey(code));
     };

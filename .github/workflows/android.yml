@@ -94,6 +94,8 @@ jobs:
           unzip -l rolo-player-debug.apk | grep -E "lib/|assets/game.pack|assets/axslc/|assets/licenses/" | head -40
           mkdir apk && unzip -q rolo-player-debug.apk -d apk
           test -f apk/assets/game.pack
+          sed -n 1,40p "$ANDROID_NDK_ROOT/sources/android/cpufeatures/cpu-features.c"
+          cat "$ANDROID_NDK_ROOT/sources/android/cpufeatures/NOTICE" 2>/dev/null | head -60 || true
           for abi in arm64-v8a x86_64; do
             lib="apk/lib/$abi/librolo_player.so"
             test -f "$lib"
