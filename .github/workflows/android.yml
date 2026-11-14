@@ -91,11 +91,11 @@ jobs:
       # refuse it and Google Play rejects the app.
       - name: Check the app's contents and 16 KB pages
         run: |
-          unzip -l rolo-player-debug.apk | grep -E "lib/|assets/game.pack|assets/axslc/|assets/licenses/" | head -40
+          unzip -l rolo-player-debug.apk | grep -E "lib/|assets/game.pack|classes"
+          echo "Shaders: $(unzip -l rolo-player-debug.apk | grep -c assets/axslc/), license texts: $(unzip -l rolo-player-debug.apk | grep -c assets/licenses/)"
           mkdir apk && unzip -q rolo-player-debug.apk -d apk
           test -f apk/assets/game.pack
-          sed -n 1,40p "$ANDROID_NDK_ROOT/sources/android/cpufeatures/cpu-features.c"
-          cat "$ANDROID_NDK_ROOT/sources/android/cpufeatures/NOTICE" 2>/dev/null | head -60 || true
+          test -f apk/assets/licenses/rolo.txt
           for abi in arm64-v8a x86_64; do
             lib="apk/lib/$abi/librolo_player.so"
             test -f "$lib"
@@ -128,7 +128,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            python3 tools/android/check_android_game.py rolo-player-debug.apk --pictures-in-output --screenshot android-first-scene.png --log android-log-1.txt --expect "Unpacking the game" --expect "Set aside" --expect "Back in front" --expect-ended --play "200,200>330,200;-112,112;back;shot:android-pause-menu.png;back;home;wait:2;return;wait:2;shot:android-after-return.png;50%,-79;200,200>200,60;200,200>200,60;shot:android-quit-chosen.png;-112,112"
+            python3 tools/android/check_android_game.py rolo-player-debug.apk --screenshot android-first-scene.png --log android-log-1.txt --expect "Unpacking the game" --expect "Set aside" --expect "Back in front" --expect-ended --play "200,200>330,200;-112,112;back;shot:android-pause-menu.png;back;home;wait:2;return;wait:2;shot:android-after-return.png;50%,-79;200,200>200,60;200,200>200,60;shot:android-quit-chosen.png;-112,112"
             python3 tools/android/check_android_game.py rolo-player-debug.apk --keep-installed --screenshot android-second-start.png --log android-log-2.txt --reject "Unpacking the game" --expect "Playing the game inside this app"
 
       - uses: actions/upload-artifact@v4

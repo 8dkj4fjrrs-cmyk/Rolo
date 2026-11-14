@@ -1,6 +1,6 @@
 # ADR 0028: Android
 
-- **Status:** Proposed (the plan and what was found; nothing is built yet)
+- **Status:** Accepted. Step 1 (the player runs on Android) is done; steps 2 to 4 are not started
 - **Date:** 2026-11-14
 - **Follows:** ADR 0019 (direction: desktop, web and mobile), ADR 0022 (web export), ADR 0026 (touch), ADR 0027 (screen sizes)
 
@@ -83,6 +83,93 @@ Decided by the owner on 2026-11-14:
    codes, the store's forms, and what the pre-launch report said.
 4. **Polish**, as far as an emulator and reports allow: sound, rumble
    (vibration), the notch and rounded corners, performance.
+
+## Step 1, as built (2026-11-14)
+
+The player builds as an Android app with one game inside, and is built
+and played in an emulator by a separate, experimental GitHub workflow
+(`.github/workflows/android.yml`). Nothing of it has run on a real phone.
+
+- **The Gradle project** is `player/android` (one module, `app`). Gradle
+  runs Rolo's CMake build with the Android NDK (the player is a library
+  there, `librolo_player.so`), compiles the Java side, and packs both with
+  the app's assets: Axmol's shaders, the game as one game pack
+  (`game.pack`) and the license texts. Versions: Android Gradle Plugin
+  9.3.2 and Gradle 9.7.1 (those of Axmol 2.11.5's own Android projects),
+  NDK 27.3.13750724 (r27d), CMake 3.31.5, built for Android 16 (API 36),
+  running on Android 7.0 (API 24) and newer.
+- **The Java side** is Axmol's (`AxmolActivity` and its helpers, MIT),
+  compiled as it is but without its video player, plus Rolo's small
+  `RoloActivity`. Four classes Axmol's code mentions are Rolo's own
+  stand-ins (`player/android/app/src/axmol_compat`): the video player
+  (which would bring Google's media libraries) and three helpers under
+  the Apache licence that Rolo has no use for. The app asks for **no
+  permissions**.
+- **Start-up.** Android makes the screen and calls into the library;
+  there is no `main()`. The player says what starting means
+  (`rolo::android::setStart`, `rolo/runtime/Android.hpp`), and
+  `Application::run()` sets the game up on the screen that is there and
+  returns while the game goes on, as in a web browser.
+- **The game's files.** The pack is copied out of the app and unpacked
+  into the app's own folder on the first start after each install or
+  update (a note beside it names the installation it came from). Saved
+  games go to a `saves` folder beside it.
+- **Touch** comes through Axmol to the same on-screen controls as on the
+  web. **Back** arrives as Escape (and does not count as "a keyboard was
+  used", so the on-screen controls stay). **In the background** no frames
+  are made and the sound output rests (`AudioEngine::setSuspended`); the
+  game goes on where it was. When the game quits, the app's process ends.
+- **16 KB pages**: the libraries are laid out for them, and the workflow
+  checks it.
+- **Logging** goes to Android's log (logcat) under the tag `Rolo`.
+
+What the emulator test showed (Android 14, x86_64, a 2400 × 1080 screen
+drawn without a graphics card): the Platformer Starter starts, its first
+scene is drawn filling the long screen (1600 × 720 points of the world),
+the on-screen stick and buttons work, Back opens and closes the pause
+menu, Home and coming back pause and continue the game, Quit from the
+pause menu ends the app, and a second start does not unpack again.
+
+Found on the way:
+- Axmol's maths code needs the NDK's small `cpufeatures` library, which
+  its own build only reaches by way of libpng. Rolo, built without libpng
+  (ADR 0024), links it directly (`cmake/RoloAxmol.cmake`). It is one more
+  piece inside Android games (BSD licence; `licenses/android-cpufeatures.txt`).
+- `char` is unsigned on ARM unless asked otherwise; everywhere else Rolo
+  runs it is signed. The Android build asks for signed (`-fsigned-char`),
+  as Axmol's does, so that the emulator (x86_64) and phones (arm64) behave alike.
+- The first time an app fills the screen, Android covers it with a note
+  about leaving full screen that swallows touches. Players tap it away; the
+  test tells the emulator it was seen.
+- Android 16 no longer sends Back as a key to apps built for it unless
+  they ask (`enableOnBackInvokedCallback="false"` in the manifest).
+
+Not done in step 1, and where it belongs:
+- **Gamepads and rumble** on Android (step 4). Only a controller's
+  direction buttons arrive, as arrow keys.
+- **Keyboards** on Android (Chromebooks, tablets): Axmol's Java side only
+  passes Back, Menu, Enter and the direction keys.
+- **Notches and rounded corners** (step 4): the game fills the whole
+  screen and nothing is kept clear of them.
+- **A lost graphics context** (Android may take it from an app in the
+  background): Axmol reloads the textures it loaded from files; Rolo
+  makes its textures itself, so this needs its own handling and a way to
+  test it (step 4).
+- **The game exists twice on the device** (packed in the app, and
+  unpacked). Reading straight from the pack would halve that.
+- **Backing up saved games** to the player's Google account is off
+  (`allowBackup="false"`); to be decided with step 3.
+- **C++ game modules** are not built in (as on the web): games are scripts
+  and data.
+- The workflow's app is a **debug build**: not optimised (about 28 MB of
+  library per kind of processor), signed with a throwaway debug key, an
+  `.apk`. Release builds, the `.aab` and signing are step 2. In the
+  emulator, drawn without a graphics card, it made roughly ten frames a
+  second, which says nothing about phones.
+- The **Gradle wrapper** (`gradlew` and its `.jar`) is not in the
+  repository: the workflow installs Gradle itself, and Android Studio
+  reads the version from `gradle-wrapper.properties`. Step 2 decides how
+  the editor runs Gradle on a maker's computer.
 
 ## Alternatives considered
 

@@ -136,6 +136,53 @@ you export for the web, and where packaging takes it from
   `node tools/web/check_web_game.js "path/to/My Game Web"` (needs Node and
   Playwright: `npm install playwright && npx playwright install chromium`).
 
+### For Android
+
+**Experimental** ([ADR 0028](adr/0028-android.md), step 1): Rolo's player
+builds as an Android app with one game inside. The editor cannot export
+for Android yet; this is the groundwork for it. It is built and tried on
+GitHub's machines (the **Android (experimental)** workflow), in an
+emulator only: so far never on a real phone.
+
+The app is the Gradle project in `player/android`: the kind of project
+Android Studio opens. To build it yourself you need
+[Android Studio](https://developer.android.com/studio), and in its
+**SDK Manager › SDK Tools** (tick *Show Package Details*): NDK
+`27.3.13750724`, CMake `3.31.5`, and Android SDK Platform 36. Then, in a
+terminal:
+
+```sh
+# 1. Pack the game: one file with everything in the project.
+cmake --preset core && cmake --build --preset core --target rolo_pack
+build/core/bin/rolo_pack templates/platformer/project game.pack
+
+# 2. Build the app (Gradle 9.7.1; `brew install gradle` gives a newer one,
+#    which may or may not agree with Google's build plugin).
+export ANDROID_HOME="$HOME/Library/Android/sdk"     # where Android Studio keeps the SDK on a Mac
+cd player/android
+gradle :app:assembleDebug -ProloGamePack="$PWD/../../game.pack" -ProloAbis=arm64-v8a
+```
+
+The app lands in `player/android/app/build/outputs/apk/debug/app-debug.apk`.
+Drag it onto a running emulator (Android Studio › Device Manager) to
+install it. `arm64-v8a` is for phones and for emulators on Apple silicon
+Macs; add `x86_64` (`-ProloAbis=arm64-v8a:x86_64`) for emulators on Intel
+or AMD computers. The other settings are listed at the top of
+`player/android/app/build.gradle`.
+
+**Building on a Mac has not been tried**: the steps above are what
+GitHub's Linux machines do. The easier way to try it today: every run of
+the workflow keeps the app it built (on the run's page, **Artifacts ›
+android-check**, with screenshots and Android's log).
+
+- The game's messages go to Android's log: `adb logcat -s Rolo`, or the
+  Logcat window of Android Studio with the filter `tag:Rolo`.
+- `python3 tools/android/check_android_game.py app-debug.apk` installs the
+  app on the one running emulator or connected phone, plays it and checks
+  the log, as the workflow does.
+- Not there yet: gamepads, keyboards, keeping clear of notches. See the
+  ADR for the list.
+
 ### Your game's code
 
 Gameplay is C++ in *game modules* built into the editor and the player

@@ -5,6 +5,21 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Android, step 1** ([ADR 0028](docs/adr/0028-android.md),
+  [building](docs/building.md#for-android)): experimental. Rolo's player
+  builds as an Android app with one game inside (`player/android`, a
+  Gradle project), and a separate workflow on GitHub plays it in an
+  emulator: the first scene, the on-screen controls, Back (as Escape),
+  going to the background and back, quitting. Not yet on a real phone,
+  and not yet from the editor.
+  - On Android the game is unpacked from the app into the app's own
+    folder on the first start; saved games are kept beside it; messages
+    go to Android's log (tag `Rolo`). The app asks for no permissions.
+  - `rolo_pack PROJECT OUTPUT.pack` (`tools/pack`) packs a project into a
+    game pack from the command line.
+  - When a game is set aside (its window minimised; on a phone, another
+    app in front), its sound now rests too and goes on where it was
+    (`AudioEngine::setSuspended`, `Application::setBackgroundCallback`).
 - **Screen sizes** ([ADR 0027](docs/adr/0027-screen-sizes.md),
   [guide](docs/exporting.md#screens-of-other-shapes)):
   - **Game Size**: each project has its own size (1280 × 720 unless

@@ -189,6 +189,8 @@ licenses/        License texts of everything inside an exported game
 tests/           Catch2 unit tests and window tests
 tools/release/   Release helpers (license texts, Windows DLL check)
 tools/stress/    rolo_stress: gameplay frame times in the stress test
+tools/pack/      rolo_pack: a project folder as one game pack file
+tools/android/   Plays the Android app on an emulator or phone and checks it
 cmake/           CMake helpers, the pinned Axmol download and its patches
 docs/            Guides, file formats and architecture decision records
 ```
