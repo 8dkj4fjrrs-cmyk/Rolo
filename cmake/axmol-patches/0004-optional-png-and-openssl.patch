@@ -1,0 +1,55 @@
+diff --git a/3rdparty/CMakeLists.txt b/3rdparty/CMakeLists.txt
+index b49cbbf..ca947a7 100644
+--- a/3rdparty/CMakeLists.txt
++++ b/3rdparty/CMakeLists.txt
+@@ -160,7 +160,12 @@ if(NOT EMSCRIPTEN)
+ endif()
+ 
+ # libpng
+-ax_add_3rd(png)
++# Rolo patch: libpng can be left out; the core must then be built with
++# AX_USE_PNG=0, and FreeType without PNG-compressed bitmaps.
++option(AX_WITH_PNG "Build with libpng" ON)
++if(AX_WITH_PNG)
++  ax_add_3rd(png)
++endif()
+ 
+ if(AX_ENABLE_PHYSICS)
+   set(box2d_opts "BOX2D_BUILD_UNIT_TESTS OFF" "BOX2D_BUILD_TESTBED OFF")
+@@ -183,14 +188,20 @@ if(AX_ENABLE_PHYSICS)
+   target_compile_definitions(chipmunk PUBLIC CP_USE_DOUBLES=0)
+ endif()
+ 
+-ax_add_3rd(freetype OPTIONS
++set(_ax_freetype_opts
+   "DISABLE_FORCE_DEBUG_POSTFIX ON"
+   "SKIP_INSTALL_ALL TRUE"
+   "FT_DISABLE_HARFBUZZ TRUE"
+   "FT_DISABLE_BROTLI TRUE"
+   "FT_DISABLE_BZIP2 TRUE"
+ )
+-target_include_directories(freetype PRIVATE "${PNG_INCLUDE_DIR}")
++if(NOT AX_WITH_PNG)
++  list(APPEND _ax_freetype_opts "FT_DISABLE_PNG TRUE")
++endif()
++ax_add_3rd(freetype OPTIONS ${_ax_freetype_opts})
++if(AX_WITH_PNG)
++  target_include_directories(freetype PRIVATE "${PNG_INCLUDE_DIR}")
++endif()
+ 
+ if(WINRT)
+   target_compile_definitions(freetype PUBLIC "generic=GenericFromFreeTypeLibrary")
+@@ -210,7 +221,12 @@ if(AX_WITH_JPEG AND NOT WINRT AND NOT EMSCRIPTEN)
+   ax_add_3rd(jpeg-turbo)
+ endif()
+ 
+-ax_add_3rd(openssl TARGETS OpenSSL::SSL OpenSSL::Crypto)
++# Rolo patch: OpenSSL can be left out; something else must then provide the
++# few openssl/ headers the core includes.
++option(AX_WITH_OPENSSL "Build with OpenSSL" ON)
++if(AX_WITH_OPENSSL)
++  ax_add_3rd(openssl TARGETS OpenSSL::SSL OpenSSL::Crypto)
++endif()
+ 
+ if(AX_WITH_WEBP)
+   ax_add_3rd(webp)

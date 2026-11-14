@@ -1,0 +1,6 @@
+{
+  "format": "rolo.project",
+  "version": 1,
+  "name": "PNG Test",
+  "startScene": "scenes/kinds.lscene"
+}

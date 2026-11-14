@@ -57,20 +57,21 @@ ax::Texture2D* TextureStore::get(const std::filesystem::path& path, bool pixelAr
     entry.stamp = stamp;
     entry.pixelArt = pixelArt;
     if (!ec) {
+        // Rolo decodes the file itself (rolo/assets/ImageDecode.hpp): Axmol
+        // is built without JPEG and PNG libraries (ADR 0023, ADR 0024).
+        // See-through images are handed over with their colours already
+        // multiplied by alpha, which is what Axmol's own PNG loading did.
         auto* image = new ax::Image();
         bool loaded = false;
-        if (isJpegFileName(path)) {
-            // JPEG files are decoded by Rolo (rolo/assets/ImageDecode.hpp):
-            // Axmol is built without a JPEG library (ADR 0023).
-            std::string why;
-            if (const auto decoded = decodeImageFile(path, &why)) {
-                loaded = image->initWithRawData(decoded->rgba.data(), static_cast<ssize_t>(decoded->rgba.size()),
-                                                decoded->width, decoded->height, 8, false);
-            } else {
-                m_log.warning(kCategory, key + ": " + why + ".");
+        std::string why;
+        if (auto decoded = decodeImageFile(path, &why)) {
+            if (decoded->hasAlpha) {
+                premultiplyAlpha(*decoded);
             }
+            loaded = image->initWithRawData(decoded->rgba.data(), static_cast<ssize_t>(decoded->rgba.size()),
+                                            decoded->width, decoded->height, 8, decoded->hasAlpha);
         } else {
-            loaded = image->initWithImageFile(key);
+            m_log.warning(kCategory, key + ": " + why + ".");
         }
         if (loaded) {
             auto* texture = new ax::Texture2D();

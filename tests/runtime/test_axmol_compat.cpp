@@ -272,3 +272,13 @@ TEST_CASE("Axmol's own code works with the replacement buffers", "[runtime][comp
     const auto unpacked = ax::ZipUtils::decompressGZ(packed.data(), packed.size());
     CHECK(std::string(unpacked.begin(), unpacked.end()) == text);
 }
+
+TEST_CASE("Without OpenSSL, Axmol's digest helpers give an empty text", "[runtime][compat]")
+{
+    // Rolo builds Axmol without OpenSSL (ADR 0024); its stand-in headers
+    // know no digest. Nothing in Rolo asks for one: this pins down what
+    // would happen, an empty answer and no crash.
+    CHECK(ax::utils::getStringMD5Hash("Rolo").empty());
+    CHECK(ax::utils::computeDigest("Rolo", "sha1").empty());
+    CHECK(ax::utils::computeDigest("Rolo", "no-such-digest").empty());
+}

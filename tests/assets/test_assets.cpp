@@ -1,6 +1,7 @@
 #include "support/TempFolder.hpp"
 #include "rolo/assets/AssetDatabase.hpp"
 #include "rolo/assets/ImageDecode.hpp"
+#include "rolo/assets/ImageEncode.hpp"
 #include "rolo/core/Files.hpp"
 #include "rolo/scene/Scene.hpp"
 
@@ -268,7 +269,7 @@ TEST_CASE("A read-only database (games) never writes .meta files", "[assets]")
 
 TEST_CASE("Rolo decodes JPEG and PNG files itself", "[assets][image]")
 {
-    // The renderer uses this for JPEG files: no separate JPEG library is in the engine.
+    // The renderer draws from these pixels: no separate JPEG library is in the engine.
     std::string error;
     const auto photo = decodeImageFile(kData / "photo.jpg", &error);
     INFO(error);
@@ -307,9 +308,142 @@ TEST_CASE("Rolo decodes JPEG and PNG files itself", "[assets][image]")
     CHECK(error.find("not a readable") != std::string::npos);
     CHECK_FALSE(decodeImageFile(kData / "no_such_file.jpg", &error));
     CHECK(error.find("could not be opened") != std::string::npos);
+}
 
-    CHECK(isJpegFileName("a/Photo.JPG"));
-    CHECK(isJpegFileName("b.jpeg"));
-    CHECK_FALSE(isJpegFileName("hero.png"));
-    CHECK_FALSE(isJpegFileName("jpg"));
+TEST_CASE("Rolo decodes every kind of PNG file", "[assets][image]")
+{
+    // The renderer draws PNG files from these pixels: no PNG library is in
+    // the engine (ADR 0024). The files are made by tests/data/make_png_project.py:
+    // a 128 x 128 colour wheel that fades out towards its edge.
+    const fs::path folder = kData / "png_project/assets";
+    const auto load = [&](const char* name) {
+        std::string error;
+        auto image = decodeImageFile(folder / name, &error);
+        INFO(name << ": " << error);
+        REQUIRE(image);
+        REQUIRE(image->width == 128);
+        REQUIRE(image->height == 128);
+        REQUIRE(image->rgba.size() == 128u * 128u * 4u);
+        return *image;
+    };
+    const auto at = [](const DecodedImage& image, int x, int y, int channel) {
+        return static_cast<int>(image.rgba[static_cast<std::size_t>((y * 128 + x) * 4 + channel)]);
+    };
+
+    const DecodedImage rgba = load("rgba.png");
+    CHECK(rgba.hasAlpha);
+    CHECK(at(rgba, 64, 64, 3) == 255);   // solid in the middle
+    CHECK(at(rgba, 0, 0, 3) == 0);       // clear in the corners
+    CHECK(at(rgba, 120, 64, 0) > 200);   // red to the right
+
+    const DecodedImage rgb = load("rgb.png");
+    CHECK_FALSE(rgb.hasAlpha);
+    CHECK(at(rgb, 0, 0, 3) == 255);
+    CHECK(at(rgb, 120, 64, 0) == at(rgba, 120, 64, 0));
+
+    // Greyscale files come out as grey pixels, not as red ones.
+    const DecodedImage grey = load("grey.png");
+    CHECK_FALSE(grey.hasAlpha);
+    CHECK(at(grey, 100, 30, 0) == at(grey, 100, 30, 1));
+    CHECK(at(grey, 100, 30, 1) == at(grey, 100, 30, 2));
+    CHECK(at(grey, 100, 30, 3) == 255);
+
+    const DecodedImage greyAlpha = load("grey_alpha.png");
+    CHECK(greyAlpha.hasAlpha);
+    CHECK(at(greyAlpha, 64, 64, 0) == at(greyAlpha, 64, 64, 2));
+    CHECK(at(greyAlpha, 0, 0, 3) == 0);
+    CHECK(at(greyAlpha, 64, 64, 3) == 255);
+
+    // Files with a palette, without and with see-through entries.
+    const DecodedImage palette = load("palette.png");
+    CHECK_FALSE(palette.hasAlpha);
+    CHECK(std::abs(at(palette, 120, 64, 0) - at(rgb, 120, 64, 0)) < 40);   // 32 colours: near, not equal
+    const DecodedImage paletteAlpha = load("palette_alpha.png");
+    CHECK(paletteAlpha.hasAlpha);
+    CHECK(at(paletteAlpha, 0, 0, 3) < 40);
+    CHECK(at(paletteAlpha, 64, 64, 3) > 215);
+
+    // 16 bits per channel: black on the left to white on the right.
+    const DecodedImage grey16 = load("grey16.png");
+    CHECK_FALSE(grey16.hasAlpha);
+    CHECK(at(grey16, 0, 5, 0) == 0);
+    CHECK(at(grey16, 127, 5, 0) == 255);
+    CHECK(std::abs(at(grey16, 64, 5, 1) - 128) <= 2);
+
+    // An interlaced file holds the same picture as the plain one.
+    const DecodedImage interlaced = load("interlaced.PNG");
+    CHECK(interlaced.hasAlpha);
+    CHECK(interlaced.rgba == rgba.rgba);
+
+    // JPEG files never have transparency.
+    const auto photo = decodeImageFile(kData / "photo.jpg");
+    REQUIRE(photo);
+    CHECK_FALSE(photo->hasAlpha);
+}
+
+TEST_CASE("Colours are multiplied by alpha as the renderer expects", "[assets][image]")
+{
+    DecodedImage image;
+    image.width = 4;
+    image.height = 1;
+    image.hasAlpha = true;
+    image.rgba = {200, 100, 50, 128,   255, 255, 255, 255,   255, 128, 7, 0,   10, 20, 30, 1};
+    premultiplyAlpha(image);
+    // Each colour becomes colour * (alpha + 1) / 256, rounded down: the
+    // same sum the engine's PNG library path used, so pictures look as before.
+    const std::vector<std::uint8_t> expected = {100, 50, 25, 128,   255, 255, 255, 255,   0, 0, 0, 0,   0, 0, 0, 1};
+    CHECK(image.rgba == expected);
+}
+
+TEST_CASE("Rolo writes PNG files itself", "[assets][image]")
+{
+    // Screenshots are written with this. What is written must read back exactly.
+    const int w = 37;
+    const int h = 21;
+    for (const int channels : {3, 4}) {
+        std::vector<std::uint8_t> pixels(static_cast<std::size_t>(w * h * channels));
+        std::uint32_t seed = 12345u + static_cast<std::uint32_t>(channels);
+        for (std::size_t i = 0; i < pixels.size(); ++i) {
+            // Half noise (hard to compress), half flat (easy): both paths of the writer.
+            seed = seed * 1664525u + 1013904223u;
+            pixels[i] = i < pixels.size() / 2 ? static_cast<std::uint8_t>(seed >> 24) : std::uint8_t{90};
+        }
+        const std::vector<std::uint8_t> png = encodePng(pixels.data(), w, h, channels);
+        REQUIRE(png.size() > 8);
+        CHECK(png[1] == 'P');
+        CHECK(png[2] == 'N');
+        CHECK(png[3] == 'G');
+        std::string error;
+        const auto back = decodeImage(png.data(), png.size(), &error);
+        INFO(error);
+        REQUIRE(back);
+        REQUIRE(back->width == w);
+        REQUIRE(back->height == h);
+        CHECK(back->hasAlpha == (channels == 4));
+        bool same = true;
+        for (int i = 0; i < w * h && same; ++i) {
+            for (int c = 0; c < 4; ++c) {
+                const int wrote = c < channels ? pixels[static_cast<std::size_t>(i * channels + c)] : 255;
+                same = same && back->rgba[static_cast<std::size_t>(i * 4 + c)] == wrote;
+            }
+        }
+        CHECK(same);
+    }
+
+    const std::vector<std::uint8_t> red(4 * 4 * 3, 200);
+    CHECK(encodePng(nullptr, 4, 4, 3).empty());
+    CHECK(encodePng(red.data(), 0, 4, 3).empty());
+    CHECK(encodePng(red.data(), 4, 4, 2).empty());
+
+    const fs::path folder = rolo::test::uniqueTempFolder("png-write");
+    fs::create_directories(folder);
+    std::string error;
+    REQUIRE(writePngFile(folder / "shot.png", red.data(), 4, 4, 3, &error));
+    const auto shot = decodeImageFile(folder / "shot.png", &error);
+    REQUIRE(shot);
+    CHECK(shot->width == 4);
+    CHECK(shot->rgba[0] == 200);
+    CHECK_FALSE(writePngFile(folder / "no/such/folder/shot.png", red.data(), 4, 4, 3, &error));
+    CHECK(error.find("could not be opened") != std::string::npos);
+    fs::remove_all(folder);
 }

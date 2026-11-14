@@ -74,7 +74,7 @@ struct RunOptions {
     /// Requires maxFrames > 0 so there *is* a final frame.
     std::filesystem::path screenshotPath;
 
-    /// Show the backend's frame-rate / draw-call overlay in the corner.
+    /// Show the frame-rate / draw-call overlay in the corner.
     bool showStats = true;
 
     /// Close the window when Escape is pressed (games: yes; editor: no).

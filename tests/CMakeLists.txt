@@ -153,6 +153,17 @@ set_tests_properties(player.draws_jpeg_images PROPERTIES
     FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|\\[WARN"
     TIMEOUT 60)
 
+# PNG images of every kind (colour, grey, palette, 16-bit, interlaced, with
+# and without transparency) are decoded by Rolo itself too: the engine has
+# no PNG library (ADR 0024). The project is made by data/make_png_project.py.
+add_test(NAME player.draws_png_images
+    COMMAND rolo_player --project "${CMAKE_CURRENT_SOURCE_DIR}/data/png_project" --frames 30 --no-stats
+            --screenshot "${CMAKE_CURRENT_BINARY_DIR}/player_png.png")
+set_tests_properties(player.draws_png_images PROPERTIES
+    PASS_REGULAR_EXPRESSION "Showing scene 'PNG kinds' \\(9 entities\\).*Screenshot saved"
+    FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|\\[WARN"
+    TIMEOUT 60)
+
 add_test(NAME player.window_smoke COMMAND rolo_player --frames 120)
 set_tests_properties(player.window_smoke PROPERTIES
     PASS_REGULAR_EXPRESSION "Window closed after 12[0-9] frames"

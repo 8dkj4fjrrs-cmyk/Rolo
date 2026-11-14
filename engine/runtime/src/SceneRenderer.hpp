@@ -79,6 +79,9 @@ public:
     /// The node mirroring an entity (for tests); null if none.
     ax::Node* nodeFor(EntityId id) const;
 
+    /// Rolo's built-in font as a file Axmol can load (written once).
+    const std::string& defaultFontPath();
+
 private:
     void rebuild();
     void moveNodes();
@@ -86,8 +89,6 @@ private:
     ax::Node* makeTilemapNode(const Tilemap& map);
     ax::Node* makeAnimatedNode(EntityId id, const Animator& animator, const Sprite* sprite);
     ax::Node* makeTextNode(const Text& text);
-    /// Rolo's built-in font as a file Axmol can load (written once).
-    const std::string& defaultFontPath();
 
     ax::Node& m_root;
     TextureStore* m_textures;

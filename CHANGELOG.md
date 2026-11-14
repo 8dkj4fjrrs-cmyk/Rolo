@@ -5,6 +5,22 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **No libpng and no OpenSSL in Rolo or its games**
+  ([ADR 0024](docs/adr/0024-no-libpng-no-openssl.md)):
+  - Rolo decodes PNG images itself, with the decoder it already used for
+    JPEGs (stb_image), and writes screenshots itself (stb_image_write);
+    both are MIT or public domain. Colour PNGs are drawn exactly as
+    before.
+  - **Fixed: greyscale PNG files were drawn tinted and see-through.** They
+    now look as they should (grey, grey with transparency, 16-bit).
+  - OpenSSL was in every game for two Axmol features Rolo never used
+    (file digests, an encrypted settings file). It is gone; Windows games
+    no longer carry `libcrypto` and `libssl` DLLs.
+  - Games are smaller: the Linux game program went from 17.8 MB to
+    13.1 MB, the web runtime from 5.21 MB to 5.07 MB.
+  - The frame-rate overlay (`--stats`) is Rolo's own now: one line with
+    frames per second, milliseconds per frame, draw calls and vertices.
+  - `licenses/libpng.txt` and `licenses/openssl.txt` are gone.
 - **No JPEG library in Rolo or its games** ([ADR 0023](docs/adr/0023-no-jpeg-library.md)):
   JPEG images are decoded by Rolo itself, with stb_image (MIT or public
   domain), which was in every game already. libjpeg-turbo (desktop) and

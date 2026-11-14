@@ -11,7 +11,7 @@
 #   5. Switches off Axmol features Rolo does not use (faster builds, fewer
 #      third-party licenses in every game).
 #   6. Adds Axmol's core library as the CMake target named in ${_AX_CORE_LIB},
-#      with Rolo's replacement for the yasio headers it includes.
+#      with Rolo's replacement for the yasio and OpenSSL headers it includes.
 #
 # Nothing outside engine/runtime and player/ may use Axmol directly.
 # See docs/adr/0001-runtime-foundation.md.
@@ -219,6 +219,13 @@ set(AX_UPDATE_BUILD_VERSION OFF CACHE BOOL "" FORCE)
 # decoder it already has (rolo/assets/ImageDecode.hpp). This leaves out
 # libjpeg-turbo, and on the web Emscripten's IJG libjpeg (patch 0003).
 set(AX_WITH_JPEG OFF CACHE BOOL "" FORCE)
+# No libpng and no OpenSSL either (ADR 0024). Rolo decodes PNG files with the
+# same decoder and writes screenshots with its own PNG writer; Axmol's core
+# only mentions OpenSSL for two features Rolo does not use, and gets Rolo's
+# stand-in headers instead (engine/runtime/axmol_compat). Both switches are
+# added by Rolo's Axmol patch 0004.
+set(AX_WITH_PNG OFF CACHE BOOL "" FORCE)
+set(AX_WITH_OPENSSL OFF CACHE BOOL "" FORCE)
 
 # ---------------------------------------------------------------------------
 # 6. Add Axmol's core library
@@ -237,10 +244,12 @@ add_subdirectory("${_AX_ROOT}/core" "${ENGINE_BINARY_PATH}/axmol/core" SYSTEM)
 if(NOT TARGET ${_AX_CORE_LIB})
     message(FATAL_ERROR "Axmol did not create its core library target.")
 endif()
-# Axmol's image code without its JPEG parts (see AX_WITH_JPEG above).
-target_compile_definitions(${_AX_CORE_LIB} PUBLIC AX_USE_JPEG=0)
+# Axmol's image code without its JPEG and PNG parts (see AX_WITH_JPEG and
+# AX_WITH_PNG above).
+target_compile_definitions(${_AX_CORE_LIB} PUBLIC AX_USE_JPEG=0 AX_USE_PNG=0)
 
-# Rolo's replacement for the yasio headers Axmol's core includes (ADR 0012).
+# Rolo's replacement for the yasio headers Axmol's core includes (ADR 0012),
+# and its stand-in for the OpenSSL headers (ADR 0024).
 # Linked through Axmol's "3rdparty" interface target, which the core and
 # everything using it already link.
 add_library(rolo_axmol_compat INTERFACE)

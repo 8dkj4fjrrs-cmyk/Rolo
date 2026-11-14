@@ -7,7 +7,7 @@ built with Rolo ("shipped").
 Large dependencies are not copied into this repository: Axmol is downloaded
 by CMake into `external/` at a pinned commit (see `cmake/RoloAxmol.cmake`).
 Small ones are kept in the repository, unmodified and with their license
-files: `third_party/stb/stb_truetype.h`, `third_party/stb/stb_image.h`, Lua's
+files: `third_party/stb/stb_truetype.h`, `third_party/stb/stb_image.h`, `third_party/stb/stb_image_write.h`, Lua's
 sources in `third_party/luau/`, miniaudio and stb_vorbis in `third_party/miniaudio/`, Box2D in `third_party/box2d/` and the Inter fonts in `assets/fonts/`.
 
 ## Runtime backend
@@ -44,8 +44,6 @@ copy of Rolo, carries that folder.
 | Glad | 2.0.8 | MIT |
 | GLFW (modified by Axmol), with SDL_GameControllerDB's gamepad layouts (Rolo reads gamepads with it, ADR 0017) | 3.4 | zlib |
 | mio (header-only) | git 8b6b7d8 | MIT |
-| OpenSSL (Axmol's core uses its digests and AES) | 3.0.18 | Apache-2.0 |
-| libpng | 1.6.53 | PNG Reference Library License v2 |
 | poly2tri | git 81612cb | BSD-3-Clause |
 | pugixml | 1.13 | MIT |
 | RapidJSON (header-only) | 1.1.0-24b5e7a | MIT |
@@ -109,7 +107,7 @@ desktop runtime contains, compiled to WebAssembly, and:
 | LLVM libc++, libc++abi, libunwind, compiler-rt | as in Emscripten 4.0.9 | Apache-2.0 WITH LLVM-exception | Web games |
 
 Their texts are `licenses/emscripten.txt` and `licenses/llvm-runtime.txt`.
-(No JPEG library: Rolo decodes JPEG files with stb_image, ADR 0023.) Emscripten itself is a build tool and is not part
+(No JPEG library, no libpng and no OpenSSL: Rolo decodes images with stb_image, ADR 0023 and ADR 0024.) Emscripten itself is a build tool and is not part
 of this repository.
 
 ## Sound (`engine/audio`)
@@ -170,9 +168,12 @@ must accompany shipped games: it is in `licenses/`, which exports include.
 
 | Component | Version | License | Shipped? |
 |---|---|---|---|
-| [stb_image](https://github.com/nothings/stb) (`third_party/stb/stb_image.h`) | 2.30 (`003501f6`, the same stb commit as stb_truetype) | MIT or public domain (Unlicense), at our choice: MIT | Yes: checks image files (size, validity) in the editor and in games, and decodes JPEG images for drawing (ADR 0023) |
+| [stb_image](https://github.com/nothings/stb) (`third_party/stb/stb_image.h`) | 2.30 (`003501f6`, the same stb commit as stb_truetype) | MIT or public domain (Unlicense), at our choice: MIT | Yes: checks image files (size, validity) in the editor and in games, and decodes PNG and JPEG images for drawing (ADR 0023, ADR 0024) |
+| [stb_image_write](https://github.com/nothings/stb) (`third_party/stb/stb_image_write.h`) | 1.18 (`9600522d`) | MIT or public domain (Unlicense), at our choice: MIT | Yes: writes screenshots as PNG files (ADR 0024) |
 
-Compiled into `AssetDatabase.cpp` only, with every function `static` and
-only the PNG and JPEG decoders, because Axmol carries its own copy of
-stb_image for loading textures (listed with Axmol's libraries). The two
-copies never meet at link time.
+stb_image is compiled into `AssetDatabase.cpp` only, with every function
+`static` and only the PNG and JPEG decoders, because Axmol carries its own
+copy of stb_image (listed with Axmol's libraries; it reads BMP files
+there, which Rolo does not use). The two copies never meet at link time.
+stb_image_write is compiled the same way into `ImageEncode.cpp`. Axmol
+itself is built without libpng, a JPEG library or OpenSSL.

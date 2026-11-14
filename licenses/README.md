@@ -10,7 +10,7 @@ Their license texts are in this folder; games carry a copy of it.
 | `inter-font.txt` | Inter font 4.0 (Rolo's default text font) | SIL OFL 1.1 |
 | `luau.txt` | Luau 0.744 (gameplay scripts), based on Lua 5.1 | MIT |
 | `nlohmann-json.txt` | nlohmann/json 3.12.0 | MIT |
-| `stb.txt` | stb_image, stb_truetype | MIT or public domain |
+| `stb.txt` | stb_image, stb_image_write, stb_truetype | MIT or public domain |
 | `miniaudio.txt` | miniaudio 0.11.26 (sound) | public domain (Unlicense) or MIT No Attribution |
 | `stb-vorbis.txt` | stb_vorbis 1.22 (OGG sounds) | MIT or public domain |
 | `box2d.txt` | Box2D 3.2.0 (physics) | MIT |
@@ -25,8 +25,6 @@ Their license texts are in this folder; games carry a copy of it.
 | `glad.txt` | Glad 2.0.8 | MIT |
 | `glfw.txt` | GLFW 3.4 (modified by Axmol), with SDL_GameControllerDB's gamepad layouts | zlib |
 | `mio.txt` | mio | MIT |
-| `openssl.txt` | OpenSSL 3.0.18 | Apache-2.0 |
-| `libpng.txt` | libpng 1.6.53 | PNG Reference Library License v2 |
 | `poly2tri.txt` | poly2tri | BSD-3-Clause |
 | `pugixml.txt` | pugixml 1.13 | MIT |
 | `rapidjson.txt` | RapidJSON | MIT |

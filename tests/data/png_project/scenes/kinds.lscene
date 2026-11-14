@@ -1,0 +1,277 @@
+{
+  "format": "rolo.scene",
+  "version": 1,
+  "name": "PNG kinds",
+  "entities": [
+    {
+      "id": "0000000000000001",
+      "name": "Backdrop",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            640,
+            360
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000002",
+          "size": [
+            1280,
+            720
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000010",
+      "name": "rgba",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            200,
+            520
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000001",
+          "size": [
+            256,
+            256
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000011",
+      "name": "rgb",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            490,
+            520
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000002",
+          "size": [
+            256,
+            256
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000012",
+      "name": "grey",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            780,
+            520
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000003",
+          "size": [
+            256,
+            256
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000013",
+      "name": "grey_alpha",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            1070,
+            520
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000004",
+          "size": [
+            256,
+            256
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000014",
+      "name": "palette",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            200,
+            220
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000005",
+          "size": [
+            256,
+            256
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000015",
+      "name": "palette_alpha",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            490,
+            220
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000006",
+          "size": [
+            256,
+            256
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000016",
+      "name": "grey16",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            780,
+            220
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000007",
+          "size": [
+            256,
+            256
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    },
+    {
+      "id": "0000000000000017",
+      "name": "interlaced",
+      "active": true,
+      "components": [
+        {
+          "type": "rolo.Transform",
+          "position": [
+            1070,
+            220
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        {
+          "type": "rolo.Sprite",
+          "image": "504e470000000008",
+          "size": [
+            256,
+            256
+          ],
+          "color": "#ffffffff",
+          "flipX": false,
+          "flipY": false
+        }
+      ]
+    }
+  ]
+}

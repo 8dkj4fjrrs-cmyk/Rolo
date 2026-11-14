@@ -70,8 +70,9 @@ Considered and rejected:
 
 - Games no longer contain yasio, curl, llhttp or websocket-parser. Their
   license texts leave `licenses/` and the notices.
-  - OpenSSL stays: Axmol's core uses its digests and AES (`utils`,
-    `UserDefault`). Its license is Apache-2.0.
+  - OpenSSL stayed at first: Axmol's core mentions its digests and AES
+    (`utils`, `UserDefault`). [ADR 0024](0024-no-libpng-no-openssl.md)
+    removed it the same way as yasio.
 - Rolo games cannot use the network. Nothing in Rolo did; a future
   online feature would need a new decision (and probably a different
   library).

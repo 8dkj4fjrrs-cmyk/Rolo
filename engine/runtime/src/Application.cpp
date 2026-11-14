@@ -21,6 +21,8 @@
 #include "rolo/runtime/Gamepads.hpp"
 #include "rolo/runtime/Application.hpp"
 
+#include "rolo/assets/ImageEncode.hpp"
+
 #include "AxmolLogBridge.hpp"
 #include "SceneRenderer.hpp"
 #include "TextureStore.hpp"
@@ -35,6 +37,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <optional>
 #include <string>
 #include <utility>
@@ -172,6 +175,9 @@ struct Application::Impl {
     std::string startupError;
 
     ax::Node* world = nullptr;                  // owned by the scene
+    ax::Label* statsLabel = nullptr;            // the frame-rate overlay; owned by the scene
+    double statsSeconds = 0.0;                  // time and frames since the overlay's text was made
+    int statsFrames = 0;
     std::unique_ptr<detail::TextureStore> textures;
     std::unique_ptr<detail::SceneRenderer> renderer;
     const AssetDatabase* assets = nullptr;      // the project's assets (not owned)
@@ -193,6 +199,8 @@ struct Application::Impl {
     void startUi(ax::Scene& scene, ax::RenderView& view);
     void logDiagnostics(ax::RenderView& view);
     void onFrame(float deltaSeconds);
+    void startStats(ax::Scene& scene);
+    void updateStats(float deltaSeconds);
     void finish();
     void releaseBackendObjects();
     void captureWorld(ax::Renderer* renderer);
@@ -275,7 +283,9 @@ bool Application::Impl::startWindow()
     const auto worldH = static_cast<float>(presentation.worldHeight);
 
     director->setRenderView(view);
-    director->setStatsDisplay(options.showStats);
+    // Rolo draws its own frame-rate overlay (startStats): Axmol's needs a
+    // PNG decoder inside Axmol, which Rolo builds it without (ADR 0024).
+    director->setStatsDisplay(false);
     director->setAnimationInterval(1.0f / 60.0f);
     // World coordinates = the game's resolution, whatever the window size.
     view->setDesignResolutionSize(worldW, worldH, ResolutionPolicy::SHOW_ALL);
@@ -313,6 +323,10 @@ bool Application::Impl::startWindow()
         director->setClearColor(ax::Color4F(0.08f, 0.08f, 0.10f, 1.0f));
     } else {
         applyGameCamera();
+    }
+
+    if (options.showStats) {
+        startStats(*scene);
     }
 
     director->runWithScene(scene);
@@ -430,6 +444,51 @@ void Application::Impl::applyGameCamera()
     world->setPosition(w * 0.5f - center.x * zoom, h * 0.5f - center.y * zoom);
 }
 
+// The frame-rate overlay: one small line in the bottom-left corner, above
+// everything, in the scene and not the world, so the camera does not move it.
+void Application::Impl::startStats(ax::Scene& scene)
+{
+    auto* label = ax::Label::createWithTTF(" ", renderer->defaultFontPath(), 15.0f);
+    if (label == nullptr) {
+        log().warning(kCategory, "The frame-rate overlay could not be made.");
+        return;
+    }
+    label->setAnchorPoint(ax::Vec2(0.0f, 0.0f));
+    label->setTextColor(ax::Color4B(255, 255, 255, 255));
+    label->enableShadow(ax::Color4B(0, 0, 0, 220), ax::Size(1.0f, -1.0f));
+    scene.addChild(label, 100000);
+    statsLabel = label;
+    statsSeconds = 1.0;   // write the first text on the first frame
+}
+
+void Application::Impl::updateStats(float deltaSeconds)
+{
+    if (statsLabel == nullptr) {
+        return;
+    }
+    statsSeconds += static_cast<double>(deltaSeconds);
+    ++statsFrames;
+    if (statsSeconds < 0.5) {
+        return;
+    }
+    ax::Director* director = ax::Director::getInstance();
+    // Keep the text the same size on screen whatever the game's resolution.
+    if (const auto* view = director->getRenderView(); view != nullptr && view->getScaleY() > 0.0f) {
+        const float scale = 1.0f / view->getScaleY();
+        statsLabel->setScale(scale);
+        statsLabel->setPosition(8.0f * scale, 6.0f * scale);
+    }
+    char text[160];
+    const double perFrame = statsSeconds / static_cast<double>(statsFrames);
+    // What was drawn last frame (this overlay included).
+    std::snprintf(text, sizeof(text), "%.1f fps   %.1f ms   %u draw calls   %u vertices", 1.0 / perFrame,
+                  perFrame * 1000.0, static_cast<unsigned>(director->getRenderer()->getDrawnBatches()),
+                  static_cast<unsigned>(director->getRenderer()->getDrawnVertices()));
+    statsLabel->setString(text);
+    statsSeconds = 0.0;
+    statsFrames = 0;
+}
+
 void Application::Impl::listenForGameInput(ax::Scene& scene)
 {
     auto* dispatcher = ax::Director::getInstance()->getEventDispatcher();
@@ -519,6 +578,7 @@ void Application::Impl::onFrame(float deltaSeconds)
         frameCallback(FrameInfo{report.framesRendered, static_cast<double>(deltaSeconds)});
     }
     ++report.framesRendered;
+    updateStats(deltaSeconds);
 
     // Smoothed frames per second (exponential moving average).
     if (deltaSeconds > 0.0f) {
@@ -573,21 +633,34 @@ void Application::Impl::onFrame(float deltaSeconds)
             finish();
             return;
         }
-        // Capture what is on screen, then stop. Axmol saves the image after
-        // the frame is drawn and calls us back with the result.
+        // Capture what is on screen, then stop. Axmol hands over the pixels
+        // after the frame is drawn; Rolo writes the PNG file itself (ADR 0024).
         finishing = true;
-        const std::string path = options.screenshotPath.string();
-        ax::utils::captureScreen(
-            [this, path](bool ok, std::string_view savedTo) {
-                if (ok) {
-                    log().info(kCategory, "Screenshot saved: " + std::string(savedTo));
-                } else {
-                    screenshotFailed = true;
-                    log().error(kCategory, "Screenshot could not be saved to " + path);
+        const std::filesystem::path path = options.screenshotPath;
+        ax::utils::captureScreen([this, path](ax::RefPtr<ax::Image> image) {
+            std::string why = "the picture could not be read from the screen";
+            bool ok = false;
+            if (image && image->getData() != nullptr && image->getWidth() > 0 && image->getHeight() > 0) {
+                // The screen's pixels are red, green, blue, alpha; the file gets
+                // the colours only, as a screenshot has nothing behind it.
+                const auto count = static_cast<std::size_t>(image->getWidth()) * static_cast<std::size_t>(image->getHeight());
+                const std::uint8_t* rgba = image->getData();
+                std::vector<std::uint8_t> rgb(count * 3);
+                for (std::size_t i = 0; i < count; ++i) {
+                    rgb[i * 3] = rgba[i * 4];
+                    rgb[i * 3 + 1] = rgba[i * 4 + 1];
+                    rgb[i * 3 + 2] = rgba[i * 4 + 2];
                 }
-                ax::Director::getInstance()->end();
-            },
-            path);
+                ok = writePngFile(path, rgb.data(), image->getWidth(), image->getHeight(), 3, &why);
+            }
+            if (ok) {
+                log().info(kCategory, "Screenshot saved: " + path.string());
+            } else {
+                screenshotFailed = true;
+                log().error(kCategory, "Screenshot could not be saved to " + path.string() + ": " + why + ".");
+            }
+            ax::Director::getInstance()->end();
+        });
     }
 }
 
@@ -611,6 +684,7 @@ void Application::Impl::releaseBackendObjects()
     textures.reset();
     AX_SAFE_RELEASE_NULL(worldTexture);
     world = nullptr;
+    statsLabel = nullptr;
 }
 
 // ---------------------------------------------------------------------------

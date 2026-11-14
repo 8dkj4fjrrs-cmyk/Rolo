@@ -67,9 +67,12 @@ and AI assistants.
   player keeps a running game's state in its `Player` object. Browser-only code is behind
   `__EMSCRIPTEN__`, in `engine/runtime` and `player/` only. Check web changes with
   `tools/web/check_web_game.js`.
-- Images: PNG files are decoded by Axmol; JPEG files by Rolo (`rolo/assets/ImageDecode.hpp`, stb_image
-  inside `rolo_assets`). Axmol is built with no JPEG library (`AX_WITH_JPEG=OFF`, `AX_USE_JPEG=0`,
-  ADR 0023): do not turn it back on.
+- Images: Rolo decodes PNG and JPEG files itself (`rolo/assets/ImageDecode.hpp`, stb_image inside
+  `rolo_assets`) and writes screenshots itself (`ImageEncode.hpp`, stb_image_write). Axmol is built
+  with no JPEG library, no libpng and no OpenSSL (`AX_WITH_JPEG`, `AX_WITH_PNG`, `AX_WITH_OPENSSL`
+  off; ADR 0023, ADR 0024): do not turn them back on, and never hand Axmol an image file to load.
+  `engine/runtime/axmol_compat/include/openssl` is Rolo's stand-in (no cryptography in it); never
+  copy OpenSSL code into it.
 - Axmol is used unmodified except for the small patches in `cmake/axmol-patches/` (switches and
   build fixes only, each explained in its README). Rolo builds Axmol without networking or
   yasio; `engine/runtime/axmol_compat` provides the yasio headers Axmol's core includes, written

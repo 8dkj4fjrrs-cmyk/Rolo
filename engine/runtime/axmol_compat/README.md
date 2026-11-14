@@ -1,5 +1,8 @@
 # Axmol compatibility headers (`axmol_compat`)
 
+Headers Axmol's core includes from libraries Rolo leaves out: yasio (most
+of this page) and OpenSSL (near the end).
+
 Rolo builds Axmol without yasio (see
 [ADR 0012](../../../docs/adr/0012-no-yasio.md)). Axmol's core still includes a
 few yasio headers outside its networking code: a growable buffer, binary
@@ -34,6 +37,22 @@ provides those headers.
 | `wtimer_hres.hpp` | the 1 ms timer on Windows |
 
 `byte_order.hpp` is the only header with a name yasio does not have.
+
+## OpenSSL (`include/openssl/`)
+
+Rolo also builds Axmol without OpenSSL
+([ADR 0024](../../../docs/adr/0024-no-libpng-no-openssl.md)). Axmol's core
+mentions it in two places, neither used by Rolo:
+
+| Header | Axmol uses it for | Rolo's stand-in |
+|---|---|---|
+| `evp.h` | `utils::computeDigest` and the MD5 helpers | knows no digest: Axmol returns an empty text |
+| `aes.h` | optional encryption of `UserDefault`'s file | stops the program with a message if encryption is ever asked for |
+| `modes.h`, `rc4.h` | included, nothing used | empty |
+
+These are Rolo's own code and contain **no cryptography**. Never copy
+OpenSSL code here, and do not write ciphers or digests here either: if
+Rolo ever needs them, that is a new decision (ADR), not a compat header.
 
 ## How it is wired in
 

@@ -841,6 +841,7 @@ std::optional<DecodedImage> decodeImage(const std::uint8_t* bytes, std::size_t s
     image.width = w;
     image.height = h;
     image.rgba.assign(pixels, pixels + static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4);
+    image.hasAlpha = channels == 2 || channels == 4;   // what the file holds: grey + alpha, or colour + alpha
     stbi_image_free(pixels);
     return image;
 }
@@ -858,10 +859,14 @@ std::optional<DecodedImage> decodeImageFile(const fs::path& path, std::string* e
     return decodeImage(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size(), error);
 }
 
-bool isJpegFileName(const fs::path& path)
+void premultiplyAlpha(DecodedImage& image)
 {
-    const std::string ext = lower(path.extension().string());
-    return ext == ".jpg" || ext == ".jpeg";
+    for (std::size_t i = 0; i + 3 < image.rgba.size(); i += 4) {
+        const unsigned alpha = image.rgba[i + 3] + 1u;
+        image.rgba[i] = static_cast<std::uint8_t>((image.rgba[i] * alpha) >> 8);
+        image.rgba[i + 1] = static_cast<std::uint8_t>((image.rgba[i + 1] * alpha) >> 8);
+        image.rgba[i + 2] = static_cast<std::uint8_t>((image.rgba[i + 2] * alpha) >> 8);
+    }
 }
 
 } // namespace rolo

@@ -23,8 +23,9 @@ progressive JPEGs, colour and greyscale.
   Emscripten for its libjpeg port (`cmake/axmol-patches/0003`).
 - **Rolo decodes JPEG files** (`rolo/assets/ImageDecode.hpp`:
   `decodeImageFile`), with stb_image, and hands the pixels to the
-  renderer (`TextureStore`). PNG files are still decoded by Axmol
-  (libpng).
+  renderer (`TextureStore`). PNG files were still decoded by Axmol
+  (libpng) at the time; since [ADR 0024](0024-no-libpng-no-openssl.md)
+  Rolo decodes those too.
 - stb_image was preferred to writing a decoder from nothing: it is MIT (or
   public domain), already in every game, widely used, and tested against
   damaged files; a new decoder would be a place for new bugs with no
