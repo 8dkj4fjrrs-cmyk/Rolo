@@ -5,9 +5,12 @@
 #include "TextureStore.hpp"
 
 #include "rolo/ui/EmbeddedFonts.hpp"
+#include "rolo/ui/TextImage.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <unordered_map>
 
 namespace rolo::detail {
@@ -323,10 +326,89 @@ const std::string& SceneRenderer::defaultFontPath()
     return m_defaultFont;
 }
 
+namespace {
+
+// TRIAL (ADR 0024's next step): game text drawn by Rolo's own font renderer
+// instead of FreeType, to compare the two. Chosen with the environment
+// variable ROLO_TEXT_RENDERER: "own" draws at twice the size, as the
+// FreeType path does; "own1x" at exactly the size. Not for release as is.
+float ownTextOversample()
+{
+    static const float value = [] {
+        const char* chosen = std::getenv("ROLO_TEXT_RENDERER");
+        const std::string name = chosen != nullptr ? chosen : "";
+        return name == "own" ? 2.0f : name == "own1x" ? 1.0f : 0.0f;
+    }();
+    return value;
+}
+
+ax::Node* makeOwnTextNode(const Text& text, const std::string& fontFile, float oversample)
+{
+    static std::unordered_map<std::string, std::vector<unsigned char>> files;
+    std::span<const unsigned char> font = ui::fonts::interRegular();
+    if (!fontFile.empty()) {
+        auto it = files.find(fontFile);
+        if (it == files.end()) {
+            std::ifstream in(fontFile, std::ios::binary);
+            it = files.emplace(fontFile, std::vector<unsigned char>((std::istreambuf_iterator<char>(in)),
+                                                                    std::istreambuf_iterator<char>())).first;
+        }
+        font = it->second;
+    }
+    ui::TextImageOptions options;
+    options.pixelSize = std::max(1.0f, text.size * oversample);
+    options.wrapWidth = std::max(0.0f, text.width) * oversample;
+    options.align = text.align == TextAlign::Left    ? ui::TextImageAlign::Left
+                    : text.align == TextAlign::Right ? ui::TextImageAlign::Right
+                                                     : ui::TextImageAlign::Center;
+    const auto drawn = ui::drawTextImage(font, text.text, options);
+    if (!drawn) {
+        return nullptr;
+    }
+    // White letters with their coverage as alpha (colours already multiplied
+    // by it); the text's colour is the sprite's tint.
+    std::vector<std::uint8_t> rgba(drawn->coverage.size() * 4);
+    for (std::size_t i = 0; i < drawn->coverage.size(); ++i) {
+        rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = rgba[i * 4 + 3] = drawn->coverage[i];
+    }
+    auto* image = new ax::Image();
+    auto* texture = new ax::Texture2D();
+    ax::Node* node = nullptr;
+    if (image->initWithRawData(rgba.data(), static_cast<ssize_t>(rgba.size()), drawn->width, drawn->height, 8, true)
+        && texture->initWithImage(image)) {
+        texture->setAntiAliasTexParameters();
+        auto* sprite = ax::Sprite::createWithTexture(texture);
+        const float anchorX = text.align == TextAlign::Left ? 0.0f : text.align == TextAlign::Right ? 1.0f : 0.5f;
+        // The text's box is the picture without its margin: anchor on the box.
+        const auto pad = static_cast<float>(drawn->padding);
+        const float boxWidth = static_cast<float>(drawn->width) - pad * 2.0f;
+        sprite->setAnchorPoint(ax::Vec2((pad + boxWidth * anchorX) / static_cast<float>(drawn->width),
+                                        1.0f - pad / static_cast<float>(drawn->height)));
+        sprite->setColor(ax::Color3B(text.color.r, text.color.g, text.color.b));
+        sprite->setOpacity(text.color.a);
+        sprite->setScale(1.0f / oversample);
+        node = ax::Node::create();
+        node->addChild(sprite);
+    }
+    texture->release();
+    image->release();
+    return node;
+}
+
+} // namespace
+
 ax::Node* SceneRenderer::makeTextNode(const Text& text)
 {
     if (text.text.empty()) {
         return nullptr;
+    }
+    if (ownTextOversample() > 0.0f && text.text.find("{icon:") == std::string::npos) {
+        const AssetRecord* own = m_assets != nullptr && !text.font.isNull() ? m_assets->find(text.font) : nullptr;
+        const bool usable = own != nullptr && own->type == AssetType::Font && own->isUsable();
+        if (ax::Node* node = makeOwnTextNode(text, usable ? m_assets->absolutePath(*own).string() : std::string(),
+                                             ownTextOversample())) {
+            return node;
+        }
     }
     std::string font;
     const AssetRecord* asset = m_assets != nullptr && !text.font.isNull() ? m_assets->find(text.font) : nullptr;

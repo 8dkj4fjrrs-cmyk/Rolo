@@ -20,6 +20,7 @@ add_library(rolo_ui STATIC
     src/Icons.cpp
     src/Input.cpp
     src/StbTrueTypeImpl.cpp
+    src/TextImage.cpp
     src/Utf8.cpp
     src/Widget.cpp
     src/widgets/Basic.cpp

@@ -2,10 +2,14 @@
 #include "rolo/ui/DrawList.hpp"
 #include "rolo/ui/EmbeddedFonts.hpp"
 #include "rolo/ui/Font.hpp"
+#include "rolo/ui/TextImage.hpp"
 #include "rolo/ui/Utf8.hpp"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+
+#include <algorithm>
+#include <cmath>
 
 using namespace rolo::ui;
 using Catch::Approx;
@@ -223,4 +227,65 @@ TEST_CASE("Ellipsized text never exceeds its width", "[ui][draw]")
                                             "A rather long object name that will not fit", 80.0f);
     CHECK(drawn <= 80.0f);
     CHECK(drawn > 40.0f);
+}
+
+TEST_CASE("A block of text is drawn into one picture", "[ui][font][textimage]")
+{
+    // Rolo's own renderer for game text (a trial beside FreeType for now).
+    TextImageOptions options;
+    options.pixelSize = 24.0f;
+    const auto one = drawTextImage(fonts::interRegular(), "Lantern", options);
+    REQUIRE(one);
+    CHECK(one->lines == 1);
+    CHECK(one->coverage.size() == static_cast<std::size_t>(one->width) * static_cast<std::size_t>(one->height));
+    CHECK(one->width > 60);
+    CHECK(one->height >= 24);
+    // Something is drawn, with solid pixels, and the margin stays empty.
+    int solid = 0;
+    for (const std::uint8_t c : one->coverage) {
+        solid += c == 255 ? 1 : 0;
+    }
+    CHECK(solid > 50);
+    for (int x = 0; x < one->width; ++x) {
+        CHECK(one->coverage[static_cast<std::size_t>(x)] == 0);   // top row
+    }
+
+    // "\n" starts a new line; lines are a whole number of pixels apart.
+    const auto two = drawTextImage(fonts::interRegular(), "Lantern\nKeeper", options);
+    REQUIRE(two);
+    CHECK(two->lines == 2);
+    CHECK(two->lineHeight == std::floor(two->lineHeight));
+    CHECK(two->height == one->height + static_cast<int>(two->lineHeight));
+
+    // Wrapping: a long sentence in a narrow box takes several lines and stays inside the box.
+    options.pixelSize = 12.0f;
+    options.wrapWidth = 100.0f;
+    const auto wrapped = drawTextImage(fonts::interRegular(), "The village lantern has gone dark again", options);
+    REQUIRE(wrapped);
+    CHECK(wrapped->lines >= 3);
+    CHECK(wrapped->width == 100 + wrapped->padding * 2);
+
+    // Right-aligned text ends at the box's right edge: its last column of ink is near it.
+    options.wrapWidth = 200.0f;
+    options.align = TextImageAlign::Right;
+    const auto right = drawTextImage(fonts::interRegular(), "H", options);
+    REQUIRE(right);
+    int lastInk = -1;
+    for (int y = 0; y < right->height; ++y) {
+        for (int x = 0; x < right->width; ++x) {
+            if (right->coverage[static_cast<std::size_t>(y * right->width + x)] > 0) {
+                lastInk = std::max(lastInk, x);
+            }
+        }
+    }
+    CHECK(lastInk > right->width - right->padding - 4);
+
+    // Empty text is an empty picture one line tall; bad input is nothing.
+    const auto empty = drawTextImage(fonts::interRegular(), "", options);
+    REQUIRE(empty);
+    CHECK(empty->lines == 1);
+    const unsigned char notAFont[] = {1, 2, 3, 4};
+    CHECK_FALSE(drawTextImage(notAFont, "x", options));
+    options.pixelSize = 0.0f;
+    CHECK_FALSE(drawTextImage(fonts::interRegular(), "x", options));
 }
