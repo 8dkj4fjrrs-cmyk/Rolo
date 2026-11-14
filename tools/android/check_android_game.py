@@ -137,7 +137,9 @@ class Check:
             # For reading a screenshot out of a build machine's log when its
             # files cannot be fetched: the PNG as text (base64).
             print("-----BEGIN PNG " + file + "-----")
-            print(base64.b64encode(png).decode("ascii"))
+            text = base64.b64encode(png).decode("ascii")
+            for start in range(0, len(text), 120):   # (build logs cut very long lines)
+                print(text[start:start + 120])
             print("-----END PNG " + file + "-----")
 
     def colours_on_screen(self):
