@@ -220,8 +220,15 @@ if(TARGET sample_game)
     # controls only (--finger). Run right and jump, press Pause, push the
     # stick down twice (Resume -> Controls -> Quit) and pick with Jump: the
     # game quits long before its 400 frames are over.
+    # (A copy that shows the game whole, with bars: the fingers' places are
+    # then the same whatever size the test computer's screen lets the window be.)
+    set(_touch_game "${CMAKE_CURRENT_BINARY_DIR}/touch-game")
+    file(REMOVE_RECURSE "${_touch_game}")
+    file(COPY "${PROJECT_SOURCE_DIR}/templates/platformer/project/" DESTINATION "${_touch_game}"
+         PATTERN ".rolo-cache" EXCLUDE)
+    file(WRITE "${_touch_game}/project.rolo" "{\n  \"format\": \"rolo.project\",\n  \"version\": 1,\n  \"name\": \"Platformer Starter\",\n  \"startScene\": \"scenes/level.lscene\",\n  \"escapeQuits\": false\n}\n")
     add_test(NAME player.touch_controls
-        COMMAND rolo_player --project "${PROJECT_SOURCE_DIR}/templates/platformer/project" --frames 400 --fixed-step
+        COMMAND rolo_player --project "${_touch_game}" --frames 400 --fixed-step
                 --no-stats --mute --save-dir "${CMAKE_CURRENT_BINARY_DIR}/player-test-touch-saves"
                 --finger "200,200>330,200@5-25" --finger "1170,110@15-18" --finger "640,641@30-33"
                 --finger "200,200>200,60@50-55" --finger "200,200>200,60@70-75" --finger "1170,110@90-93")
@@ -243,7 +250,8 @@ if(TARGET sample_game)
         TIMEOUT 120)
 
     # An upright game: the sample game given a 720 x 1280 size. Its window is
-    # upright too (made smaller to fit a laptop screen) and shows exactly that size.
+    # upright too (made smaller to fit a laptop screen; a small test screen
+    # may make it shorter still) and shows exactly that size.
     set(_upright "${CMAKE_CURRENT_BINARY_DIR}/upright-game")
     file(REMOVE_RECURSE "${_upright}")
     file(COPY "${PROJECT_SOURCE_DIR}/examples/sample_game/project/" DESTINATION "${_upright}"
@@ -254,7 +262,7 @@ if(TARGET sample_game)
                 --save-dir "${CMAKE_CURRENT_BINARY_DIR}/player-test-upright-saves"
                 --screenshot "${CMAKE_CURRENT_BINARY_DIR}/player_upright.png")
     set_tests_properties(player.upright_game PROPERTIES
-        PASS_REGULAR_EXPRESSION "Window: 'Upright', 450x800 points.*World: 720x1280 points.*Screenshot saved"
+        PASS_REGULAR_EXPRESSION "Window: 'Upright', 450x[0-9]+ points.*World: 720x1280 points.*Screenshot saved"
         FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|the window shows"
         TIMEOUT 120)
 
