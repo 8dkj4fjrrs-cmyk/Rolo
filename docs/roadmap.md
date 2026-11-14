@@ -108,7 +108,9 @@ In order:
    ([ADR 0027](adr/0027-screen-sizes.md)): a game size per project
    (upright games too), and Fill the Screen, with scores and menus
    following the screen's edges.
-6. **Android**, then **iOS**.
+6. **Android** (planned in [ADR 0028](adr/0028-android.md): Google Play
+   from the start, one-click export; built and tested on GitHub's
+   machines, as it cannot be built where Rolo is developed), then **iOS**.
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).
 
