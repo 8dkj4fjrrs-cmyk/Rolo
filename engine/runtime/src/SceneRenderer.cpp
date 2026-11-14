@@ -2,15 +2,11 @@
 
 #include "ButtonIconNodes.hpp"
 
+#include "TextSprites.hpp"
 #include "TextureStore.hpp"
 
-#include "rolo/ui/EmbeddedFonts.hpp"
-#include "rolo/ui/TextImage.hpp"
 
-#include <cstdlib>
 #include <filesystem>
-#include <fstream>
-#include <span>
 #include <unordered_map>
 
 namespace rolo::detail {
@@ -305,190 +301,101 @@ void SceneRenderer::animate(double clock)
     }
 }
 
-const std::string& SceneRenderer::defaultFontPath()
-{
-    if (!m_defaultFont.empty()) {
-        return m_defaultFont;
-    }
-    // Axmol loads fonts from files, so the font compiled into Rolo is
-    // written to the temporary folder once (named by its size, so a changed
-    // font gets a new file).
-    const auto data = ui::fonts::interRegular();
-    std::error_code ec;
-    const std::filesystem::path folder = std::filesystem::temp_directory_path(ec) / "rolo-engine";
-    const std::filesystem::path file = folder / ("Inter-Regular-" + std::to_string(data.size()) + ".ttf");
-    if (!std::filesystem::exists(file, ec) || std::filesystem::file_size(file, ec) != data.size()) {
-        std::filesystem::create_directories(folder, ec);
-        std::ofstream out(file, std::ios::binary | std::ios::trunc);
-        out.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
-    }
-    m_defaultFont = file.string();
-    return m_defaultFont;
-}
-
-namespace {
-
-// TRIAL (ADR 0024's next step): game text drawn by Rolo's own font renderer
-// instead of FreeType, to compare the two. Chosen with the environment
-// variable ROLO_TEXT_RENDERER: "own" draws at twice the size, as the
-// FreeType path does; "own1x" at exactly the size. Not for release as is.
-float ownTextOversample()
-{
-    static const float value = [] {
-        const char* chosen = std::getenv("ROLO_TEXT_RENDERER");
-        const std::string name = chosen != nullptr ? chosen : "";
-        return name == "own" ? 2.0f : name == "own1x" ? 1.0f : 0.0f;
-    }();
-    return value;
-}
-
-ax::Node* makeOwnTextNode(const Text& text, const std::string& fontFile, float oversample)
-{
-    static std::unordered_map<std::string, std::vector<unsigned char>> files;
-    std::span<const unsigned char> font = ui::fonts::interRegular();
-    if (!fontFile.empty()) {
-        auto it = files.find(fontFile);
-        if (it == files.end()) {
-            std::ifstream in(fontFile, std::ios::binary);
-            it = files.emplace(fontFile, std::vector<unsigned char>((std::istreambuf_iterator<char>(in)),
-                                                                    std::istreambuf_iterator<char>())).first;
-        }
-        font = it->second;
-    }
-    ui::TextImageOptions options;
-    options.pixelSize = std::max(1.0f, text.size * oversample);
-    options.wrapWidth = std::max(0.0f, text.width) * oversample;
-    options.align = text.align == TextAlign::Left    ? ui::TextImageAlign::Left
-                    : text.align == TextAlign::Right ? ui::TextImageAlign::Right
-                                                     : ui::TextImageAlign::Center;
-    const auto drawn = ui::drawTextImage(font, text.text, options);
-    if (!drawn) {
-        return nullptr;
-    }
-    // White letters with their coverage as alpha (colours already multiplied
-    // by it); the text's colour is the sprite's tint.
-    std::vector<std::uint8_t> rgba(drawn->coverage.size() * 4);
-    for (std::size_t i = 0; i < drawn->coverage.size(); ++i) {
-        rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = rgba[i * 4 + 3] = drawn->coverage[i];
-    }
-    auto* image = new ax::Image();
-    auto* texture = new ax::Texture2D();
-    ax::Node* node = nullptr;
-    if (image->initWithRawData(rgba.data(), static_cast<ssize_t>(rgba.size()), drawn->width, drawn->height, 8, true)
-        && texture->initWithImage(image)) {
-        texture->setAntiAliasTexParameters();
-        auto* sprite = ax::Sprite::createWithTexture(texture);
-        const float anchorX = text.align == TextAlign::Left ? 0.0f : text.align == TextAlign::Right ? 1.0f : 0.5f;
-        // The text's box is the picture without its margin: anchor on the box.
-        const auto pad = static_cast<float>(drawn->padding);
-        const float boxWidth = static_cast<float>(drawn->width) - pad * 2.0f;
-        sprite->setAnchorPoint(ax::Vec2((pad + boxWidth * anchorX) / static_cast<float>(drawn->width),
-                                        1.0f - pad / static_cast<float>(drawn->height)));
-        sprite->setColor(ax::Color3B(text.color.r, text.color.g, text.color.b));
-        sprite->setOpacity(text.color.a);
-        sprite->setScale(1.0f / oversample);
-        node = ax::Node::create();
-        node->addChild(sprite);
-    }
-    texture->release();
-    image->release();
-    return node;
-}
-
-} // namespace
-
 ax::Node* SceneRenderer::makeTextNode(const Text& text)
 {
     if (text.text.empty()) {
         return nullptr;
     }
-    if (ownTextOversample() > 0.0f && text.text.find("{icon:") == std::string::npos) {
-        const AssetRecord* own = m_assets != nullptr && !text.font.isNull() ? m_assets->find(text.font) : nullptr;
-        const bool usable = own != nullptr && own->type == AssetType::Font && own->isUsable();
-        if (ax::Node* node = makeOwnTextNode(text, usable ? m_assets->absolutePath(*own).string() : std::string(),
-                                             ownTextOversample())) {
-            return node;
-        }
-    }
+    // Text is drawn by Rolo's own font renderer (TextSprites.hpp, ADR 0025).
+    // The font: a font asset's file, or Rolo's built-in font (an empty name).
     std::string font;
     const AssetRecord* asset = m_assets != nullptr && !text.font.isNull() ? m_assets->find(text.font) : nullptr;
     if (asset != nullptr && asset->type == AssetType::Font && asset->isUsable()) {
         font = m_assets->absolutePath(*asset).string();
-    } else {
-        font = defaultFontPath();
     }
     // Drawn at twice the size and scaled down, so text stays sharp when the
     // view is zoomed in a little (and on Retina screens).
     constexpr float kOversample = 2.0f;
-    const ax::TextHAlignment align = text.align == TextAlign::Left    ? ax::TextHAlignment::LEFT
-                                     : text.align == TextAlign::Right ? ax::TextHAlignment::RIGHT
-                                                                      : ax::TextHAlignment::CENTER;
+    const float size = std::max(1.0f, text.size * kOversample);
     const float anchorX = text.align == TextAlign::Left ? 0.0f : text.align == TextAlign::Right ? 1.0f : 0.5f;
-    // One label per line: Axmol handles "\n" itself but warns that the font
-    // has no glyph for it, once for every line break in every text.
+    TextSpriteOptions options;
+    options.wrapWidth = std::max(0.0f, text.width) * kOversample;
+    options.align = text.align == TextAlign::Left    ? ui::TextImageAlign::Left
+                    : text.align == TextAlign::Right ? ui::TextImageAlign::Right
+                                                     : ui::TextImageAlign::Center;
+    options.anchor = {anchorX, 1.0f};
+
     auto* root = ax::Node::create();
     root->setScale(1.0f / kOversample);
+    // Runs of plain lines are one picture each; a line with button pictures
+    // ({button:...} became icon tokens) is words and pictures side by side
+    // (such lines are not wrapped).
     float y = 0.0f;
+    std::string plain;
+    bool havePlain = false;
+    const auto flushPlain = [&] {
+        if (!havePlain) {
+            return;
+        }
+        const TextSprite block = makeTextSprite(font, plain, size, text.color, options);
+        if (block.sprite != nullptr) {
+            block.sprite->setPositionY(y);
+            root->addChild(block.sprite);
+            y -= std::max(block.height, block.lineHeight);
+        }
+        plain.clear();
+        havePlain = false;
+    };
     std::size_t start = 0;
     while (start <= text.text.size()) {
         const std::size_t end = std::min(text.text.find('\n', start), text.text.size());
         const std::string line = text.text.substr(start, end - start);
-        // A line with button pictures ({button:...} became icon tokens): words
-        // and pictures side by side. (Such lines are not wrapped.)
+        start = end + 1;
+        std::vector<TextPiece> pieces;
         if (line.find("{icon:") != std::string::npos) {
-            const std::vector<TextPiece> pieces = splitIcons(line);
-            if (std::any_of(pieces.begin(), pieces.end(), [](const TextPiece& p) { return p.icon.has_value(); })) {
-                const float size = std::max(1.0f, text.size * kOversample);
-                auto* row = ax::Node::create();
-                float x = 0.0f;
-                float lineHeight = size * 1.2f;
-                const auto addWords = [&](const std::string& words) {
-                    auto* label = ax::Label::createWithTTF(words, font, size);
-                    if (label == nullptr) {
-                        return;
-                    }
-                    label->setTextColor(ax::Color4B(text.color.r, text.color.g, text.color.b, text.color.a));
-                    label->setAnchorPoint(ax::Vec2(0.0f, 1.0f));
-                    label->setPosition(x, 0.0f);
-                    row->addChild(label);
-                    x += label->getContentSize().width;
-                    lineHeight = std::max(lineHeight, label->getLineHeight());
-                };
-                for (const TextPiece& piece : pieces) {
-                    if (!piece.icon) {
-                        addWords(piece.text);
-                        continue;
-                    }
-                    const float iconHeight = size * 1.15f;
-                    ax::Node* icon = makeButtonIcon(*piece.icon, iconHeight, defaultFontPath());
-                    // Centred on the line, with a little room either side.
-                    icon->setPosition(x + size * 0.08f, -lineHeight * 0.5f - iconHeight * 0.5f);
-                    icon->setCascadeOpacityEnabled(true);
-                    icon->setOpacity(text.color.a);
-                    row->addChild(icon);
-                    x += icon->getContentSize().width + size * 0.16f;
+            pieces = splitIcons(line);
+        }
+        if (std::none_of(pieces.begin(), pieces.end(), [](const TextPiece& p) { return p.icon.has_value(); })) {
+            if (havePlain) {
+                plain += '\n';
+            }
+            plain += line;
+            havePlain = true;
+            continue;
+        }
+        flushPlain();
+        auto* row = ax::Node::create();
+        float x = 0.0f;
+        float lineHeight = size * 1.2f;
+        TextSpriteOptions wordOptions;
+        wordOptions.anchor = {0.0f, 1.0f};
+        for (const TextPiece& piece : pieces) {
+            if (!piece.icon) {
+                const TextSprite words = makeTextSprite(font, piece.text, size, text.color, wordOptions);
+                if (words.sprite != nullptr) {
+                    words.sprite->setPosition(x, 0.0f);
+                    row->addChild(words.sprite);
+                    lineHeight = std::max(lineHeight, words.lineHeight);
                 }
-                row->setPosition(-x * anchorX, y);
-                root->addChild(row);
-                y -= lineHeight;
-                start = end + 1;
+                // Measured, not the sprite's width: spaces at the end of the
+                // words keep them apart from the next picture.
+                x += textWidth(font, piece.text, size);
                 continue;
             }
+            const float iconHeight = size * 1.15f;
+            ax::Node* icon = makeButtonIcon(*piece.icon, iconHeight, std::string());
+            // Centred on the line, with a little room either side.
+            icon->setPosition(x + size * 0.08f, -lineHeight * 0.5f - iconHeight * 0.5f);
+            icon->setCascadeOpacityEnabled(true);
+            icon->setOpacity(text.color.a);
+            row->addChild(icon);
+            x += icon->getContentSize().width + size * 0.16f;
         }
-        auto* label = ax::Label::createWithTTF(line.empty() ? std::string(" ") : line, font,
-                                               std::max(1.0f, text.size * kOversample),
-                                               ax::Size(std::max(0.0f, text.width) * kOversample, 0.0f), align);
-        if (label == nullptr) {
-            return root;
-        }
-        label->setTextColor(ax::Color4B(text.color.r, text.color.g, text.color.b, text.color.a));
-        label->setAnchorPoint(ax::Vec2(anchorX, 1.0f));
-        label->setPositionY(y);
-        root->addChild(label);
-        // A wrapped line can take several rows: continue below all of them.
-        y -= std::max(label->getContentSize().height, label->getLineHeight());
-        start = end + 1;
+        row->setPosition(-x * anchorX, y);
+        root->addChild(row);
+        y -= lineHeight;
     }
+    flushPlain();
     return root;
 }
 

@@ -41,8 +41,6 @@ LIBRARIES = {
     "doctest": ("doctest 2.4.12", "MIT", [GH + "doctest/doctest/v2.4.12/LICENSE.txt"]),
     "fastlz": ("FastLZ", "MIT", ["external/axmol/3rdparty/fastlz/LICENSE.MIT"]),
     "fmt": ("{fmt} 11.2.0", "MIT", [GH + "fmtlib/fmt/11.2.0/LICENSE"]),
-    "freetype": ("FreeType 2.14.1", "FreeType License (FTL)",
-                 ["external/axmol/3rdparty/freetype/LICENSE.TXT", GH + "freetype/freetype/VER-2-14-1/docs/FTL.TXT"]),
     "glad": ("Glad 2.0.8", "MIT", [GH + "Dav1dde/glad/v2.0.8/LICENSE"]),
     "glfw": ("GLFW 3.4 (modified by Axmol), with SDL_GameControllerDB's gamepad layouts", "zlib",
              [GH + "glfw/glfw/3.4/LICENSE.md", "sdlmappings:external/axmol/3rdparty/glfw/src/mappings.h"]),

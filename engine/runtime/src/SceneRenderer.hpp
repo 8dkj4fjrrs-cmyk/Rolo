@@ -79,9 +79,6 @@ public:
     /// The node mirroring an entity (for tests); null if none.
     ax::Node* nodeFor(EntityId id) const;
 
-    /// Rolo's built-in font as a file Axmol can load (written once).
-    const std::string& defaultFontPath();
-
 private:
     void rebuild();
     void moveNodes();
@@ -104,7 +101,6 @@ private:
     std::uint64_t m_builtAssetsRevision = 0;
     std::uint64_t m_builtTextures = 0;
     std::uint64_t m_builds = 0;
-    std::string m_defaultFont;   // empty until first needed
 
     // A sprite showing an Animator's frames. It keeps its own copy of the
     // animation set: the asset database may rebuild its records at any

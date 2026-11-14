@@ -25,6 +25,7 @@
 
 #include "AxmolLogBridge.hpp"
 #include "SceneRenderer.hpp"
+#include "TextSprites.hpp"
 #include "TextureStore.hpp"
 #include "UiHost.hpp"
 
@@ -175,7 +176,7 @@ struct Application::Impl {
     std::string startupError;
 
     ax::Node* world = nullptr;                  // owned by the scene
-    ax::Label* statsLabel = nullptr;            // the frame-rate overlay; owned by the scene
+    ax::Node* statsNode = nullptr;              // the frame-rate overlay; owned by the scene
     double statsSeconds = 0.0;                  // time and frames since the overlay's text was made
     int statsFrames = 0;
     std::unique_ptr<detail::TextureStore> textures;
@@ -448,22 +449,14 @@ void Application::Impl::applyGameCamera()
 // everything, in the scene and not the world, so the camera does not move it.
 void Application::Impl::startStats(ax::Scene& scene)
 {
-    auto* label = ax::Label::createWithTTF(" ", renderer->defaultFontPath(), 15.0f);
-    if (label == nullptr) {
-        log().warning(kCategory, "The frame-rate overlay could not be made.");
-        return;
-    }
-    label->setAnchorPoint(ax::Vec2(0.0f, 0.0f));
-    label->setTextColor(ax::Color4B(255, 255, 255, 255));
-    label->enableShadow(ax::Color4B(0, 0, 0, 220), ax::Size(1.0f, -1.0f));
-    scene.addChild(label, 100000);
-    statsLabel = label;
+    statsNode = ax::Node::create();
+    scene.addChild(statsNode, 100000);
     statsSeconds = 1.0;   // write the first text on the first frame
 }
 
 void Application::Impl::updateStats(float deltaSeconds)
 {
-    if (statsLabel == nullptr) {
+    if (statsNode == nullptr) {
         return;
     }
     statsSeconds += static_cast<double>(deltaSeconds);
@@ -472,21 +465,36 @@ void Application::Impl::updateStats(float deltaSeconds)
         return;
     }
     ax::Director* director = ax::Director::getInstance();
-    // Keep the text the same size on screen whatever the game's resolution.
-    if (const auto* view = director->getRenderView(); view != nullptr && view->getScaleY() > 0.0f) {
-        const float scale = 1.0f / view->getScaleY();
-        statsLabel->setScale(scale);
-        statsLabel->setPosition(8.0f * scale, 6.0f * scale);
-    }
     char text[160];
     const double perFrame = statsSeconds / static_cast<double>(statsFrames);
     // What was drawn last frame (this overlay included).
     std::snprintf(text, sizeof(text), "%.1f fps   %.1f ms   %u draw calls   %u vertices", 1.0 / perFrame,
                   perFrame * 1000.0, static_cast<unsigned>(director->getRenderer()->getDrawnBatches()),
                   static_cast<unsigned>(director->getRenderer()->getDrawnVertices()));
-    statsLabel->setString(text);
     statsSeconds = 0.0;
     statsFrames = 0;
+
+    // The same size on screen whatever the game's resolution: the text is
+    // drawn at the window's own pixels and scaled back into the world's.
+    const auto* view = director->getRenderView();
+    const float pixelsPerPoint = view != nullptr && view->getScaleY() > 0.0f ? view->getScaleY() : 1.0f;
+    const float retina = view != nullptr ? std::max(1.0f, static_cast<float>(view->getRetinaFactor())) : 1.0f;
+    const float scale = 1.0f / (pixelsPerPoint * retina);
+    statsNode->removeAllChildren();
+    detail::TextSpriteOptions corner;
+    corner.anchor = {0.0f, 0.0f};
+    // A dark copy one pixel down and right, so the line reads on any background.
+    for (const bool shadow : {true, false}) {
+        const detail::TextSprite line = detail::makeTextSprite(
+            std::string(), text, 15.0f * retina, shadow ? Color{0, 0, 0, 220} : Color{255, 255, 255, 255}, corner);
+        if (line.sprite == nullptr) {
+            return;
+        }
+        line.sprite->setScale(scale);
+        line.sprite->setPosition((8.0f * retina + (shadow ? 1.0f : 0.0f)) * scale,
+                                 (6.0f * retina - (shadow ? 1.0f : 0.0f)) * scale);
+        statsNode->addChild(line.sprite);
+    }
 }
 
 void Application::Impl::listenForGameInput(ax::Scene& scene)
@@ -684,7 +692,7 @@ void Application::Impl::releaseBackendObjects()
     textures.reset();
     AX_SAFE_RELEASE_NULL(worldTexture);
     world = nullptr;
-    statsLabel = nullptr;
+    statsNode = nullptr;
 }
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,20 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **No FreeType: Rolo draws game text itself**
+  ([ADR 0025](docs/adr/0025-no-freetype.md)), with the font code the
+  editor already used (stb_truetype, MIT or public domain). Texts,
+  button pictures and the frame-rate line look as before to within a
+  pixel; side-by-side screenshots were compared first.
+  - Games are smaller: the Linux game program went from 13.1 MB to
+    12.0 MB, the web runtime from 5.07 MB to 4.40 MB (1.75 MB as servers
+    send it).
+  - Chinese, Japanese and Korean text wraps between characters.
+  - `licenses/freetype.txt` is gone. Every large library in games is now
+    MIT or public domain; what is left that is not MIT is a handful of
+    small permissive libraries inside Axmol (`THIRD_PARTY_NOTICES.md`).
+  - Not supported (see [known limitations](docs/known-limitations.md)):
+    colour emoji, right-to-left and joined scripts, fallback fonts.
 - **No libpng and no OpenSSL in Rolo or its games**
   ([ADR 0024](docs/adr/0024-no-libpng-no-openssl.md)):
   - Rolo decodes PNG images itself, with the decoder it already used for

@@ -19,7 +19,7 @@ namespace rolo::detail {
 
 /// A node `height` tall (its width depends on the button) whose bottom-left
 /// corner is at its origin; its content size is set. `font` is a .ttf file
-/// for the labels.
+/// for the labels; empty means Rolo's built-in font.
 ax::Node* makeButtonIcon(const ButtonIcon& icon, float height, const std::string& font);
 
 } // namespace rolo::detail

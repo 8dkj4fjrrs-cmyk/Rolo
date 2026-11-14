@@ -1,5 +1,7 @@
 #include "ButtonIconNodes.hpp"
 
+#include "TextSprites.hpp"
+
 #include "axmol.h"
 
 #include <algorithm>
@@ -47,23 +49,23 @@ void roundedRect(ax::DrawNode& d, float x0, float y0, float x1, float y1, float 
 void addLabel(ax::Node& parent, const std::string& text, const std::string& font, float size, ax::Vec2 at,
               const ax::Color4F& c, float maxWidth = 0.0f)
 {
-    auto* label = ax::Label::createWithTTF(text, font, size);
-    if (label == nullptr) {
+    const ax::Color4B c8(c);
+    TextSpriteOptions options;
+    options.anchor = {0.5f, 0.5f};
+    const TextSprite label = makeTextSprite(font, text, size, Color{c8.r, c8.g, c8.b, c8.a}, options);
+    if (label.sprite == nullptr) {
         return;
     }
-    label->setTextColor(ax::Color4B(c));
-    label->setAnchorPoint({0.5f, 0.5f});
-    label->setPosition(at);
-    if (maxWidth > 0.0f && label->getContentSize().width > maxWidth) {
-        label->setScale(maxWidth / label->getContentSize().width);
+    label.sprite->setPosition(at);
+    if (maxWidth > 0.0f && label.width > maxWidth) {
+        label.sprite->setScale(maxWidth / label.width);
     }
-    parent.addChild(label);
+    parent.addChild(label.sprite);
 }
 
 float labelWidth(const std::string& text, const std::string& font, float size)
 {
-    auto* label = ax::Label::createWithTTF(text, font, size);
-    return label != nullptr ? label->getContentSize().width : size * 0.6f * static_cast<float>(text.size());
+    return textWidth(font, text, size);
 }
 
 // What a key cap says: short names, and symbols where everyone knows them.

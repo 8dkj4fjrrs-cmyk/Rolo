@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <span>
 
 using namespace rolo::ui;
 using Catch::Approx;
@@ -229,9 +230,17 @@ TEST_CASE("Ellipsized text never exceeds its width", "[ui][draw]")
     CHECK(drawn > 40.0f);
 }
 
+namespace {
+std::span<const unsigned char> notAFontEither()
+{
+    static const unsigned char bytes[] = {9, 9, 9, 9};
+    return bytes;
+}
+} // namespace
+
 TEST_CASE("A block of text is drawn into one picture", "[ui][font][textimage]")
 {
-    // Rolo's own renderer for game text (a trial beside FreeType for now).
+    // Rolo's own renderer for game text (ADR 0025).
     TextImageOptions options;
     options.pixelSize = 24.0f;
     const auto one = drawTextImage(fonts::interRegular(), "Lantern", options);
@@ -279,6 +288,28 @@ TEST_CASE("A block of text is drawn into one picture", "[ui][font][textimage]")
         }
     }
     CHECK(lastInk > right->width - right->padding - 4);
+
+    // Measuring: longer text is wider, spaces at the end count, twice the size is twice as wide.
+    const float word = measureTextLine(fonts::interRegular(), "run", 20.0f);
+    CHECK(word > 20.0f);
+    CHECK(measureTextLine(fonts::interRegular(), "run   ", 20.0f) > word + 10.0f);
+    CHECK(measureTextLine(fonts::interRegular(), "run", 40.0f) == Catch::Approx(word * 2.0f).margin(0.01));
+    CHECK(measureTextLine(notAFontEither(), "run", 20.0f) == 0.0f);
+    // A picture of one line is as wide as its measure (plus the margin).
+    options.wrapWidth = 0.0f;
+    options.align = TextImageAlign::Left;
+    options.pixelSize = 20.0f;
+    const auto measured = drawTextImage(fonts::interRegular(), "run", options);
+    REQUIRE(measured);
+    CHECK(measured->width - measured->padding * 2 == static_cast<int>(std::ceil(word)));
+
+    // Chinese, Japanese and Korean text wraps between any two characters
+    // (the built-in font has no such letters; their places still wrap).
+    options.pixelSize = 16.0f;
+    options.wrapWidth = 40.0f;
+    const auto cjk = drawTextImage(fonts::interRegular(), "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E\xE3\x81\xAE\xE3\x83\x86\xE3\x82\xAD\xE3\x82\xB9\xE3\x83\x88", options);
+    REQUIRE(cjk);
+    CHECK(cjk->lines >= 2);
 
     // Empty text is an empty picture one line tall; bad input is nothing.
     const auto empty = drawTextImage(fonts::interRegular(), "", options);

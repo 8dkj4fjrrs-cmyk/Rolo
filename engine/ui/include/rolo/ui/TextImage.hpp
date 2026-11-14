@@ -45,4 +45,8 @@ struct TextImage {
 std::optional<TextImage> drawTextImage(std::span<const unsigned char> fontFile, std::string_view text,
                                        const TextImageOptions& options);
 
+/// How wide one line of `text` is at that size, in pixels (kerning
+/// included; "\n" is not treated specially). 0 if the font is unusable.
+float measureTextLine(std::span<const unsigned char> fontFile, std::string_view text, float pixelSize);
+
 } // namespace rolo::ui

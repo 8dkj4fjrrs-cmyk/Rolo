@@ -54,6 +54,15 @@ These are Rolo's own code and contain **no cryptography**. Never copy
 OpenSSL code here, and do not write ciphers or digests here either: if
 Rolo ever needs them, that is a new decision (ADR), not a compat header.
 
+## FreeType (`src/FontFreeTypeNone.cpp`)
+
+Rolo builds Axmol without FreeType too
+([ADR 0025](../../../docs/adr/0025-no-freetype.md)). Axmol's
+`2d/FontFreeType.cpp` is left out of the build; this file provides that
+class's functions, each doing nothing (no font can be made), so the rest of
+Axmol's core links unedited. It contains no FreeType code. Rolo draws
+text itself (`engine/runtime/src/TextSprites.hpp`).
+
 ## How it is wired in
 
 `cmake/RoloAxmol.cmake` does three things:

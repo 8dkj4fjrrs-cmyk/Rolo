@@ -73,6 +73,9 @@ and AI assistants.
   off; ADR 0023, ADR 0024): do not turn them back on, and never hand Axmol an image file to load.
   `engine/runtime/axmol_compat/include/openssl` is Rolo's stand-in (no cryptography in it); never
   copy OpenSSL code into it.
+- Text: Rolo draws game text itself (`rolo/ui/TextImage.hpp`, stb_truetype; sprites made in
+  `engine/runtime/src/TextSprites.hpp`). Axmol is built without FreeType (`AX_WITH_FREETYPE=OFF`,
+  ADR 0025): never use `ax::Label`, which cannot make fonts in Rolo.
 - Axmol is used unmodified except for the small patches in `cmake/axmol-patches/` (switches and
   build fixes only, each explained in its README). Rolo builds Axmol without networking or
   yasio; `engine/runtime/axmol_compat` provides the yasio headers Axmol's core includes, written

@@ -73,10 +73,19 @@ private:
     float m_scale;
 };
 
+/// Chinese, Japanese and Korean text has no spaces: a line may break
+/// between any two such characters.
+bool breaksAnywhere(char32_t cp)
+{
+    return (cp >= 0x2E80 && cp <= 0x9FFF) || (cp >= 0xAC00 && cp <= 0xD7AF) || (cp >= 0xF900 && cp <= 0xFAFF)
+           || (cp >= 0xFF00 && cp <= 0xFFEF) || (cp >= 0x20000 && cp <= 0x2FFFF);
+}
+
 /// One paragraph (no line breaks in it) as words and runs of spaces.
 std::vector<Word> wordsOf(const stbtt_fontinfo& info, std::string_view paragraph)
 {
     std::vector<Word> words;
+    bool lastAlone = false;
     std::size_t i = 0;
     while (i < paragraph.size()) {
         char32_t cp = utf8::decode(paragraph, i);
@@ -87,9 +96,11 @@ std::vector<Word> wordsOf(const stbtt_fontinfo& info, std::string_view paragraph
         if (cp == U'\t') {
             cp = U' ';
         }
-        if (words.empty() || words.back().space != space) {
+        const bool alone = breaksAnywhere(cp);
+        if (words.empty() || words.back().space != space || alone || lastAlone) {
             words.push_back({{}, space});
         }
+        lastAlone = alone;
         words.back().glyphs.push_back(stbtt_FindGlyphIndex(&info, static_cast<int>(cp)));
     }
     return words;
@@ -218,6 +229,24 @@ std::optional<TextImage> drawTextImage(std::span<const unsigned char> fontFile, 
         }
     }
     return image;
+}
+
+float measureTextLine(std::span<const unsigned char> fontFile, std::string_view text, float pixelSize)
+{
+    if (fontFile.empty() || !(pixelSize > 0.0f)) {
+        return 0.0f;
+    }
+    stbtt_fontinfo info{};
+    const int offset = stbtt_GetFontOffsetForIndex(fontFile.data(), 0);
+    if (offset < 0 || stbtt_InitFont(&info, fontFile.data(), offset) == 0) {
+        return 0.0f;
+    }
+    const Shaper shaper(info, stbtt_ScaleForMappingEmToPixels(&info, pixelSize));
+    Line line;
+    for (const Word& word : wordsOf(info, text)) {
+        shaper.append(line, word.glyphs);
+    }
+    return line.width;
 }
 
 } // namespace rolo::ui

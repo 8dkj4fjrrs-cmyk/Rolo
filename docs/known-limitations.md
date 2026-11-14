@@ -61,6 +61,10 @@ Please report what you find.
   box around them).
 - No lighting: the night in The Lantern Keeper is a dark overlay.
 - Text is one font size per Text object. There is no localisation.
+- Text is drawn by Rolo's own font renderer ([ADR 0025](adr/0025-no-freetype.md)):
+  TrueType and OpenType fonts, with kerning. Not supported: colour emoji,
+  writing that joins letters or runs right to left (Arabic, Hebrew, Indic
+  scripts), and a second font for letters the chosen font lacks.
 - Desktop only: no mobile or web.
 
 ## Editor

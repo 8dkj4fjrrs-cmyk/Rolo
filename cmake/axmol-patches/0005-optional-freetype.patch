@@ -1,0 +1,95 @@
+diff --git a/3rdparty/CMakeLists.txt b/3rdparty/CMakeLists.txt
+index ca947a7..b216d36 100644
+--- a/3rdparty/CMakeLists.txt
++++ b/3rdparty/CMakeLists.txt
+@@ -70,7 +70,17 @@ set(_1kfetch_manifest "${_AX_ROOT}/manifest.json" CACHE STRING "" FORCE)
+ # fetch prebuilts of 1kdist and git sources
+ include(${_AX_ROOT}/1k/fetch.cmake)
+ 
++# Rolo patch: FreeType can be left out (ax_add_3rd(freetype) then does
++# nothing). Something else must then provide FontFreeType's functions
++# (core/2d/FontFreeType.cpp is not built), the core must be built with
++# AX_USE_FREETYPE=0, and AX_WITH_PNG must be off too.
++option(AX_WITH_FREETYPE "Build with FreeType" ON)
++
+ function(ax_add_3rd source_dir)
++  if(source_dir STREQUAL "freetype" AND NOT AX_WITH_FREETYPE)
++    return()
++  endif()
++
+   set(options EXCLUDE_FROM_ALL NO_LINK)
+   set(multiValueArgs TARGETS OPTIONS)
+   cmake_parse_arguments(opt "${options}" "" "${multiValueArgs}" ${ARGN})
+diff --git a/core/CMakeLists.txt b/core/CMakeLists.txt
+index e779f3e..92649c2 100644
+--- a/core/CMakeLists.txt
++++ b/core/CMakeLists.txt
+@@ -239,6 +239,11 @@ set(_AX_HEADER axmol.h
+   ${_AX_NETWORK_HEADER}
+ )
+ 
++# Rolo patch: see AX_WITH_FREETYPE in 3rdparty/CMakeLists.txt.
++if(DEFINED AX_WITH_FREETYPE AND NOT AX_WITH_FREETYPE)
++  list(REMOVE_ITEM _AX_2D_SRC 2d/FontFreeType.cpp)
++endif()
++
+ set(_AX_SRC axmol.cpp
+   ${_AX_2D_SRC}
+   ${_AX_PLATFORM_SRC}
+diff --git a/core/platform/linux/Device-linux.cpp b/core/platform/linux/Device-linux.cpp
+index ecf6911..02490db 100644
+--- a/core/platform/linux/Device-linux.cpp
++++ b/core/platform/linux/Device-linux.cpp
+@@ -35,6 +35,12 @@ THE SOFTWARE.
+ #include <map>
+ #include <string>
+ #include <sstream>
++// Rolo patch: without FreeType (AX_USE_FREETYPE=0) there is no text drawn
++// with system fonts on Linux: getTextureDataForText gives no data.
++#ifndef AX_USE_FREETYPE
++#    define AX_USE_FREETYPE 1
++#endif
++#if AX_USE_FREETYPE
+ #include <fontconfig/fontconfig.h>
+ 
+ #include "ft2build.h"
+@@ -76,6 +82,7 @@ struct LineBreakLine
+         }
+     }
+ };
++#endif  // AX_USE_FREETYPE
+ 
+ namespace ax
+ {
+@@ -113,6 +120,7 @@ void Device::setAccelerometerEnabled(bool isEnabled) {}
+ 
+ void Device::setAccelerometerInterval(float interval) {}
+ 
++#if AX_USE_FREETYPE
+ class BitmapDC
+ {
+ public:
+@@ -554,6 +562,7 @@ static BitmapDC& sharedBitmapDC()
+     static BitmapDC s_BmpDC;
+     return s_BmpDC;
+ }
++#endif  // AX_USE_FREETYPE
+ 
+ Data Device::getTextureDataForText(std::string_view text,
+                                    const FontDefinition& textDefinition,
+@@ -563,6 +572,7 @@ Data Device::getTextureDataForText(std::string_view text,
+                                    bool& hasPremultipliedAlpha)
+ {
+     Data ret;
++#if AX_USE_FREETYPE
+     do
+     {
+         BitmapDC& dc = sharedBitmapDC();
+@@ -575,6 +585,7 @@ Data Device::getTextureDataForText(std::string_view text,
+         ret.fastSet(dc._data, width * height * 4);
+         hasPremultipliedAlpha = true;
+     } while (0);
++#endif  // AX_USE_FREETYPE
+ 
+     return ret;
+ }

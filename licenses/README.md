@@ -21,7 +21,6 @@ Their license texts are in this folder; games carry a copy of it.
 | `doctest.txt` | doctest 2.4.12 | MIT |
 | `fastlz.txt` | FastLZ | MIT |
 | `fmt.txt` | {fmt} 11.2.0 | MIT |
-| `freetype.txt` | FreeType 2.14.1 | FreeType License (FTL) |
 | `glad.txt` | Glad 2.0.8 | MIT |
 | `glfw.txt` | GLFW 3.4 (modified by Axmol), with SDL_GameControllerDB's gamepad layouts | zlib |
 | `mio.txt` | mio | MIT |

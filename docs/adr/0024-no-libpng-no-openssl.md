@@ -87,5 +87,6 @@ use for it, and home-made cryptography is a known way to get it wrong.
 - **Still not MIT in every game after this:** FreeType (FreeType
   License), and smaller permissive ones listed in
   `THIRD_PARTY_NOTICES.md` (zlib, libwebp, xxHash, Clipper2, astcenc,
-  simdjson, poly2tri, ConvertUTF). FreeType is next: game text drawn by
-  Rolo's own font renderer.
+  simdjson, poly2tri, ConvertUTF). FreeType went next
+  ([ADR 0025](0025-no-freetype.md)): game text is drawn by Rolo's own
+  font renderer.

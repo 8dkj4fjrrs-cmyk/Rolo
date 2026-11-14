@@ -226,6 +226,11 @@ set(AX_WITH_JPEG OFF CACHE BOOL "" FORCE)
 # added by Rolo's Axmol patch 0004.
 set(AX_WITH_PNG OFF CACHE BOOL "" FORCE)
 set(AX_WITH_OPENSSL OFF CACHE BOOL "" FORCE)
+# No FreeType (ADR 0025): Rolo draws game text with its own font renderer
+# (rolo/ui/TextImage.hpp, stb_truetype) and does not use Axmol's labels.
+# The switch is added by Rolo's Axmol patch 0005; the functions of Axmol's
+# FontFreeType class come from engine/runtime/axmol_compat/src.
+set(AX_WITH_FREETYPE OFF CACHE BOOL "" FORCE)
 
 # ---------------------------------------------------------------------------
 # 6. Add Axmol's core library
@@ -247,6 +252,10 @@ endif()
 # Axmol's image code without its JPEG and PNG parts (see AX_WITH_JPEG and
 # AX_WITH_PNG above).
 target_compile_definitions(${_AX_CORE_LIB} PUBLIC AX_USE_JPEG=0 AX_USE_PNG=0)
+# Axmol's font class without FreeType (see AX_WITH_FREETYPE above).
+target_compile_definitions(${_AX_CORE_LIB} PRIVATE AX_USE_FREETYPE=0)
+target_sources(${_AX_CORE_LIB} PRIVATE
+    "${PROJECT_SOURCE_DIR}/engine/runtime/axmol_compat/src/FontFreeTypeNone.cpp")
 
 # Rolo's replacement for the yasio headers Axmol's core includes (ADR 0012),
 # and its stand-in for the OpenSSL headers (ADR 0024).

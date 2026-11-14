@@ -10,6 +10,7 @@ add_library(rolo_runtime STATIC
     src/ButtonIconNodes.cpp
     src/RumbleTimer.cpp
     src/SceneRenderer.cpp
+    src/TextSprites.cpp
     src/TextureStore.cpp
     src/UiHost.cpp)
 

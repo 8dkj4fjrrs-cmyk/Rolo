@@ -40,7 +40,6 @@ copy of Rolo, carries that folder.
 | doctest (linked by Axmol's core; no tests run in games) | 2.4.12 | MIT |
 | FastLZ | git 344eb40 | MIT |
 | {fmt} | 11.2.0 | MIT |
-| FreeType | 2.14.1 | FreeType License (BSD-style) |
 | Glad | 2.0.8 | MIT |
 | GLFW (modified by Axmol), with SDL_GameControllerDB's gamepad layouts (Rolo reads gamepads with it, ADR 0017) | 3.4 | zlib |
 | mio (header-only) | git 8b6b7d8 | MIT |
@@ -107,7 +106,7 @@ desktop runtime contains, compiled to WebAssembly, and:
 | LLVM libc++, libc++abi, libunwind, compiler-rt | as in Emscripten 4.0.9 | Apache-2.0 WITH LLVM-exception | Web games |
 
 Their texts are `licenses/emscripten.txt` and `licenses/llvm-runtime.txt`.
-(No JPEG library, no libpng and no OpenSSL: Rolo decodes images with stb_image, ADR 0023 and ADR 0024.) Emscripten itself is a build tool and is not part
+(No JPEG library, no libpng, no OpenSSL and no FreeType: Rolo decodes images with stb_image and draws text with stb_truetype, ADR 0023 to ADR 0025.) Emscripten itself is a build tool and is not part
 of this repository.
 
 ## Sound (`engine/audio`)
@@ -176,4 +175,4 @@ stb_image is compiled into `AssetDatabase.cpp` only, with every function
 copy of stb_image (listed with Axmol's libraries; it reads BMP files
 there, which Rolo does not use). The two copies never meet at link time.
 stb_image_write is compiled the same way into `ImageEncode.cpp`. Axmol
-itself is built without libpng, a JPEG library or OpenSSL.
+itself is built without libpng, a JPEG library, OpenSSL or FreeType.
