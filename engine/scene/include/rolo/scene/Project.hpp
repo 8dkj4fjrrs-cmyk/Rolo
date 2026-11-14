@@ -14,6 +14,8 @@
 
 #include "rolo/core/Engine.hpp" // Status
 
+#include "rolo/scene/ScreenFit.hpp"
+
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -37,6 +39,16 @@ struct ProjectSettings {
     /// The actions that get an on-screen button, in order (the first is the
     /// large one under the thumb). Empty: Rolo chooses (every action).
     std::vector<std::string> touchButtons;
+    /// The game size: what the game is made for, in points (ScreenFit.hpp).
+    /// Upright games swap them, e.g. 720 × 1280.
+    int width = 1280;
+    int height = 720;
+    /// What a screen of another shape shows: bars beside the game size, or
+    /// more of the world.
+    ScreenFit screenFit = ScreenFit::Bars;
+
+    static constexpr int kMinSize = 160;
+    static constexpr int kMaxSize = 4096;
 };
 
 namespace ProjectFormat {

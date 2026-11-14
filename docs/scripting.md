@@ -194,6 +194,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `input.wasPressed("space")` | it went down this frame |
 | `input.wasReleased("space")` | it went up this frame |
 | `input.direction()` | where the player steers, `x, y` (up is +1): the arrow keys or W A S D (each -1, 0 or 1), or else a gamepad's d-pad or left stick (values in between too). Never longer than 1 |
+| `game.viewSize()` | how much of the world the screen shows, at camera zoom 1: `width, height` (the game's size, or more if the project [fills the screen](exporting.md#screens-of-other-shapes)) |
 | `input.pointer()` | the mouse position in the world: `x, y` (on a touch screen: the first finger) |
 | `input.touches()` | the fingers on a touch screen that are not on Rolo's [on-screen controls](controls.md#touch-screens): a list of `{id, x, y, began, ended}` |
 | `input.isDown("pad a")` (and `wasPressed`, `wasReleased`) | a gamepad button, on any gamepad; `input.isDown("pad a", 2)` asks gamepad 2 only (1 to 4) |

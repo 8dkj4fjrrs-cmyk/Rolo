@@ -5,6 +5,20 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Screen sizes** ([ADR 0027](docs/adr/0027-screen-sizes.md),
+  [guide](docs/exporting.md#screens-of-other-shapes)):
+  - **Game Size**: each project has its own size (1280 × 720 unless
+    changed), upright sizes for phone games included.
+  - **Fill the Screen**: instead of bars, the picture fills screens of
+    other shapes and shows more of the world. Scores and menus (children
+    of the Camera) stay at the screen's edges by themselves; Camera
+    Bounds and `game.viewSize()` know how much is visible.
+  - Both are in the Inspector's *Game (whole project)* section. The
+    Platformer and Top-Down Starters fill the screen.
+  - Web games are sharp on high-density (Retina, phone) screens: the page
+    tells the game how many pixels to draw. Before, they were always
+    1280 × 720 pixels, scaled.
+  - The player's window is the game's size.
 - **Touch controls** ([ADR 0026](docs/adr/0026-touch-controls.md),
   [guide](docs/controls.md#touch-screens)): on phones and tablets Rolo
   shows a stick and a round button for each of the game's actions, by

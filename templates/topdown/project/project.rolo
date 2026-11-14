@@ -2,5 +2,6 @@
   "format": "rolo.project",
   "version": 1,
   "name": "Top-Down Starter",
-  "startScene": "scenes/meadow.lscene"
+  "startScene": "scenes/meadow.lscene",
+  "screenFit": "expand"
 }

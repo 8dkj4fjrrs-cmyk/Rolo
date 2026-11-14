@@ -39,6 +39,8 @@ My Game/
 | `escapeQuits` | Optional, `true` when left out. `false`: Escape does not close the game (it is an ordinary key; quit with `game.quit()`). |
 | `quickSaveKeys` | Optional, `true` when left out. `false`: F5 and F9 do not save and load the "quick" slot. |
 | `touchControls` | Optional, `true` when left out. `false`: no on-screen stick and buttons on touch screens (the game reads touches itself). |
+| `width`, `height` | Optional, 1280 and 720 when left out. The game's size in points (160 to 4096). |
+| `screenFit` | Optional, `"bars"` when left out: screens of another shape show the game whole with bars. `"expand"`: the picture fills the screen and shows more of the world. |
 | `touchButtons` | Optional. A list of action names: the actions that get an on-screen button, in order. Left out: Rolo chooses (every action). |
 
 These options are written only when changed, so they need no new format

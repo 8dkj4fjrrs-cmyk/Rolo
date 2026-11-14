@@ -678,6 +678,7 @@ def main():
     project["name"] = "Platformer Starter"   # the wizard renames copies after the new project
     project["startScene"] = "scenes/level.lscene"
     project["escapeQuits"] = False           # Escape opens the pause menu (scripts/pause.lua)
+    project["screenFit"] = "expand"          # fills screens of any shape (phones); the HUD follows the edges
     write(project_file, project)
 
 

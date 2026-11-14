@@ -72,9 +72,11 @@ Please report what you find.
   buttons have one look and cannot be remapped; no gestures (scripts get the
   raw fingers); tried only in a desktop browser acting as a phone, not yet
   on a real phone.
-- **Web games** ([exporting](exporting.md#for-the-web)): no rumble, on a
-  screen of another shape than the game there are bars beside the picture, the picture is
-  1280 × 720 scaled by the page (not sharper on high-density screens), and
+- **Screen shapes** ([exporting](exporting.md#screens-of-other-shapes)):
+  with Fill the Screen, what is pinned to which edge follows a rule of
+  thumb (by where a Camera's child is placed), with no setting per object;
+  changing the game's size does not move anything. Not tried on a real phone.
+- **Web games** ([exporting](exporting.md#for-the-web)): no rumble, and
   the shipped web runtime has no C++ game modules. Tested in headless
   Chromium only (by CI and by hand); Firefox and Safari are expected to
   work but have not been tried.

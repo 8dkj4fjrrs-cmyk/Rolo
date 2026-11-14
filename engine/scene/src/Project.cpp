@@ -101,6 +101,26 @@ std::optional<ProjectSettings> Project::parseSettings(std::string_view text, std
             *flag = j[key].get<bool>();
         }
     }
+    for (const auto& [key, size] : {std::pair{"width", &settings.width}, std::pair{"height", &settings.height}}) {
+        if (j.contains(key)) {
+            if (!j[key].is_number_integer() || j[key].get<long long>() < ProjectSettings::kMinSize
+                || j[key].get<long long>() > ProjectSettings::kMaxSize) {
+                setError(error, std::string("The project's \"") + key + "\" (the game's size) must be a whole number from "
+                                    + std::to_string(ProjectSettings::kMinSize) + " to "
+                                    + std::to_string(ProjectSettings::kMaxSize) + ".");
+                return std::nullopt;
+            }
+            *size = j[key].get<int>();
+        }
+    }
+    if (j.contains("screenFit")) {
+        const auto fit = j["screenFit"].is_string() ? screenFitFromName(j["screenFit"].get<std::string>()) : std::nullopt;
+        if (!fit) {
+            setError(error, "The project's \"screenFit\" must be \"bars\" or \"expand\".");
+            return std::nullopt;
+        }
+        settings.screenFit = *fit;
+    }
     if (j.contains("touchButtons")) {
         const Json& list = j["touchButtons"];
         const bool texts = list.is_array()
@@ -133,6 +153,13 @@ std::string Project::serializeSettings(const ProjectSettings& settings)
     }
     if (!settings.touchButtons.empty()) {
         j["touchButtons"] = settings.touchButtons;
+    }
+    if (settings.width != 1280 || settings.height != 720) {
+        j["width"] = settings.width;
+        j["height"] = settings.height;
+    }
+    if (settings.screenFit != ScreenFit::Bars) {
+        j["screenFit"] = std::string(screenFitName(settings.screenFit));
     }
     return j.dump(2) + "\n";
 }

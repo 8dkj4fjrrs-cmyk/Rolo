@@ -826,4 +826,42 @@ void SetGameOption::revert(Scene&)
     static_cast<void>(write(!m_after));
 }
 
+// --- SetGameScreen ---------------------------------------------------------------------------------
+
+bool SetGameScreen::write(int width, int height, ScreenFit fit) const
+{
+    auto project = m_assets != nullptr ? Project::open(m_assets->projectFolder()) : std::nullopt;
+    if (!project) {
+        return false;
+    }
+    ProjectSettings settings = project->settings();
+    settings.width = width;
+    settings.height = height;
+    settings.screenFit = fit;
+    project->setSettings(std::move(settings));
+    return static_cast<bool>(project->save());
+}
+
+bool SetGameScreen::apply(Scene&)
+{
+    auto project = m_assets != nullptr ? Project::open(m_assets->projectFolder()) : std::nullopt;
+    const auto ok = [](int size) { return size >= ProjectSettings::kMinSize && size <= ProjectSettings::kMaxSize; };
+    if (!project || !ok(m_width) || !ok(m_height)) {
+        return false;
+    }
+    const ProjectSettings& now = project->settings();
+    if (now.width == m_width && now.height == m_height && now.screenFit == m_fit) {
+        return false;
+    }
+    m_oldWidth = now.width;
+    m_oldHeight = now.height;
+    m_oldFit = now.screenFit;
+    return write(m_width, m_height, m_fit);
+}
+
+void SetGameScreen::revert(Scene&)
+{
+    static_cast<void>(write(m_oldWidth, m_oldHeight, m_oldFit));
+}
+
 } // namespace rolo::editor

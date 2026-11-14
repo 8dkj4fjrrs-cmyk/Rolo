@@ -22,7 +22,8 @@ if (args.length === 0 || args[0].startsWith('--')) {
                 + '  --phone    a phone held sideways: a small touch screen, no mouse\n'
                 + '  --expect-ended  the keys or touches quit the game: the page must say so\n'
                 + '  --touches  fingers, one after another, in the game\'s own coordinates\n'
-                + '             ((0,0) bottom-left); X,Y>X2,Y2 slides');
+                + '             ((0,0) bottom-left); X,Y>X2,Y2 slides; "50%" and negative\n'
+                + '             numbers (from the right or top edge) are understood');
   process.exit(2);
 }
 const folder = path.resolve(args[0]);
@@ -41,7 +42,7 @@ for (let i = 1; i < args.length; i++) {
   else if (args[i] === '--expect-ended') expectEnded = true;
   else if (args[i] === '--touches') {
     touches = args[++i].split(';').filter(Boolean).map(text =>
-      text.split('>').map(place => place.split(',').map(Number)));
+      text.split('>').map(place => place.split(',')));
   }
   else { console.error('Unknown option ' + args[i]); process.exit(2); }
 }
@@ -108,10 +109,18 @@ function fail(message, log) {
     // in the game's coordinates is found on the page from where the canvas is.
     const session = await page.context().newCDPSession(page);
     // (The canvas shows the game's whole picture: 1280 x 720 unless the page says otherwise.)
+    // A number may be "50%" (of the width or height) or negative (from the
+    // right or top edge), since a game that fills the screen shows more on some screens.
     const gameSize = await page.evaluate(() => window.roloGameSize || [1280, 720]);
+    const along = (text, size) => {
+      const value = parseFloat(text);
+      if (String(text).trim().endsWith('%')) return size * value / 100;
+      return value < 0 || Object.is(value, -0) ? size + value : value;
+    };
     const onPage = async ([x, y]) => {
       const box = await page.locator('#canvas').boundingBox();
-      return { x: box.x + x / gameSize[0] * box.width, y: box.y + (1 - y / gameSize[1]) * box.height };
+      return { x: box.x + along(x, gameSize[0]) / gameSize[0] * box.width,
+               y: box.y + (1 - along(y, gameSize[1]) / gameSize[1]) * box.height };
     };
     for (const places of touches) {
       const from = await onPage(places[0]);

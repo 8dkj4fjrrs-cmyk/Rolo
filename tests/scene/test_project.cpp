@@ -1,6 +1,7 @@
 #include "rolo/scene/Project.hpp"
 #include "rolo/scene/SceneFile.hpp"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
@@ -126,4 +127,78 @@ TEST_CASE("A project's touch choices are read and written only when changed", "[
     CHECK(error.find("touchButtons") != std::string::npos);
     CHECK_FALSE(Project::parseSettings(R"({"format": "rolo.project", "version": 1, "touchButtons": [1, 2]})", &error));
     CHECK_FALSE(Project::parseSettings(R"({"format": "rolo.project", "version": 1, "touchControls": 1})", &error));
+}
+
+TEST_CASE("A project's game size and screen fit are read and written only when changed", "[project][screen]")
+{
+    const ProjectSettings defaults;
+    CHECK(defaults.width == 1280);
+    CHECK(defaults.height == 720);
+    CHECK(defaults.screenFit == ScreenFit::Bars);
+    const std::string plain = Project::serializeSettings(defaults);
+    CHECK(plain.find("width") == std::string::npos);
+    CHECK(plain.find("screenFit") == std::string::npos);
+
+    ProjectSettings upright;
+    upright.width = 720;
+    upright.height = 1280;
+    upright.screenFit = ScreenFit::Expand;
+    const auto back = Project::parseSettings(Project::serializeSettings(upright));
+    REQUIRE(back);
+    CHECK(back->width == 720);
+    CHECK(back->height == 1280);
+    CHECK(back->screenFit == ScreenFit::Expand);
+
+    std::string error;
+    for (const char* bad : {R"("width": 20)", R"("height": 99999)", R"("width": "wide")", R"("width": 12.5)",
+                            R"("screenFit": "stretch")", R"("screenFit": true)"}) {
+        INFO(bad);
+        CHECK_FALSE(Project::parseSettings(std::string(R"({"format": "rolo.project", "version": 1, )") + bad + "}", &error));
+    }
+    CHECK(error.find("screenFit") != std::string::npos);
+}
+
+TEST_CASE("How much of the world a window shows", "[project][screen]")
+{
+    const Vec2 game{1280.0f, 720.0f};
+    // Bars: always the game's size.
+    CHECK(visibleSize(game, {2000.0f, 720.0f}, ScreenFit::Bars) == game);
+    // Expand: a window of the game's shape shows the game's size...
+    CHECK(visibleSize(game, {640.0f, 360.0f}, ScreenFit::Expand) == game);
+    // ...a wider one more to the sides, a taller one more above and below. The game's size is always in view.
+    CHECK(visibleSize(game, {1700.0f, 720.0f}, ScreenFit::Expand) == Vec2{1700.0f, 720.0f});
+    CHECK(visibleSize(game, {844.0f, 390.0f}, ScreenFit::Expand).y == 720.0f);
+    CHECK(visibleSize(game, {844.0f, 390.0f}, ScreenFit::Expand).x > 1550.0f);
+    CHECK(visibleSize(game, {720.0f, 720.0f}, ScreenFit::Expand) == Vec2{1280.0f, 1280.0f});
+    // Never more than three times the game's size (a very long window).
+    CHECK(visibleSize(game, {10000.0f, 100.0f}, ScreenFit::Expand) == Vec2{3840.0f, 720.0f});
+    // Nonsense in: the game's size out.
+    CHECK(visibleSize(game, {0.0f, 100.0f}, ScreenFit::Expand) == game);
+
+    CHECK(screenFitFromName("expand") == ScreenFit::Expand);
+    CHECK(screenFitFromName(screenFitName(ScreenFit::Bars)) == ScreenFit::Bars);
+    CHECK_FALSE(screenFitFromName("fill"));
+}
+
+TEST_CASE("Things fixed to the camera follow the screen's edges", "[project][screen]")
+{
+    const Vec2 game{1280.0f, 720.0f};
+    const Vec2 wide{1700.0f, 720.0f};   // 210 more on each side
+    // A score in the top-left corner stays as far from the left edge as it was made.
+    CHECK(pinToScreen({-616.0f, 340.0f}, {}, game, wide).offset == Vec2{-210.0f, 0.0f});
+    // Help in the top-right corner goes right; a dialogue box at the bottom middle stays put.
+    CHECK(pinToScreen({616.0f, 340.0f}, {}, game, wide).offset == Vec2{210.0f, 0.0f});
+    CHECK(pinToScreen({0.0f, -260.0f}, {1040.0f, 180.0f}, game, wide).offset == Vec2{0.0f, 0.0f});
+    CHECK(pinToScreen({0.0f, -260.0f}, {1040.0f, 180.0f}, game, wide).scale == Vec2{1.0f, 1.0f});
+    // On a taller screen, things at the top and bottom move with those edges.
+    const Vec2 tall{1280.0f, 1000.0f};
+    CHECK(pinToScreen({-616.0f, 340.0f}, {}, game, tall).offset == Vec2{0.0f, 140.0f});
+    CHECK(pinToScreen({0.0f, -260.0f}, {}, game, tall).offset == Vec2{0.0f, -140.0f});
+    // A veil over the whole game (night, a fade) is stretched over the whole screen.
+    const ScreenPin veil = pinToScreen({0.0f, 0.0f}, {1280.0f, 720.0f}, game, wide);
+    CHECK(veil.offset == Vec2{0.0f, 0.0f});
+    CHECK(veil.scale.x == Catch::Approx(1700.0f / 1280.0f));
+    CHECK(veil.scale.y == 1.0f);
+    // The same shape of screen as the game: nothing moves.
+    CHECK(pinToScreen({-616.0f, 340.0f}, {}, game, game).offset == Vec2{0.0f, 0.0f});
 }

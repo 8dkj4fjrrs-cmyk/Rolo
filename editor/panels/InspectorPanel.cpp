@@ -249,6 +249,70 @@ void InspectorPanel::buildScene(ui::Column& content)
                                 "(jump, interact...). Turn off if your game handles touches itself.",
               SetGameOption::Option::TouchControls);
 
+    // The game's size, and what a screen of another shape shows.
+    {
+        struct Preset {
+            const char* name;
+            int width;
+            int height;
+        };
+        static const std::vector<Preset> kPresets = {
+            {"1280 x 720 (wide)", 1280, 720},     {"1920 x 1080 (wide, full HD)", 1920, 1080},
+            {"960 x 540 (wide, small)", 960, 540}, {"640 x 360 (wide, pixel art)", 640, 360},
+            {"720 x 1280 (upright)", 720, 1280},   {"1080 x 1920 (upright, full HD)", 1080, 1920},
+            {"1024 x 768 (4:3)", 1024, 768},       {"720 x 720 (square)", 720, 720},
+        };
+        const auto change = [this](int width, int height, ScreenFit fit) {
+            m_editor.endEdit();
+            if (!m_editor.execute(std::make_unique<SetGameScreen>(width, height, fit))) {
+                m_editor.showMessage("Could Not Change the Setting",
+                                     "Rolo could not write project.rolo. Check that it is not read-only.");
+            }
+            m_editor.endEdit();
+        };
+        const auto settingsNow = [this] {
+            const Project* project = m_editor.project();
+            return project != nullptr ? project->settings() : ProjectSettings{};
+        };
+        auto& sizeRow = game.body().emplace<ui::PropertyField>("Game Size");
+        sizeRow.setTooltip("The size your game is made for, in points: what the player sees. Upright sizes are for "
+                           "phones held upright. Other sizes: \"width\" and \"height\" in project.rolo.");
+        std::vector<std::string> names;
+        for (const Preset& preset : kPresets) {
+            names.emplace_back(preset.name);
+        }
+        names.emplace_back("Another size (set in project.rolo)");
+        auto& sizes = sizeRow.addValue(std::make_unique<ui::ChoiceField>(names));
+        sizes.setOnChoose([change, settingsNow](int index) {
+            if (index >= 0 && index < static_cast<int>(kPresets.size())) {
+                const Preset& preset = kPresets[static_cast<std::size_t>(index)];
+                change(preset.width, preset.height, settingsNow().screenFit);
+            }
+        });
+        auto& fillRow = game.body().emplace<ui::PropertyField>("Fill the Screen");
+        fillRow.setTooltip("Screens come in many shapes. Off: the game is shown whole, with bars beside it. On: the "
+                           "picture fills the screen, and wider or taller screens show more of the world. Things "
+                           "fixed to the camera (scores, menus) then stay at the screen's edges.");
+        auto& fill = fillRow.addValue(std::make_unique<ui::Checkbox>(""));
+        fill.setOnChange([change, settingsNow](bool on) {
+            const ProjectSettings now = settingsNow();
+            change(now.width, now.height, on ? ScreenFit::Expand : ScreenFit::Bars);
+        });
+        m_refresh.push_back([this, &sizes, &fill, settingsNow] {
+            const ProjectSettings now = settingsNow();
+            int chosen = static_cast<int>(kPresets.size());   // "another size"
+            for (std::size_t i = 0; i < kPresets.size(); ++i) {
+                if (kPresets[i].width == now.width && kPresets[i].height == now.height) {
+                    chosen = static_cast<int>(i);
+                }
+            }
+            sizes.setSelected(chosen);
+            sizes.setEnabled(m_editor.project() != nullptr);
+            fill.setEnabled(m_editor.project() != nullptr);
+            fill.setChecked(now.screenFit == ScreenFit::Expand);
+        });
+    }
+
     // Physics: only Rigid Bodies feel gravity, so it matters only once the scene has one.
     auto& physics = content.emplace<ui::Section>("Physics");
     auto& gravityRow = physics.body().emplace<ui::PropertyField>("Gravity");

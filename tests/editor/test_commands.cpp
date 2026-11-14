@@ -507,6 +507,19 @@ TEST_CASE("The project's game options are changed through undoable steps", "[edi
     CHECK_FALSE(settings().touchControls);
     REQUIRE(f.doc.undo());
     CHECK(settings().touchControls);
+
+    // The game's size and what other screen shapes show.
+    REQUIRE(f.doc.execute(std::make_unique<SetGameScreen>(720, 1280, ScreenFit::Expand)));
+    CHECK(settings().width == 720);
+    CHECK(settings().height == 1280);
+    CHECK(settings().screenFit == ScreenFit::Expand);
+    CHECK_FALSE(settings().escapeQuits);   // the rest is kept
+    CHECK_FALSE(f.doc.execute(std::make_unique<SetGameScreen>(720, 1280, ScreenFit::Expand)));   // already
+    CHECK_FALSE(f.doc.execute(std::make_unique<SetGameScreen>(20, 1280, ScreenFit::Bars)));      // too small
+    REQUIRE(f.doc.undo());
+    CHECK(settings().width == 1280);
+    CHECK(settings().height == 720);
+    CHECK(settings().screenFit == ScreenFit::Bars);
 }
 
 TEST_CASE("Content files are edited through undoable steps", "[editor][commands][assets]")

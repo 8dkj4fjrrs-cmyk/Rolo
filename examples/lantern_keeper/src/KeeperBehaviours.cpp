@@ -131,8 +131,10 @@ void CameraLimits::update(Game& game, float)
         }
         return std::clamp(value, lo + half, hi - half);
     };
-    const Vec2 wanted{clampAxis(anchor.x, min.x, max.x, view.x * 0.5f),
-                      clampAxis(anchor.y, min.y, max.y, view.y * 0.5f)};
+    // The screen may show more than the game size (a project that fills other screen shapes).
+    const Vec2 seen{std::max(view.x, game.viewSize().x), std::max(view.y, game.viewSize().y)};
+    const Vec2 wanted{clampAxis(anchor.x, min.x, max.x, seen.x * 0.5f),
+                      clampAxis(anchor.y, min.y, max.y, seen.y * 0.5f)};
     // Back into the parent's own coordinates (it may be scaled).
     Vec2 local = wanted;
     if (!parent.isNull()) {

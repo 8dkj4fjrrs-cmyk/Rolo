@@ -524,6 +524,16 @@ int gameQuit(lua_State* L)
     return 0;
 }
 
+// game.viewSize() -> width, height: how much of the world the screen shows
+// at camera zoom 1 (the game size, or more on a screen of another shape).
+int gameViewSize(lua_State* L)
+{
+    const Vec2 size = std::as_const(gameOf(L)).viewSize();
+    lua_pushnumber(L, static_cast<lua_Number>(size.x));
+    lua_pushnumber(L, static_cast<lua_Number>(size.y));
+    return 2;
+}
+
 int gameInDialogue(lua_State* L)
 {
     lua_pushboolean(L, gameOf(L).isInDialogue());
@@ -1201,6 +1211,7 @@ void openScriptApi(ScriptHost& host)
         {"save", guarded<gameSave>},
         {"load", guarded<gameLoad>},
         {"quit", guarded<gameQuit>},
+        {"viewSize", guarded<gameViewSize>},
         {"inDialogue", guarded<gameInDialogue>},
         {"gravity", guarded<gameGravity>},
         {"setGravity", guarded<gameSetGravity>},

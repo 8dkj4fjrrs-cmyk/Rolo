@@ -169,6 +169,7 @@ ParseResult parseCommandLine(std::span<const std::string_view> args)
                 return result;
             }
             (arg == "--width" ? opt.width : opt.height) = *number;
+            opt.sizeChosen = true;
         } else if (arg == "--frames") {
             if (!nextValue(value)) {
                 return result;
@@ -219,8 +220,8 @@ std::string helpText()
            "  --project FOLDER   Play a Rolo project (its start scene)\n"
            "  --scene FILE       Play one scene file (.lscene)\n"
            "  --title TEXT       Window title (default: Rolo Engine)\n"
-           "  --width N          Window width in points (default: 1280)\n"
-           "  --height N         Window height in points (default: 720)\n"
+           "  --width N          Window width in points (default: the game's size, at most 1280)\n"
+           "  --height N         Window height in points (default: the game's size, at most 800)\n"
            "  --no-stats         Hide the frame-rate overlay\n"
            "  --stats            Show it (exported games hide it by default)\n"
            "  --mute             Play without sound\n"

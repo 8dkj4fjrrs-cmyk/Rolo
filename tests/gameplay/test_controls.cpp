@@ -229,6 +229,8 @@ TEST_CASE("Scripts see fingers and on-screen buttons", "[gameplay][touch][script
                 if finger.ended then print("finger " .. finger.id .. " lifted") end
             end
             if input.wasPressed("jump") then print("jump on " .. input.lastDevice()) end
+            local w, h = game.viewSize()
+            if input.wasPressed("jump") then print("view " .. w .. "x" .. h) end
             local x, y = input.pointer()
             if input.wasPressed("mouse left") then print("tap at " .. x .. "," .. y) end
         end
@@ -246,8 +248,10 @@ TEST_CASE("Scripts see fingers and on-screen buttons", "[gameplay][touch][script
     CHECK(p.printedLine("finger 3 lifted"));
     // The on-screen Jump button is the jump action.
     game->input().setTouchAction("jump", true);
+    game->setViewSize({1700.0f, 720.0f});   // what the screen shows (the program showing the game says)
     frames(*game, 1);
     CHECK(p.printedLine("jump on touch"));
+    CHECK(p.printedLine("view 1700x720"));
     CHECK(p.problems.empty());
 }
 

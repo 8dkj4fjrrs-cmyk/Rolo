@@ -161,7 +161,8 @@ To choose the buttons and their order yourself, list the actions in
 ```
 
 To handle touches yourself, turn **Touch Controls** off in the Inspector
-(with nothing selected, under *Game (whole project)*; in the file:
+(select the scene by clicking empty space in the Hierarchy; it is under
+*Game (whole project)*; in the file:
 `"touchControls": false`) and read the fingers:
 
 ```lua

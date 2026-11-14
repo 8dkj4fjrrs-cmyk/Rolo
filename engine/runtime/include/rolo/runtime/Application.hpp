@@ -10,6 +10,7 @@
 #include "rolo/gameplay/Input.hpp"
 #include "rolo/gameplay/TouchControls.hpp"
 #include "rolo/scene/Scene.hpp"
+#include "rolo/scene/ScreenFit.hpp"
 #include "rolo/ui/Context.hpp"
 
 #include <cstdint>
@@ -47,6 +48,10 @@ struct PresentationSettings {
     /// at the bottom-left to (worldWidth, worldHeight) at the top-right.
     int worldWidth = 1280;
     int worldHeight = 720;
+
+    /// A window of another shape than the game (FullWindow only): bars
+    /// beside the game size, or more of the world (rolo/scene/ScreenFit.hpp).
+    ScreenFit screenFit = ScreenFit::Bars;
 
     /// The scene shown when the window opens. Empty: Rolo's start scene.
     std::shared_ptr<const Scene> scene;
@@ -233,6 +238,10 @@ public:
     /// layer); the editor feeds its play mode from its own UI instead.
     /// Call before run(); `input` must outlive the run.
     void setGameInput(Input* input);
+
+    /// How much of the world the window shows now, in points at camera zoom
+    /// 1: the game size, or more along one side with ScreenFit::Expand.
+    Vec2 viewSize() const noexcept;
 
     /// On-screen controls for touch screens (rolo/gameplay/TouchControls.hpp):
     /// the window reports fingers to them, draws them while the player is

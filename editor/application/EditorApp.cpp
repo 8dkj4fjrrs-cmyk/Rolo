@@ -696,6 +696,10 @@ void EditorApp::updateGame(UiFrame& frame)
         m_gamepads = std::make_unique<GamepadReader>(m_engine.logger());
     }
     m_gamepads->read(m_game->input());
+    // In the editor the game is shown at exactly its own size.
+    if (const Project* shown = project()) {
+        m_game->setViewSize({static_cast<float>(shown->settings().width), static_cast<float>(shown->settings().height)});
+    }
     if (!m_paused) {
         m_game->update(dt);
     } else if (m_stepPending) {

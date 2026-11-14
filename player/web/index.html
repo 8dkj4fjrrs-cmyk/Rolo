@@ -9,7 +9,9 @@
 
   You may change this page as you like (colours, text, what is around the
   game). Keep the canvas with id "canvas" and the script at the end.
-  {{TITLE}} is replaced by the game's name when the game is exported.
+  When the game is exported, {{TITLE}} is replaced by the game's name, {{WIDTH}}
+  and {{HEIGHT}} by its size, and {{FIT}} by "bars" or "expand" (what screens
+  of another shape show).
 -->
 <html lang="en">
 <head>
@@ -20,6 +22,8 @@
   :root { color-scheme: dark; }
   html, body { height: 100%; margin: 0; }
   body {
+    /* Fixed to the window: the game can never make the page larger than the screen. */
+    position: fixed; inset: 0;
     background: #0e0f13;
     color: #e8e8ee;
     font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -59,15 +63,13 @@
   }
   #fullscreen:hover { color: #fff; background: #262833; }
   :fullscreen #fullscreen { display: none; }
-  /* Phones and tablets: out of the way of the on-screen buttons at the bottom. */
-  @media (pointer: coarse) {
-    #fullscreen { top: 8px; right: 8px; bottom: auto; opacity: .75; }
-  }
+  /* Phones and tablets (the script below marks them): out of the way of the on-screen buttons. */
+  .touch #fullscreen { top: 6px; right: 6px; bottom: auto; opacity: .6; padding: 2px 8px; font-size: 18px; }
 </style>
 </head>
 <body>
 <div id="stage">
-  <canvas id="canvas" width="1280" height="720" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+  <canvas id="canvas" width="{{WIDTH}}" height="{{HEIGHT}}" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
   <div id="loading" class="panel">
     <h1>{{TITLE}}</h1>
     <div id="bar"><div></div></div>
@@ -87,6 +89,9 @@
 
 <script>
   var canvas = document.getElementById('canvas');
+  if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+    document.documentElement.classList.add('touch');   // a phone or tablet
+  }
   var stage = document.getElementById('stage');
 
   function show(id) {
@@ -95,15 +100,38 @@
     });
   }
 
-  // The game's own size (its resolution), as the page was made with. The
-  // canvas may get more pixels than that on sharp screens; its shape stays.
-  var game = { width: canvas.width, height: canvas.height };
+  // The game's own size, and what a window of another shape shows: "bars"
+  // (the game whole, bars beside it) or "expand" (the picture fills the
+  // window and shows more of the world). Filled in when the game is exported.
+  var game = { width: parseInt('{{WIDTH}}', 10) || 1280, height: parseInt('{{HEIGHT}}', 10) || 720,
+               fill: '{{FIT}}' === 'expand' };
+  window.roloGameSize = [game.width, game.height];
+  var Module;              // the game's runtime, once it is loading (below)
+  var gameReady = false;   // ...and once it can be called
 
-  // Scales the game's picture to fit the window, keeping its shape.
+  // Lays the game's picture out in the window, and tells the game how many
+  // pixels to draw: as many as the picture has on this screen (at most
+  // twice the page's own: enough to be sharp, not so many that phones slow down).
   function fit() {
-    var scale = Math.min(window.innerWidth / game.width, window.innerHeight / game.height);
-    document.documentElement.style.setProperty('--game-width', Math.floor(game.width * scale) + 'px');
-    document.documentElement.style.setProperty('--game-height', Math.floor(game.height * scale) + 'px');
+    // (The document's own size: on phones, innerWidth follows what is on the page.)
+    var width = document.documentElement.clientWidth || window.innerWidth;
+    var height = document.documentElement.clientHeight || window.innerHeight;
+    if (!game.fill) {
+      var scale = Math.min(width / game.width, height / game.height);
+      width = Math.floor(game.width * scale);
+      height = Math.floor(game.height * scale);
+    } else if (width > 0 && height > 0) {
+      // What the canvas shows of the world now, in the game's own units (for tests of the page).
+      var wider = width / height > game.width / game.height;
+      window.roloGameSize = wider ? [Math.min(game.height * width / height, game.width * 3), game.height]
+                                  : [game.width, Math.min(game.width * height / width, game.height * 3)];
+    }
+    document.documentElement.style.setProperty('--game-width', width + 'px');
+    document.documentElement.style.setProperty('--game-height', height + 'px');
+    var ratio = Math.min(window.devicePixelRatio || 1, 2);
+    if (gameReady) {
+      Module._rolo_set_window_size(Math.max(16, Math.round(width * ratio)), Math.max(16, Math.round(height * ratio)));
+    }
   }
   window.addEventListener('resize', fit);
   window.addEventListener('orientationchange', fit);
@@ -117,6 +145,11 @@
   var goFullscreen = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
   if (!goFullscreen) {
     fullscreenButton.hidden = true;   // iPhones cannot make a page fullscreen
+  }
+  if (document.documentElement.classList.contains('touch')) {
+    // Small, so that it covers little of the game: two arrows pointing apart.
+    fullscreenButton.textContent = '\u2922';
+    fullscreenButton.setAttribute('aria-label', 'Fullscreen');
   }
   fullscreenButton.addEventListener('click', function () {
     goFullscreen.call(document.documentElement);
@@ -136,7 +169,7 @@
     failed('This browser cannot run the game (it needs WebAssembly and WebGL 2). Try a current version of ' +
            'Chrome, Firefox, Edge or Safari.');
   } else {
-    var Module = {
+    Module = {
       canvas: canvas,
       print: function (text) { console.log(text); },
       printErr: function (text) { console.warn(text); },
@@ -146,7 +179,7 @@
       onRoloError: failed,
       onRoloGameEnded: function () { show('ended'); },
       // The game's first frame is about to be drawn.
-      onRuntimeInitialized: function () { show(null); canvas.focus(); },
+      onRuntimeInitialized: function () { gameReady = true; show(null); canvas.focus(); fit(); },
       onAbort: function (what) { failed('The game stopped unexpectedly. (' + what + ')'); }
     };
     window.addEventListener('error', function (event) {

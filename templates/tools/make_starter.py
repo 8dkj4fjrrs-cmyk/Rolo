@@ -317,6 +317,7 @@ def main():
         write(root / "scenes" / (name + ".meta"), meta(name, "scene"))
     project["name"] = "Top-Down Starter"   # the wizard renames copies after the new project
     project["startScene"] = "scenes/meadow.lscene"
+    project["screenFit"] = "expand"        # fills screens of any shape (phones); the HUD follows the edges
     write(project_file, project)
 
 

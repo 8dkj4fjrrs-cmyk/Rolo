@@ -18,6 +18,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 add_library(rolo_scene STATIC
     src/Component.cpp
     src/Project.cpp
+    src/ScreenFit.cpp
     src/Scene.cpp
     src/Tilemap.cpp
     src/SceneFile.cpp

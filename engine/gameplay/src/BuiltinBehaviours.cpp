@@ -121,8 +121,10 @@ void CameraBounds::update(Game& game, float)
         }
         return std::clamp(value, lo + half, hi - half);
     };
-    const Vec2 wanted{clampAxis(anchor.x, min.x, max.x, view.x * 0.5f / zoom),
-                      clampAxis(anchor.y, min.y, max.y, view.y * 0.5f / zoom)};
+    // The screen may show more than the game size (ScreenFit::Expand).
+    const Vec2 seen{std::max(view.x, game.viewSize().x), std::max(view.y, game.viewSize().y)};
+    const Vec2 wanted{clampAxis(anchor.x, min.x, max.x, seen.x * 0.5f / zoom),
+                      clampAxis(anchor.y, min.y, max.y, seen.y * 0.5f / zoom)};
     // Back into the parent's own coordinates (it may be scaled).
     Vec2 local = wanted;
     if (!parent.isNull()) {
@@ -146,7 +148,8 @@ const ComponentType& CameraBounds::componentType()
             .property("min", "Min", &CameraBounds::min, {.help = "The area's bottom-left corner, in world points."})
             .property("max", "Max", &CameraBounds::max, {.help = "The area's top-right corner, in world points."})
             .property("view", "View Size", &CameraBounds::view,
-                      {.min = 1.0f, .help = "The game's view in points (1280 x 720 by default)."})
+                      {.min = 1.0f, .help = "The game's size in points (1280 x 720 by default). If the screen shows more "
+                                            "(a project that fills screens of other shapes), that is used."})
             .build();
     return type;
 }

@@ -121,6 +121,14 @@ public:
     /// game closes it: the player closes its window, the editor stops
     /// playing.
     bool quitRequested() const noexcept { return m_quitRequested; }
+
+    /// How much of the world the screen shows, in points, at camera zoom 1:
+    /// the game size, or more of it along one side when the project lets
+    /// the picture fill screens of other shapes (rolo/scene/ScreenFit.hpp).
+    /// Set by the program showing the game, every frame; (0, 0) if it has
+    /// not said. For keeping a camera inside a map (CameraBounds does).
+    Vec2 viewSize() const noexcept { return m_viewSize; }
+    void setViewSize(Vec2 size) noexcept { m_viewSize = size; }
     /// How long the last update took, by part.
     const FrameTimings& lastFrameTimings() const noexcept { return m_timings; }
     /// Memory used by Lua scripts now, in bytes (0 before any script ran).
@@ -322,6 +330,7 @@ private:
     float m_dt = 0.0f;
     std::uint64_t m_frames = 0;
     bool m_quitRequested = false;
+    Vec2 m_viewSize;
 
     // The behaviours to run each frame, kept while the scene's structure
     // stays the same (runBehaviours).

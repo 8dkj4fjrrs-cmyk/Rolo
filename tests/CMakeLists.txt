@@ -230,6 +230,34 @@ if(TARGET sample_game)
         FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|\\[WARN"
         TIMEOUT 120)
 
+    # Screen shapes (ADR 0027). The Platformer Starter fills the screen: a
+    # wider window shows more of the world (and says so once).
+    add_test(NAME player.fills_a_wide_window
+        COMMAND rolo_player --project "${PROJECT_SOURCE_DIR}/templates/platformer/project" --width 1000 --height 400
+                --frames 40 --fixed-step --no-stats --mute
+                --save-dir "${CMAKE_CURRENT_BINARY_DIR}/player-test-wide-saves"
+                --screenshot "${CMAKE_CURRENT_BINARY_DIR}/player_wide.png")
+    set_tests_properties(player.fills_a_wide_window PROPERTIES
+        PASS_REGULAR_EXPRESSION "the window shows 1800x720 points of the world.*Screenshot saved"
+        FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|\\[WARN"
+        TIMEOUT 120)
+
+    # An upright game: the sample game given a 720 x 1280 size. Its window is
+    # upright too (made smaller to fit a laptop screen) and shows exactly that size.
+    set(_upright "${CMAKE_CURRENT_BINARY_DIR}/upright-game")
+    file(REMOVE_RECURSE "${_upright}")
+    file(COPY "${PROJECT_SOURCE_DIR}/examples/sample_game/project/" DESTINATION "${_upright}"
+         PATTERN ".rolo-cache" EXCLUDE)
+    file(WRITE "${_upright}/project.rolo" "{\n  \"format\": \"rolo.project\",\n  \"version\": 1,\n  \"name\": \"Upright\",\n  \"startScene\": \"scenes/meadow.lscene\",\n  \"width\": 720,\n  \"height\": 1280\n}\n")
+    add_test(NAME player.upright_game
+        COMMAND rolo_player --project "${_upright}" --frames 30 --fixed-step --no-stats --mute
+                --save-dir "${CMAKE_CURRENT_BINARY_DIR}/player-test-upright-saves"
+                --screenshot "${CMAKE_CURRENT_BINARY_DIR}/player_upright.png")
+    set_tests_properties(player.upright_game PROPERTIES
+        PASS_REGULAR_EXPRESSION "Window: 'Upright', 450x800 points.*World: 720x1280 points.*Screenshot saved"
+        FAIL_REGULAR_EXPRESSION "\\[ERROR\\]|the window shows"
+        TIMEOUT 120)
+
     # The stress test's busy scene plays in a window, and --frame-times reports.
     add_test(NAME player.plays_stress_test
         COMMAND rolo_player --project "${PROJECT_SOURCE_DIR}/examples/stress/project" --frames 120 --no-stats

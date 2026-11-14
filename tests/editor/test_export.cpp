@@ -151,7 +151,7 @@ TEST_CASE("Exports refuse what they cannot do safely, saying why", "[editor][exp
 TEST_CASE("A web export is the web runtime, the page with the game's name, and the game as a pack", "[editor][export]")
 {
     Setup s;
-    s.file("web/index.html", "<title>{{TITLE}}</title><h1>{{TITLE}}</h1>");
+    s.file("web/index.html", "<title>{{TITLE}}</title><h1>{{TITLE}}</h1>{{WIDTH}}x{{HEIGHT}} {{FIT}}");
     s.file("web/rolo_player.js", "js");
     s.file("web/rolo_player.wasm", "wasm");
     s.file("web/rolo_player.data", "data");
@@ -166,7 +166,9 @@ TEST_CASE("A web export is the web runtime, the page with the game's name, and t
     const fs::path game = s.root / "exports/Cats  Dogs Web";
     CHECK(r.game == game);
     CHECK(r.program == game / "index.html");
-    CHECK(*readTextFile(game / "index.html") == "<title>Cats &amp; &lt;Dogs&gt;</title><h1>Cats &amp; &lt;Dogs&gt;</h1>");
+    // The page gets the game's name, and its size and how it meets other screen shapes.
+    CHECK(*readTextFile(game / "index.html")
+          == "<title>Cats &amp; &lt;Dogs&gt;</title><h1>Cats &amp; &lt;Dogs&gt;</h1>1280x720 bars");
     CHECK(*readTextFile(game / "rolo_player.js") == "js");
     CHECK(fs::exists(game / "rolo_player.wasm"));
     CHECK(fs::exists(game / "rolo_player.data"));

@@ -104,9 +104,10 @@ In order:
    Export Game… › Web browsers; keyboard, mouse, gamepads, saves, sound.
 5. ~~**Touch controls**~~ **Done** ([ADR 0026](adr/0026-touch-controls.md)):
    an on-screen stick and a button for each action, made by Rolo; taps
-   and `input.touches()`. **Still to do: screen sizes** (a game size of
-   your choice, upright games, using the whole of a screen of another
-   shape).
+   and `input.touches()`. ~~**Screen sizes**~~ **Done**
+   ([ADR 0027](adr/0027-screen-sizes.md)): a game size per project
+   (upright games too), and Fill the Screen, with scores and menus
+   following the screen's edges.
 6. **Android**, then **iOS**.
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).

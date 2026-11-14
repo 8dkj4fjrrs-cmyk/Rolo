@@ -109,6 +109,10 @@ void SceneRenderer::update()
     if (!sceneChanged && !assetsChanged && !texturesChanged) {
         return;
     }
+    struct PinAfter {
+        SceneRenderer& self;
+        ~PinAfter() { self.pinCameraChildren(); }   // nodes were put back at their own places
+    } pinAfter{*this};
     const bool onlyMoved = !assetsChanged && !texturesChanged && m_scene.get() == m_builtScene && m_scene != nullptr
                            && m_scene->contentRevision() == m_builtContentRevision;
     if (onlyMoved) {
@@ -116,6 +120,55 @@ void SceneRenderer::update()
     } else {
         rebuild();
     }
+}
+
+void SceneRenderer::setScreen(Vec2 gameSize, Vec2 visible)
+{
+    if (gameSize == m_gameSize && visible == m_visible) {
+        return;
+    }
+    m_gameSize = gameSize;
+    m_visible = visible;
+    pinCameraChildren();
+}
+
+// Things fixed to the camera (its children) follow the screen's edges when
+// the screen shows more than the game size.
+void SceneRenderer::pinCameraChildren()
+{
+    if (m_scene == nullptr) {
+        return;
+    }
+    const bool wanted = m_visible.x > 0.0f && m_visible != m_gameSize;
+    if (!wanted && !m_pinned) {
+        return;
+    }
+    m_pinned = wanted;
+    const auto view = camera();
+    if (!view) {
+        return;
+    }
+    const float zoom = view->zoom > 0.0f ? view->zoom : 1.0f;
+    m_scene->forEach([&](const Entity& entity, int) {
+        if (entity.parent() != view->entity) {
+            return;
+        }
+        ax::Node* node = nodeFor(entity.id());
+        if (node == nullptr) {
+            return;
+        }
+        const Transform& t = entity.transform();
+        ScreenPin pin;
+        if (wanted) {
+            Vec2 coverage;
+            if (const Shape* shape = entity.get<Shape>(); shape != nullptr && shape->filled && shape->kind == ShapeKind::Rectangle) {
+                coverage = {shape->size.x * std::abs(t.scale.x) * zoom, shape->size.y * std::abs(t.scale.y) * zoom};
+            }
+            pin = pinToScreen({t.position.x * zoom, t.position.y * zoom}, coverage, m_gameSize, m_visible);
+        }
+        node->setPosition(t.position.x + pin.offset.x / zoom, t.position.y + pin.offset.y / zoom);
+        node->setScale(t.scale.x * pin.scale.x, t.scale.y * pin.scale.y);
+    });
 }
 
 ax::Node* SceneRenderer::nodeFor(EntityId id) const
@@ -156,7 +209,7 @@ std::optional<CameraView> SceneRenderer::camera() const
                 return;
             }
         }
-        found = CameraView{m_scene->worldTransform(entity.id()).apply({0.0f, 0.0f}), camera->zoom};
+        found = CameraView{m_scene->worldTransform(entity.id()).apply({0.0f, 0.0f}), camera->zoom, entity.id()};
     });
     return found;
 }

@@ -183,6 +183,9 @@ struct Application::Impl {
     void onTouch(TouchPhase phase, int id, ax::Vec2 screen);
     void listenForTouches();
     void updateTouchControls();
+    Vec2 viewSize;      // how much of the world the window shows (the game size, or more: ScreenFit)
+    void fitScreen();
+    bool fitLogged = false;
     std::unique_ptr<GamepadReader> gamepads;   // ...and from gamepads, while there is a game input
     RunReport report;
 
@@ -283,6 +286,38 @@ private:
 
 } // namespace
 
+#ifdef __EMSCRIPTEN__
+// The page gives the game's canvas its size in pixels (it knows the page's
+// layout and how sharp the screen is): Module._rolo_set_window_size(w, h).
+// Asked before the window exists, the size is kept for when it does.
+namespace {
+int g_pageWidth = 0;
+int g_pageHeight = 0;
+} // namespace
+
+extern "C" EMSCRIPTEN_KEEPALIVE void rolo_set_window_size(int width, int height)
+{
+    if (width < 16 || height < 16 || width > 16384 || height > 16384) {
+        return;
+    }
+    g_pageWidth = width;
+    g_pageHeight = height;
+    auto* view = dynamic_cast<ax::RenderViewImpl*>(ax::Director::getInstance()->getRenderView());
+    if (view != nullptr && view->getWindow() != nullptr) {
+        glfwSetWindowSize(view->getWindow(), width, height);   // Axmol hears of it and Rolo fits the screen
+    }
+}
+
+namespace {
+void applyPageSize()
+{
+    if (g_pageWidth > 0) {
+        rolo_set_window_size(g_pageWidth, g_pageHeight);
+    }
+}
+} // namespace
+#endif
+
 bool Application::Impl::startWindow()
 {
     ax::Director* director = ax::Director::getInstance();
@@ -305,8 +340,10 @@ bool Application::Impl::startWindow()
     // PNG decoder inside Axmol, which Rolo builds it without (ADR 0024).
     director->setStatsDisplay(false);
     director->setAnimationInterval(1.0f / 60.0f);
-    // World coordinates = the game's resolution, whatever the window size.
+    // World coordinates = the game's resolution, whatever the window size
+    // (fitScreen() lets a game window of another shape show more).
     view->setDesignResolutionSize(worldW, worldH, ResolutionPolicy::SHOW_ALL);
+    viewSize = {worldW, worldH};
 
     logDiagnostics(*view);
 
@@ -345,6 +382,15 @@ bool Application::Impl::startWindow()
 
     if (options.showStats) {
         startStats(*scene);
+    }
+
+    if (presentation.worldDisplay == WorldDisplay::FullWindow && !uiEnabled()) {
+#ifdef __EMSCRIPTEN__
+        applyPageSize();   // the size the page asked for before the window existed
+#endif
+        fitScreen();
+        director->getEventDispatcher()->addCustomEventListener(ax::RenderViewImpl::EVENT_WINDOW_RESIZED,
+                                                               [this](ax::EventCustom*) { fitScreen(); });
     }
 
     director->runWithScene(scene);
@@ -459,13 +505,44 @@ void Application::Impl::applyGameCamera()
     }
     // Without a camera the window shows the world from (0, 0) to the game's
     // resolution; with one, it is centred on the camera.
+    // (When the window shows more than the game size, the extra is shared
+    // by both sides: the same point stays in the middle.)
     const auto view = renderer->camera();
-    const auto w = static_cast<float>(presentation.worldWidth);
-    const auto h = static_cast<float>(presentation.worldHeight);
-    const Vec2 center = view ? view->center : Vec2{w * 0.5f, h * 0.5f};
+    const Vec2 center = view ? view->center
+                             : Vec2{static_cast<float>(presentation.worldWidth) * 0.5f,
+                                    static_cast<float>(presentation.worldHeight) * 0.5f};
     const float zoom = view ? std::max(0.01f, view->zoom) : 1.0f;
     world->setScale(zoom);
-    world->setPosition(w * 0.5f - center.x * zoom, h * 0.5f - center.y * zoom);
+    world->setPosition(viewSize.x * 0.5f - center.x * zoom, viewSize.y * 0.5f - center.y * zoom);
+}
+
+// A game window: works out how much of the world it shows for its shape
+// (ScreenFit) and tells Axmol, the renderer and the touch controls. Called
+// at the start and whenever the window's size changes.
+void Application::Impl::fitScreen()
+{
+    auto* view = ax::Director::getInstance()->getRenderView();
+    if (view == nullptr || presentation.worldDisplay != WorldDisplay::FullWindow || uiEnabled()) {
+        return;
+    }
+    const Vec2 game{static_cast<float>(presentation.worldWidth), static_cast<float>(presentation.worldHeight)};
+    const ax::Vec2 frame = view->getFrameSize();
+    const Vec2 visible = visibleSize(game, {frame.x, frame.y}, presentation.screenFit);
+    if (visible != viewSize) {
+        viewSize = visible;
+        view->setDesignResolutionSize(visible.x, visible.y, ResolutionPolicy::SHOW_ALL);
+        touchLaidOut = 0;   // the on-screen controls are placed anew
+        if (!fitLogged) {
+            fitLogged = true;   // once: a window being dragged larger would fill the log
+            log().info(kCategory, "Screen: the window shows " + std::to_string(static_cast<int>(visible.x + 0.5f)) + "x"
+                                      + std::to_string(static_cast<int>(visible.y + 0.5f))
+                                      + " points of the world (more than the game's size: it fills the window)");
+        }
+    }
+    if (renderer) {
+        renderer->setScreen(game, visible);
+    }
+    applyGameCamera();
 }
 
 // The frame-rate overlay: one small line in the bottom-left corner, above
@@ -688,10 +765,8 @@ void Application::Impl::updateTouchControls()
     if (touchControls == nullptr || gameInput == nullptr || touchNode == nullptr) {
         return;
     }
-    const auto w = static_cast<float>(presentation.worldWidth);
-    const auto h = static_cast<float>(presentation.worldHeight);
     if (touchLaidOut == 0) {
-        touchControls->layout(w, h);
+        touchControls->layout(viewSize.x, viewSize.y);
     }
     const bool shown = gameInput->lastDevice() == InputDevice::Touch;
     if (!shown && touchNode->isVisible()) {
@@ -1094,6 +1169,13 @@ void Application::setGameInput(Input* input)
     m_impl->gameInput = input;
 }
 
+Vec2 Application::viewSize() const noexcept
+{
+    return m_impl->viewSize.x > 0.0f ? m_impl->viewSize
+                                     : Vec2{static_cast<float>(m_impl->presentation.worldWidth),
+                                            static_cast<float>(m_impl->presentation.worldHeight)};
+}
+
 void Application::setTouchControls(TouchControls* controls, bool mouseActsAsTouch)
 {
     m_impl->touchControls = controls;
@@ -1214,4 +1296,5 @@ void axmol_wasm_app_exit()
     EM_ASM({ if (Module["onRoloGameEnded"]) { Module["onRoloGameEnded"](); } });
     // clang-format on
 }
+
 #endif

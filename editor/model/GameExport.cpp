@@ -143,7 +143,8 @@ std::string webReadme(const ExportOptions& o, const std::string& gameName)
              "-----------\n"
              "- itch.io: zip the CONTENTS of this folder (so that index.html is at the top of the zip),\n"
              "  create a project, choose \"HTML\" as the kind of project, upload the zip and tick\n"
-             "  \"This file will be played in the browser\". Set the viewport to 1280 x 720.\n"
+             "  \"This file will be played in the browser\". Set the viewport to your game's size\n"
+             "  (1280 x 720 unless you changed it).\n"
              "- Any web host (GitHub Pages, Netlify, your own site): upload this folder as it is.\n"
              "  No special server settings are needed.\n\n"
              "To try it on this computer\n"
@@ -198,8 +199,21 @@ ExportResult exportWebGame(const ExportOptions& o, ExportResult result, const st
         return fail("Could not read " + (o.webPlayer / "index.html").string() + ".");
     }
     const std::string title = htmlEscaped(o.gameName.empty() ? name : o.gameName);
-    for (std::size_t at = page->find("{{TITLE}}"); at != std::string::npos; at = page->find("{{TITLE}}", at + title.size())) {
-        page->replace(at, 9, title);
+    // ...and the game's size and how it meets other screen shapes (the page lays the game out).
+    ProjectSettings screen;
+    if (const auto project = Project::open(o.project)) {
+        screen = project->settings();
+    }
+    const std::pair<std::string, std::string> fills[] = {
+        {"{{TITLE}}", title},
+        {"{{WIDTH}}", std::to_string(screen.width)},
+        {"{{HEIGHT}}", std::to_string(screen.height)},
+        {"{{FIT}}", std::string(screenFitName(screen.screenFit))},
+    };
+    for (const auto& [mark, text] : fills) {
+        for (std::size_t at = page->find(mark); at != std::string::npos; at = page->find(mark, at + text.size())) {
+            page->replace(at, mark.size(), text);
+        }
     }
     if (const Status s = writeTextFileAtomically(result.game / "index.html", *page); !s) {
         return fail(s.message);

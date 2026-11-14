@@ -1411,8 +1411,13 @@ void ViewportPanel::update(UiFrame& frame)
     }
     m_view->setTileImage(texture, imageSize, std::move(tileset));
 
-    m_view->setFrameData(frame.worldImage(), static_cast<float>(frame.worldWidth()),
-                         static_cast<float>(frame.worldHeight()), frame.gameCamera());
+    // The game's size is the project's (the frame drawn around what the player sees).
+    const Project* project = m_editor.project();
+    const float gameWidth = project != nullptr ? static_cast<float>(project->settings().width)
+                                               : static_cast<float>(frame.worldWidth());
+    const float gameHeight = project != nullptr ? static_cast<float>(project->settings().height)
+                                                : static_cast<float>(frame.worldHeight());
+    m_view->setFrameData(frame.worldImage(), gameWidth, gameHeight, frame.gameCamera());
     if (playing) {
         const auto [min, size] = m_view->gameArea();
         const ui::Rect b = m_view->bounds();

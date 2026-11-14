@@ -188,5 +188,12 @@ TEST_CASE("Camera bounds keep the view inside the map", "[gameplay][builtin]")
     frames(game, 1);
     CHECK(game.worldPosition(game.find("Camera")).x == Catch::Approx(1360.0f));
     CHECK(game.worldPosition(game.find("Camera")).y == Catch::Approx(640.0f));
+
+    // A screen that shows more than the game's size (a project that fills
+    // screens of other shapes): the view is wider, so the camera stops sooner.
+    game.setViewSize({1700.0f, 720.0f});
+    frames(game, 1);
+    CHECK(game.worldPosition(game.find("Camera")).x == Catch::Approx(2000.0f - 850.0f));
+    CHECK(game.worldPosition(game.find("Camera")).y == Catch::Approx(640.0f));
     CHECK(c.warnings.empty());
 }

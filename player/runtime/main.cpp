@@ -16,6 +16,8 @@
 #include "rolo/gameplay/Game.hpp"
 #include "rolo/gameplay/GameModule.hpp"
 #include "rolo/gameplay/TouchControls.hpp"
+
+#include <algorithm>
 #include "rolo/runtime/Application.hpp"
 #include "rolo/scene/Project.hpp"
 #include "rolo/scene/SceneFile.hpp"
@@ -281,6 +283,17 @@ int Player::run()
     };
     game = std::make_unique<rolo::Game>(engine->logger(), std::move(setup));
     rolo::PresentationSettings presentation;
+    // The game size and what other screen shapes show come from the project.
+    presentation.worldWidth = gameOptions.width;
+    presentation.worldHeight = gameOptions.height;
+    presentation.screenFit = gameOptions.screenFit;
+    if (!opt.sizeChosen) {
+        // The window: the game's size, made smaller (same shape) if that is
+        // larger than an ordinary laptop screen has room for.
+        const double fit = std::min({1.0, 1280.0 / gameOptions.width, 800.0 / gameOptions.height});
+        opt.width = std::max(160, static_cast<int>(gameOptions.width * fit + 0.5));
+        opt.height = std::max(160, static_cast<int>(gameOptions.height * fit + 0.5));
+    }
     if (firstScene) {
         // The scene's asset ID lets the game remember progress per scene.
         rolo::AssetId sceneId;
@@ -333,6 +346,7 @@ int Player::run()
             if (gameOptions.touchControls) {
                 touchControls.setActions(game->input(), touchButtonsNow());
             }
+            game->setViewSize(app->viewSize());   // how much of the world the window shows now
             // Fingers put on the screen by tests (--finger): as the window
             // reports real ones, to the on-screen controls first.
             for (std::size_t i = 0; i < opt.fingers.size(); ++i) {

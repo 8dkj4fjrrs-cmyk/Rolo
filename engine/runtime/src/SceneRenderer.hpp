@@ -24,6 +24,7 @@
 #include "rolo/assets/Animation.hpp"
 #include "rolo/assets/AssetDatabase.hpp"
 #include "rolo/scene/Scene.hpp"
+#include "rolo/scene/ScreenFit.hpp"
 
 #include <axmol.h>
 
@@ -41,6 +42,7 @@ class TextureStore;
 struct CameraView {
     Vec2 center;
     float zoom = 1.0f;
+    EntityId entity;   // the object with the Camera
 };
 
 class SceneRenderer {
@@ -67,6 +69,11 @@ public:
     /// images changed.
     void update();
 
+    /// The game size and how much the screen shows (rolo/scene/ScreenFit.hpp).
+    /// When the screen shows more, the Camera's children (scores, menus)
+    /// are kept at the screen's edges (pinToScreen).
+    void setScreen(Vec2 gameSize, Vec2 visible);
+
     /// Shows each Animator's frame for the animation clock `clock` (seconds;
     /// see rolo::Animator). Call every frame, after update().
     void animate(double clock);
@@ -82,11 +89,15 @@ public:
 private:
     void rebuild();
     void moveNodes();
+    void pinCameraChildren();
     ax::Node* makeSpriteNode(const Sprite& sprite);
     ax::Node* makeTilemapNode(const Tilemap& map);
     ax::Node* makeAnimatedNode(EntityId id, const Animator& animator, const Sprite* sprite);
     ax::Node* makeTextNode(const Text& text);
 
+    Vec2 m_gameSize;
+    Vec2 m_visible;
+    bool m_pinned = false;   // camera children are away from their own places now
     ax::Node& m_root;
     TextureStore* m_textures;
     bool m_drawContent;

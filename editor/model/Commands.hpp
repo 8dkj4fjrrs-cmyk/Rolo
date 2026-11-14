@@ -363,6 +363,33 @@ private:
     AssetDatabase* m_assets = nullptr;   // the project's folder comes from here; not owned
 };
 
+/// Changes the project's game size and what screens of another shape show
+/// (project.rolo's width, height and screenFit). Saved straight away.
+class SetGameScreen final : public Command {
+public:
+    SetGameScreen(int width, int height, ScreenFit fit)
+        : m_width(width)
+        , m_height(height)
+        , m_fit(fit)
+    {
+    }
+    std::string label() const override { return "Change the Game's Size"; }
+    bool apply(Scene& scene) override;
+    void revert(Scene& scene) override;
+    bool changesScene() const override { return false; }
+    void useAssets(AssetDatabase* assets) override { m_assets = assets; }
+
+private:
+    bool write(int width, int height, ScreenFit fit) const;
+    int m_width;
+    int m_height;
+    ScreenFit m_fit;
+    int m_oldWidth = 1280;
+    int m_oldHeight = 720;
+    ScreenFit m_oldFit = ScreenFit::Bars;
+    AssetDatabase* m_assets = nullptr;   // the project's folder comes from here; not owned
+};
+
 class RenameScene final : public Command {
 public:
     explicit RenameScene(std::string name)

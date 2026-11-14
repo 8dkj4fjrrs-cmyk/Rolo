@@ -29,8 +29,9 @@ struct PlayerOptions {
 
     // Window.
     std::string title = "Rolo Engine";
-    int width = 1280;
+    int width = 1280;             // 0 with --width / --height not given: the game's own size
     int height = 720;
+    bool sizeChosen = false;      // --width or --height was given
 
     // Run behaviour.
     std::uint64_t maxFrames = 0;  // 0 = until closed

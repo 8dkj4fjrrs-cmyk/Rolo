@@ -96,7 +96,7 @@ servers send it (compressed).
 - **itch.io**: zip the *contents* of the folder (so `index.html` is at the
   top of the zip), make a project of the kind **HTML**, upload the zip and
   tick **This file will be played in the browser**. Set the viewport to
-  1280 × 720.
+  your game's size (1280 × 720 unless you changed it).
 - **Any web host** (GitHub Pages, Netlify, your own site): upload the folder
   as it is. No special server settings are needed.
 
@@ -126,8 +126,10 @@ python3 -m http.server 8000      # then open http://localhost:8000
   (the export warns if your scenes use any). To have yours on the web,
   build the web runtime yourself with `ROLO_GAME_MODULE_DIRS`
   ([building](building.md#for-the-web)).
-- **The picture** is drawn at 1280 × 720 and scaled to the window by the
-  page; there is a Fullscreen button.
+- **The picture** fits the window (with bars, or filling it: see
+  [screens of other shapes](#screens-of-other-shapes)) and is drawn with
+  as many pixels as it has on that screen, so it is sharp on Retina and
+  phone screens; there is a Fullscreen button.
 - **Browsers**: current Chrome, Firefox, Edge and Safari (WebAssembly with
   exceptions and SIMD, WebGL 2: Safari 16.4 or newer).
 
@@ -137,6 +139,36 @@ version elsewhere.
 
 The page loads `game.pack`, whose format is described in
 [formats/game-pack.md](formats/game-pack.md).
+
+## Screens of other shapes
+
+Your game has a **size** (1280 × 720 unless you change it): what the
+player sees. Phones, tablets and monitors come in other shapes. Two
+settings decide what happens there ([ADR 0027](adr/0027-screen-sizes.md)).
+Select the scene (click empty space in the Hierarchy) and look in the
+Inspector's **Game (whole project)** section:
+
+| Setting | What it does |
+|---|---|
+| **Game Size** | The size the game is made for. Choose an upright size (720 × 1280) for a phone game held upright. Other sizes: `"width"` and `"height"` in `project.rolo`. |
+| **Fill the Screen** | Off: the game is shown whole, with bars beside it; every player sees the same. On: the picture fills the screen, and wider or taller screens show more of the world. |
+
+With **Fill the Screen** on:
+
+- Scores, prompts and menus that are **children of the Camera** stay at
+  the screen's edges by themselves: what you placed near the left edge
+  stays as far from the left edge, and so on for each side; what is in the
+  middle stays in the middle. A rectangle covering the whole game (a
+  night veil) is stretched over the whole screen.
+- **Camera Bounds** keeps the camera inside your map on wide screens too.
+- In scripts, `game.viewSize()` gives how much of the world the screen
+  shows.
+- Make sure the level looks right with more of it in view. A scene that
+  is exactly one screen, with nothing around it, is better with bars.
+
+The Platformer and Top-Down Starters fill the screen. Try other shapes on
+your computer: `rolo_player --project MyGame --width 1000 --height 400`,
+or resize the game's window.
 
 ## Each system exports its own games
 
