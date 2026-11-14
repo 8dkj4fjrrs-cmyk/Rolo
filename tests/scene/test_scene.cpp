@@ -212,3 +212,57 @@ TEST_CASE("The start scene is Rolo, made of shapes", "[scene]")
     CHECK(scene.find(scene.roots().front())->name() == "Background");
     CHECK(scene.hitTest({640, 352}) != EntityId{}); // Rolo, centre of the world
 }
+
+TEST_CASE("The scene lists entities by component and by name, in tree order", "[scene][index]")
+{
+    Scene scene = seeded();
+    const EntityId a = scene.create("Box")->id();
+    const EntityId b = scene.create("Box", a)->id();   // a second "Box", inside the first
+    const EntityId c = scene.create("Lamp")->id();
+    scene.addComponent(c, std::make_unique<Shape>());
+    scene.addComponent(b, std::make_unique<Shape>());
+
+    CHECK(scene.inOrder() == std::vector<EntityId>{a, b, c});
+    CHECK(scene.all<Shape>() == std::vector<EntityId>{b, c});          // tree order, not the order added
+    CHECK(scene.all<Transform>() == std::vector<EntityId>{a, b, c});
+    CHECK(scene.entitiesWith("no.SuchType").empty());
+    CHECK(scene.findByName("Box") == a);                               // the first in tree order
+    CHECK(scene.findByName("Lamp") == c);
+    CHECK(scene.findByName("Nobody").isNull());
+
+    // Values changing does not change the lists (or structureRevision).
+    const std::uint64_t structure = scene.structureRevision();
+    scene.setProperty(c, "rolo.Transform", "position", Vec2{5.0f, 6.0f});
+    scene.setActive(b, false);
+    CHECK(scene.structureRevision() == structure);
+    CHECK(scene.all<Shape>() == std::vector<EntityId>{b, c});          // switched off is still listed
+
+    // Structure changing does: components, entities, names, places in the tree.
+    scene.removeComponent(b, "rolo.Shape");
+    CHECK(scene.structureRevision() > structure);
+    CHECK(scene.all<Shape>() == std::vector<EntityId>{c});
+    scene.rename(c, "Box");
+    scene.rename(a, "Crate");
+    CHECK(scene.findByName("Box") == b);
+    CHECK(scene.findByName("Lamp").isNull());
+    scene.move(c, {}, 0);                                              // to the front
+    CHECK(scene.inOrder() == std::vector<EntityId>{c, a, b});
+    scene.remove(a);                                                   // and b inside it
+    CHECK(scene.inOrder() == std::vector<EntityId>{c});
+    CHECK(scene.findByName("Crate").isNull());
+    const EntityId d = scene.create("New")->id();
+    CHECK(scene.all<Transform>() == std::vector<EntityId>{c, d});
+
+    // A copy has its own lists.
+    Scene copy = scene;
+    copy.remove(d);
+    CHECK(copy.inOrder() == std::vector<EntityId>{c});
+    CHECK(scene.inOrder() == std::vector<EntityId>{c, d});
+
+    // Components this program does not know are found by the type they had in the file.
+    scene.addComponent(d, std::make_unique<UnknownComponent>("future.Thing", "{}"));
+    CHECK(scene.entitiesWith("future.Thing") == std::vector<EntityId>{d});
+    CHECK(scene.find(d)->component("future.Thing") != nullptr);
+    CHECK(scene.find(d)->get<Shape>() == nullptr);
+    CHECK(scene.find(c)->get<Shape>() != nullptr);
+}

@@ -92,13 +92,14 @@ In order:
 2. ~~**Luau** in place of Lua 5.4, unmodified, with a guide for existing
    scripts.~~ **Done** ([ADR 0020](adr/0020-luau.md)): about 2.3× faster
    in the language; calls into Rolo are now the slow part.
-3. **Lua-ux's performance layer**, each part measured: cheaper calls
-   into Rolo (the slow part now), garbage-free vectors, APIs that make no
-   garbage, collector pacing, the engine's cost per object (texts,
-   behaviours, physics looking at every object; `game.find` searching all
-   of them), one script for many objects, native code where allowed, a
-   script profiler. Also: making and removing objects from scripts
-   (spawning).
+3. **Lua-ux's performance layer**, each part measured.
+   **Done** ([ADR 0021](adr/0021-performance-layer.md)): the engine's
+   cost per object (now none for still objects), cheaper calls between
+   scripts and Rolo, vectors in place of `x, y`; a busy scene is 3× faster.
+   Tried and not kept: collector pacing (no gain over Luau's own).
+   **Still to do:** making and removing objects from scripts (spawning),
+   one script for many objects, a script profiler in the editor, native
+   code where allowed.
 4. **Web export** (WebAssembly).
 5. **Touch controls** (taps, an on-screen stick and buttons, as actions)
    and **screen sizes** (scaling for any shape of screen).

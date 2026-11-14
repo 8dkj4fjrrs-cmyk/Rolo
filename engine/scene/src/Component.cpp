@@ -120,6 +120,11 @@ bool Component::set(std::string_view key, const PropertyValue& value)
 
 const ComponentType& UnknownComponent::type() const
 {
+    return unknownType();
+}
+
+const ComponentType& UnknownComponent::unknownType()
+{
     static const ComponentType unknown = [] {
         ComponentType t;
         t.id = std::string(kTypeId);

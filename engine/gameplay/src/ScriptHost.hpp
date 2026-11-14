@@ -26,6 +26,7 @@
 #include "rolo/core/Log.hpp"
 #include "rolo/scene/EntityId.hpp"
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -84,7 +85,7 @@ class ScriptHost {
     /// error if it cannot.
     void require(lua_State* L, std::string_view name);
     /// The project path of the file whose code is running (for print()).
-    const std::string& currentFile() const noexcept { return m_currentFile; }
+    const std::string& currentFile() const noexcept { return *m_currentFile; }
     /// Game functions that are not public (the host is the Game's friend).
     void setActive(EntityId object, bool active);
     EntityId player() const;
@@ -96,16 +97,17 @@ class ScriptHost {
         std::string error;    // why it could not be loaded
     };
 
-    // The file's environment, loaded on first use. Pushes it and returns
-    // true; or pushes nothing and sets `error`.
-    bool pushEnvironment(AssetId script, std::string& error);
+    // The script's file, loaded and run on first use (its environment is
+    // -2 and `error` says why if that failed).
+    File& fileFor(AssetId script);
+    enum class Hook { Start, Update, Collide };
     // Calls the function on the stack below `arguments` arguments with the
     // instruction limit and an error handler. Nothing, or the error.
     std::optional<std::string> call(int arguments, const std::string& file);
     // Calls the script's function `name` (start, update or collide) with
     // self (and dt, or the other object); nothing to do if the script does
     // not define it.
-    std::optional<std::string> call(Script& script, EntityId object, const char* name,
+    std::optional<std::string> call(Script& script, EntityId object, Hook hook,
                                     std::optional<float> dt, EntityId other = {});
     void ensureSelf(Script& script, EntityId object);
 
@@ -130,7 +132,11 @@ class ScriptHost {
     std::map<AssetId, File> m_files;
     std::map<std::string, int, std::less<>> m_modules;         // require() results by name (registry refs)
     std::map<std::string, bool, std::less<>> m_loadingModules; // to catch require loops
-    std::string m_currentFile;
+    const std::string* m_currentFile = &kNoFile;   // the file whose code is running (its path)
+    static const std::string kNoFile;
+    AssetId m_lastScript;            // fileFor's memory of its last answer
+    File* m_lastFile = nullptr;
+    std::array<int, 3> m_hookNames{};   // registry references of "start", "update", "collide"
 
     friend void openScriptApi(ScriptHost& host);
 };

@@ -136,6 +136,8 @@ public:
     std::unique_ptr<Component> clone() const override { return std::make_unique<UnknownComponent>(*this); }
 
     const std::string& originalTypeId() const noexcept { return m_typeId; }
+    /// The one ComponentType every unknown component has (what type() returns).
+    static const ComponentType& unknownType();
     /// The component exactly as it was in the file (a JSON object).
     const std::string& json() const noexcept { return m_json; }
 

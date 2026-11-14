@@ -47,6 +47,7 @@
 
 namespace rolo {
 
+class Behaviour;
 class PhysicsSync;
 class ScriptHost;
 struct Script;
@@ -321,6 +322,18 @@ private:
     float m_dt = 0.0f;
     std::uint64_t m_frames = 0;
     bool m_quitRequested = false;
+
+    // The behaviours to run each frame, kept while the scene's structure
+    // stays the same (runBehaviours).
+    struct BehaviourRef {
+        EntityId entity;
+        const Entity* object;
+        Behaviour* behaviour;
+        const ComponentType* type;
+    };
+    std::vector<BehaviourRef> m_behaviourList;
+    const Scene* m_behaviourListFor = nullptr;
+    std::uint64_t m_behaviourListRevision = 0;
     FrameTimings m_timings;
 
     std::vector<EntityId> m_toDestroy;

@@ -129,6 +129,7 @@ void Game::beginScene(Scene scene, AssetId id)
         }
     });
     m_scene = std::make_shared<Scene>(std::move(scene));
+    m_behaviourListFor = nullptr;   // a new scene (perhaps at the old one's address): list its behaviours anew
 
     // After loading a save, the player stands where they stood; after a
     // door, at the object they arrive at.
@@ -225,7 +226,7 @@ void Game::update(float dt)
 
 bool Game::isActiveInScene(const Entity& entity) const
 {
-    for (const Entity* e = &entity; e != nullptr; e = m_scene->find(e->parent())) {
+    for (const Entity* e = &entity; e != nullptr; e = e->parent().isNull() ? nullptr : m_scene->find(e->parent())) {
         if (!e->isActive()) {
             return false;
         }
@@ -237,36 +238,49 @@ bool Game::isActiveInScene(const Entity& entity) const
 
 void Game::runBehaviours()
 {
-    // Who to run is decided first: behaviours may add or remove objects
-    // while they run, which must not disturb the walk through the scene.
-    struct Call {
-        EntityId entity;
-        std::string type;
-    };
-    std::vector<Call> calls;
-    const Scene& scene = *m_scene;
-    scene.forEach([&](const Entity& entity, int) {
-        for (const auto& component : entity.components()) {
-            if (dynamic_cast<const Behaviour*>(component.get()) != nullptr) {
-                calls.push_back({entity.id(), component->type().id});
+    // Who to run is listed first: behaviours may add or remove objects while
+    // they run, which must not disturb the walk through the scene. The list
+    // is kept from frame to frame and made again only when the scene's
+    // structure changed (an object or component added or removed): walking
+    // every object and component each frame costs more than running the
+    // scripts of a scene with thousands of objects.
+    if (m_behaviourListFor != m_scene.get() || m_behaviourListRevision != m_scene->structureRevision()) {
+        m_behaviourList.clear();
+        for (const EntityId id : m_scene->inOrder()) {
+            const Entity* entity = m_scene->find(id);
+            for (const auto& component : entity->components()) {
+                if (auto* behaviour = dynamic_cast<Behaviour*>(component.get())) {
+                    m_behaviourList.push_back({id, entity, behaviour, &component->type()});
+                }
             }
         }
-    });
+        m_behaviourListFor = m_scene.get();
+        m_behaviourListRevision = m_scene->structureRevision();
+    }
 
     const std::shared_ptr<Scene> playing = m_scene; // a behaviour may stop the game
-    for (const Call& call : calls) {
+    const std::uint64_t listed = m_behaviourListRevision;
+    // By index: the list is not made again inside this loop, whatever the
+    // behaviours do (only above).
+    for (std::size_t i = 0; i < m_behaviourList.size(); ++i) {
         if (m_scene != playing) {
             return;
         }
-        const Entity* entity = m_scene->find(call.entity);
-        if (entity == nullptr || !isActiveInScene(*entity)) {
-            continue; // removed or switched off earlier this frame
+        const BehaviourRef call = m_behaviourList[i];
+        const Entity* entity = call.object;
+        Behaviour* behaviour = call.behaviour;
+        if (m_scene->structureRevision() != listed) {
+            // Something was added or removed earlier this frame: the pointers
+            // kept in the list may be stale, so look this one up again.
+            entity = m_scene->find(call.entity);
+            // A behaviour's own fields are not drawn, so running it is not a
+            // change to the scene (changes it makes through Game or Scene are).
+            behaviour = entity != nullptr
+                            ? const_cast<Behaviour*>(dynamic_cast<const Behaviour*>(entity->component(call.type->id)))
+                            : nullptr;
         }
-        // A behaviour's own fields are not drawn, so running it is not a
-        // change to the scene (changes it makes through Game or Scene are).
-        auto* behaviour = const_cast<Behaviour*>(dynamic_cast<const Behaviour*>(entity->component(call.type)));
-        if (behaviour == nullptr || behaviour->m_failed) {
-            continue;
+        if (entity == nullptr || behaviour == nullptr || behaviour->m_failed || !isActiveInScene(*entity)) {
+            continue; // removed or switched off, or it failed before
         }
         behaviour->m_entity = call.entity;
         const bool starting = !behaviour->m_started;
@@ -587,15 +601,9 @@ void Game::finishFrame()
 
 EntityId Game::find(std::string_view name) const
 {
-    EntityId found;
-    if (m_scene != nullptr) {
-        m_scene->forEach([&](const Entity& entity, int) {
-            if (found.isNull() && entity.name() == name) {
-                found = entity.id();
-            }
-        });
-    }
-    return found;
+    // The scene keeps a list of names (Scene::findByName), so this does not
+    // walk every object: scripts may call it often.
+    return m_scene != nullptr ? m_scene->findByName(name) : EntityId{};
 }
 
 std::shared_ptr<ScriptHost> Game::scriptHost()
@@ -614,15 +622,9 @@ EntityId Game::firstPlayer() const
 
 std::vector<EntityId> Game::findAllWith(std::string_view typeId) const
 {
-    std::vector<EntityId> out;
-    if (m_scene != nullptr) {
-        m_scene->forEach([&](const Entity& entity, int) {
-            if (entity.component(typeId) != nullptr) {
-                out.push_back(entity.id());
-            }
-        });
-    }
-    return out;
+    // A copy of the scene's list (Scene::entitiesWith), so callers may add or
+    // remove objects while they go through it.
+    return m_scene != nullptr ? m_scene->entitiesWith(typeId) : std::vector<EntityId>{};
 }
 
 Vec2 Game::worldPosition(EntityId id) const

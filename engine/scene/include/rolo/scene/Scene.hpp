@@ -37,15 +37,24 @@ public:
     const Component* component(std::string_view typeId) const;
     Component* component(std::string_view typeId);
 
+    /// The component of type T, or null. Fast: types are compared by
+    /// identity (each component type has one ComponentType), not by name,
+    /// because games ask this for many objects every frame.
     template <class T>
     const T* get() const
     {
-        return static_cast<const T*>(component(T::componentType().id));
+        const ComponentType& wanted = T::componentType();
+        for (const auto& c : m_components) {
+            if (&c->type() == &wanted) {
+                return static_cast<const T*>(c.get());
+            }
+        }
+        return nullptr;
     }
     template <class T>
     T* get()
     {
-        return static_cast<T*>(component(T::componentType().id));
+        return const_cast<T*>(static_cast<const Entity&>(*this).get<T>());
     }
 
     const Transform& transform() const { return *get<Transform>(); }
@@ -114,6 +123,11 @@ public:
     }
     /// Call after changing only Transforms directly.
     void markMoved() noexcept { ++m_revision; }
+    /// Increases only when the set of entities or components changes: an
+    /// entity made, removed, renamed or moved in the tree, a component added
+    /// or removed. Not when values change. Lists made from the scene's
+    /// structure (see entitiesWith) stay valid while this stays the same.
+    std::uint64_t structureRevision() const noexcept { return m_structureRevision; }
 
     // --- Reading --------------------------------------------------------------------------
     std::size_t size() const noexcept { return m_entities.size(); }
@@ -130,6 +144,29 @@ public:
     bool isAncestorOrSelf(EntityId ancestor, EntityId id) const;
     /// Every entity, parents before children, siblings in order.
     void forEach(const std::function<void(const Entity&, int depth)>& visit) const;
+
+    // --- Finding by kind or name (indexed) --------------------------------------------------
+    // Games ask "which objects have a Trigger?" every frame. Walking the
+    // whole scene each time is slow with thousands of objects, so the scene
+    // keeps lists, made again only when its structure changes
+    // (structureRevision). Each list is in tree order, like forEach.
+    //
+    // The lists returned are the scene's own: they are replaced by the next
+    // of these calls after the structure changed. Copy one before a loop
+    // that adds or removes entities or components. Not for use from several
+    // threads at once.
+
+    /// Every entity that has a component of this type ID, in tree order.
+    const std::vector<EntityId>& entitiesWith(std::string_view componentType) const;
+    template <class T>
+    const std::vector<EntityId>& all() const
+    {
+        return entitiesWith(T::componentType().id);
+    }
+    /// Every entity, in tree order.
+    const std::vector<EntityId>& inOrder() const;
+    /// The first entity (in tree order) with this name, or null.
+    EntityId findByName(std::string_view name) const;
 
     // --- Changing -----------------------------------------------------------------------------
     /// Creates an entity with a Transform. `index` = position among the
@@ -154,7 +191,18 @@ public:
     template <class T>
     T* edit(EntityId id)
     {
-        return static_cast<T*>(editComponent(id, T::componentType().id));
+        // As editComponent, but finding the component by its type's identity
+        // (Entity::get), not its name: games do this for many objects a frame.
+        Entity* e = findMutable(id);
+        T* component = e != nullptr ? e->get<T>() : nullptr;
+        if (component != nullptr) {
+            if (&T::componentType() == &Transform::componentType()) {
+                markMoved();
+            } else {
+                markChanged();
+            }
+        }
+        return component;
     }
     /// An object's Animator, to switch clips (null if it has none). Counts
     /// as a move, not a content change: the renderer reads the clip, speed,
@@ -207,6 +255,29 @@ private:
     EntityIdGenerator m_ids;
     std::uint64_t m_revision = 1;
     std::uint64_t m_contentRevision = 1;
+    std::uint64_t m_structureRevision = 1;
+
+    void markStructure() noexcept
+    {
+        ++m_structureRevision;
+        markChanged();
+    }
+
+    // The lists behind entitiesWith, inOrder and findByName; made when asked
+    // for and the structure has changed since (so `mutable`: asking is not a
+    // change to the scene).
+    struct TextHash {
+        using is_transparent = void;
+        std::size_t operator()(std::string_view text) const noexcept { return std::hash<std::string_view>{}(text); }
+    };
+    struct Index {
+        std::uint64_t structureRevision = 0;   // 0: never made
+        std::vector<EntityId> order;
+        std::unordered_map<std::string, std::vector<EntityId>, TextHash, std::equal_to<>> byType;
+        std::unordered_map<std::string, EntityId, TextHash, std::equal_to<>> byName;
+    };
+    const Index& index() const;
+    mutable Index m_index;
 };
 
 /// The scene a new Rolo project starts with: Rolo, the engine's mascot (a

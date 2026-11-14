@@ -33,7 +33,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
-const char* const kScenes[] = {"scripts", "garbage", "tidy", "bullets", "physics", "sprites", "busy"};
+const char* const kScenes[] = {"scripts", "garbage", "tidy", "vectors", "bullets", "physics", "sprites", "busy"};
 
 struct Options {
     fs::path project = ROLO_STRESS_PROJECT;
@@ -142,7 +142,7 @@ void usage()
 {
     std::cout << "rolo_stress: measures gameplay frame times in the stress-test scenes.\n\n"
                  "  --project DIR   the stress project (default: examples/stress/project)\n"
-                 "  --scene NAME    only this scene (scripts, garbage, tidy, bullets, physics, sprites, busy);\n"
+                 "  --scene NAME    only this scene (scripts, garbage, tidy, vectors, bullets, physics, sprites, busy);\n"
                  "                  may be given more than once\n"
                  "  --frames N      frames measured per scene (default 600: ten seconds)\n"
                  "  --warmup N      frames run first, not measured (default 120)\n"

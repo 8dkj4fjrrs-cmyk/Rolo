@@ -23,6 +23,11 @@ and AI assistants.
 - `editor/model/` must not include UI or runtime/backend headers: it is the editor logic, unit-tested without a window.
 - Editor UI code (`editor/application`, `editor/panels`) may use `rolo/ui/*` and `rolo/runtime/*.hpp`, never Axmol headers.
 - Editor operations that change scene or project data must go through the undo/redo command system: panels call the editor's `execute()` with a `Command` (`editor/model/Commands.hpp`), never `Scene` setters directly.
+- Code that runs every frame must not walk the whole scene (`Scene::forEach`) or look components up
+  by name: use the scene's lists (`Scene::all<T>()`, `entitiesWith`, `findByName`, `inOrder`), which
+  are made again only when `structureRevision()` changes, and `Entity::get<T>()`. Changes to
+  performance are measured with the stress test (`examples/stress`, `rolo_stress`) before and after,
+  and kept only if the numbers move (ADR 0021).
 - Scenes are `rolo::Scene` data (`engine/scene`); Axmol nodes are created only by `engine/runtime/src/SceneRenderer.*`. New component types describe their properties with `ComponentTypeBuilder` so the Inspector, files and undo handle them automatically.
 - Gameplay code is C++ `Behaviour` components (`engine/gameplay`) in game modules registered with
   `ROLO_GAME_MODULE` / `rolo_add_game_module` (docs/gameplay.md), or Luau scripts run by the

@@ -9,6 +9,7 @@ Nothing here is kept unless the numbers say it helps.
 | `scripts` | 2000 objects, each with its own script (`orbit.lua`) moving and turning it every frame |
 | `garbage` | 1000 objects whose script (`garbage.lua`) makes new tables and a new string every frame, as a lot of real code does |
 | `tidy` | the same 1000 objects and the same maths (`tidy.lua`), making no garbage: compare it with `garbage` |
+| `vectors` | the same again (`vectors.lua`), with each point a Luau vector: written like `garbage`, no garbage |
 | `bullets` | one spawner firing 1200 bullets a second from a pool of 2000, each bullet with its own script |
 | `physics` | 800 bodies, circles and boxes, falling into a box and piling up |
 | `sprites` | 5000 still sprites and no scripts: drawing, and what the engine costs per object |
@@ -136,6 +137,50 @@ What it shows:
   free in Lua 5.4 but not in Luau). The stress test showed it (94 KB a
   frame in `scripts`); it is fixed, and scripts that make no garbage now
   show 0.
+
+## The performance layer (after Luau)
+
+Measured on 2026-11-14 on the same kind of machine, Rolo at `253edc5`
+(Luau, before) and with the performance layer (after) taking turns, three
+runs of each, `--frames 1200`; medians. Gameplay milliseconds per frame:
+
+| scene | objects | before: mean | p99 | after: mean | p99 | |
+|---|---|---|---|---|---|---|
+| scripts | 2001 | 2.48 | 4.06 | 0.58 | 0.87 | 4.3× |
+| garbage | 1001 | 2.21 | 3.58 | 1.29 | 2.31 | 1.7× |
+| tidy | 1001 | 1.36 | 2.59 | 0.50 | 0.92 | 2.7× |
+| vectors | 1001 | (new) | | 0.57 | 0.93 | |
+| bullets | 2002 | 1.86 | 3.19 | 0.35 | 0.67 | 5.3× |
+| physics | 804 | 1.81 | 2.84 | 1.03 | 1.66 | 1.8× |
+| sprites | 5001 | 2.23 | 4.09 | 0.00 | 0.00 | |
+| busy | 2505 | 4.45 | 7.71 | 1.43 | 2.28 | 3.1× |
+
+What was done, each found with a profiler (callgrind) and kept because
+these numbers moved:
+
+- **The engine no longer walks every object every frame.** A profile of
+  `sprites` showed all its time in six systems (behaviours, triggers,
+  dialogue, texts, sounds, physics) each asking every object "do you have
+  component X?", by name. The scene now keeps lists by component and by
+  name (`Scene::all<T>`, `findByName`), made again only when an object or
+  component is added or removed, and components are found by their
+  type's identity, not its name. 5000 still objects went from 2.2 ms to
+  nothing measurable; the "other" and idle "physics" columns are 0.
+- **Calls between scripts and Rolo are cheaper.** Objects are tagged
+  userdata (one comparison to check, not a lookup by name), a function
+  like `setPosition` finds its object once, not three times, and calling
+  a script's `update` no longer hashes the word "update", looks its file
+  up, or copies its path, for every object.
+- **Vectors** (`vectors` scene): the same sums as `garbage` with points
+  as Luau vectors make no garbage and run as fast as `tidy`.
+
+What was tried and not kept: **pacing the garbage collector** (doing a
+fixed amount of collection each frame, 64 KB to 1 MB). Over three rounds
+it was within the noise of leaving Luau's own incremental collector alone
+(`garbage`: p99 1.4 to 2.7 ms with it, 1.9 to 2.5 without), so it is not in
+Rolo.
+
+What is left in `scripts` is mostly Luau running the scripts' own code.
 
 Drawing was not measured here: the cloud machine draws without a graphics
 card, which says nothing about a real computer. Measure it on yours with

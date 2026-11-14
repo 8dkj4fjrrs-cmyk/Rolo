@@ -161,6 +161,8 @@ void countAllocation(lua_State* L, void*, std::size_t, std::size_t nsize, std::u
 
 } // namespace
 
+const std::string ScriptHost::kNoFile;
+
 ScriptHost::ScriptHost(Game& game, const Logger& log) : m_game(game), m_log(log)
 {
     m_L = lua_newstate(&ScriptHost::allocate, this);
@@ -181,6 +183,13 @@ ScriptHost::ScriptHost(Game& game, const Logger& log) : m_game(game), m_log(log)
     lua_pushcfunction(m_L, addTraceback, "addTraceback");
     m_traceback = lua_ref(m_L, -1);
     lua_pop(m_L, 1);
+    // The names of the functions Rolo calls, as Luau strings made once.
+    const char* const hookNames[] = {"start", "update", "collide"};
+    for (std::size_t i = 0; i < m_hookNames.size(); ++i) {
+        lua_pushstring(m_L, hookNames[i]);
+        m_hookNames[i] = lua_ref(m_L, -1);
+        lua_pop(m_L, 1);
+    }
     m_watchdog = std::thread([this] { watch(); });
 }
 
@@ -259,8 +268,8 @@ std::optional<std::string> ScriptHost::call(int arguments, const std::string& fi
     lua_getref(m_L, m_traceback);
     lua_insert(m_L, handler);
 
-    const std::string previousFile = m_currentFile;
-    m_currentFile = file;
+    const std::string* const previousFile = m_currentFile;   // (a pointer: no text copied per call)
+    m_currentFile = &file;
     const bool outermost = !m_inCall.load(std::memory_order_relaxed);
     if (outermost) {
         m_timedOut.store(false, std::memory_order_relaxed);
@@ -289,8 +298,13 @@ std::optional<std::string> ScriptHost::call(int arguments, const std::string& fi
     return error;
 }
 
-bool ScriptHost::pushEnvironment(AssetId script, std::string& error)
+ScriptHost::File& ScriptHost::fileFor(AssetId script)
 {
+    // Objects that share a script come one after another in most scenes:
+    // remembering the last file saves looking it up for each of them.
+    if (m_lastFile != nullptr && m_lastScript == script) {
+        return *m_lastFile;
+    }
     auto found = m_files.find(script);
     if (found == m_files.end()) {
         File file;
@@ -323,12 +337,9 @@ bool ScriptHost::pushEnvironment(AssetId script, std::string& error)
         }
         found = m_files.emplace(script, std::move(file)).first;
     }
-    if (found->second.environment == kNoRef) {
-        error = found->second.error;
-        return false;
-    }
-    lua_rawgeti(m_L, LUA_REGISTRYINDEX, found->second.environment);
-    return true;
+    m_lastScript = script;
+    m_lastFile = &found->second;   // (map entries stay where they are)
+    return found->second;
 }
 
 void ScriptHost::ensureSelf(Script& script, EntityId object)
@@ -343,16 +354,21 @@ void ScriptHost::ensureSelf(Script& script, EntityId object)
     lua_pop(m_L, 1);
 }
 
-std::optional<std::string> ScriptHost::call(Script& script, EntityId object, const char* name,
-                                            std::optional<float> dt, EntityId other)
+std::optional<std::string> ScriptHost::call(Script& script, EntityId object, Hook hook, std::optional<float> dt,
+                                            EntityId other)
 {
-    std::string error;
-    if (!pushEnvironment(script.script, error)) {
-        return error;
+    // This runs for every script of every object, every frame: it avoids
+    // anything that costs per call (looking the file up, hashing the
+    // function's name, copying text).
+    File& file = fileFor(script.script);
+    if (file.environment == kNoRef) {
+        return file.error;
     }
     ensureSelf(script, object);
-    lua_getfield(m_L, -1, name);
-    lua_remove(m_L, -2); // the environment
+    lua_rawgeti(m_L, LUA_REGISTRYINDEX, file.environment);
+    lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_hookNames[static_cast<std::size_t>(hook)]);   // "update", already a Luau string
+    lua_rawget(m_L, -2);   // the file's own function of that name
+    lua_remove(m_L, -2);   // the environment
     if (!lua_isfunction(m_L, -1)) {
         lua_pop(m_L, 1);
         return std::nullopt; // the script does not define it: nothing to do
@@ -366,22 +382,22 @@ std::optional<std::string> ScriptHost::call(Script& script, EntityId object, con
         pushObjectForScripts(m_L, other);
         arguments = 2;
     }
-    return call(arguments, m_files.at(script.script).path);
+    return call(arguments, file.path);
 }
 
 std::optional<std::string> ScriptHost::start(Script& script, EntityId object)
 {
-    return call(script, object, "start", std::nullopt);
+    return call(script, object, Hook::Start, std::nullopt);
 }
 
 std::optional<std::string> ScriptHost::update(Script& script, EntityId object, float dt)
 {
-    return call(script, object, "update", dt);
+    return call(script, object, Hook::Update, dt);
 }
 
 std::optional<std::string> ScriptHost::collide(Script& script, EntityId object, EntityId other)
 {
-    return call(script, object, "collide", std::nullopt, other);
+    return call(script, object, Hook::Collide, std::nullopt, other);
 }
 
 void ScriptHost::release(int self) noexcept
@@ -449,12 +465,12 @@ void ScriptHost::require(lua_State* L, std::string_view name)
     }
     // stack: environment, chunk
     m_loadingModules[record.path] = true;
-    const std::string previousFile = m_currentFile;
-    m_currentFile = record.path;
+    const std::string* const previousFile = m_currentFile;
+    m_currentFile = &record.path;
     struct Restore {
         ScriptHost& host;
         std::string path;
-        std::string file;
+        const std::string* file;
         ~Restore()
         {
             host.m_loadingModules.erase(path);

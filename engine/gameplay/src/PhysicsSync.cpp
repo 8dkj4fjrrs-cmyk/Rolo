@@ -18,7 +18,7 @@ constexpr float kGroundFriction = 0.6f;
 
 bool activeInScene(const Scene& scene, const Entity& entity)
 {
-    for (const Entity* e = &entity; e != nullptr; e = scene.find(e->parent())) {
+    for (const Entity* e = &entity; e != nullptr; e = e->parent().isNull() ? nullptr : scene.find(e->parent())) {
         if (!e->isActive()) {
             return false;
         }
@@ -144,9 +144,7 @@ void PhysicsSync::sync(Scene& scene)
 {
     if (!m_world) {
         // Physics starts with the first RigidBody (a scene may get one later).
-        bool any = false;
-        scene.forEach([&](const Entity& e, int) { any = any || e.get<RigidBody>() != nullptr; });
-        if (!any) {
+        if (scene.all<RigidBody>().empty()) {   // the scene's own list: no walk through every object
             return;
         }
         m_world = std::make_unique<PhysicsWorld>(scene.gravity());
@@ -157,11 +155,13 @@ void PhysicsSync::sync(Scene& scene)
     }
 
     std::map<EntityId, Tracked> kept;
-    scene.forEach([&](const Entity& entity, int) {
+    // Only the objects with a Collider (the scene keeps that list), not every object.
+    for (const EntityId colliderId : scene.all<Collider>()) {
+        const Entity& entity = *scene.find(colliderId);
         const Collider* collider = entity.get<Collider>();
         const RigidBody* rb = entity.get<RigidBody>();
         if (collider == nullptr || (rb == nullptr && !collider->solid) || !activeInScene(scene, entity)) {
-            return;
+            continue;
         }
         const Placement at = placementOf(scene.worldTransform(entity.id()));
         const std::size_t signature = signatureOf(*collider, rb, at.scale);
@@ -224,7 +224,7 @@ void PhysicsSync::sync(Scene& scene)
             tracked.angle = at.angle;
         }
         kept.emplace(entity.id(), tracked);
-    });
+    }
     // Objects removed, switched off, or without their Collider: their bodies go.
     for (const auto& [id, tracked] : m_bodies) {
         m_world->destroyBody(tracked.body);

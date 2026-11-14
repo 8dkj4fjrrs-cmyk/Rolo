@@ -5,6 +5,19 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Much faster with many objects** ([ADR 0021](docs/adr/0021-performance-layer.md),
+  [measurements](examples/stress/README.md#the-performance-layer-after-luau)):
+  in the stress test, 2000 scripted objects take 0.6 ms a frame instead of
+  2.5, a busy scene 1.4 instead of 4.5, and 5000 still objects cost nothing
+  measurable (2.2 ms before).
+  - The engine no longer looks at every object every frame: the scene
+    keeps lists by component and by name. `game.find` is a lookup, not a
+    search.
+  - Calls between scripts and Rolo are cheaper.
+  - Every script function that takes `x, y` also takes one Luau vector,
+    for sums without garbage ([fast scripts](docs/scripting.md#writing-fast-scripts)).
+  - C++: `Scene::all<T>()`, `entitiesWith`, `findByName`, `inOrder`,
+    `structureRevision`.
 - **Scripts are Luau now** ([ADR 0020](docs/adr/0020-luau.md)), Roblox's
   Lua (MIT, unmodified), instead of Lua 5.4.
   - Types, `+=`, `continue`, string interpolation, `//`, `bit32`,

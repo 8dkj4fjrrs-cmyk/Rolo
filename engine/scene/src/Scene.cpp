@@ -9,12 +9,17 @@ namespace rolo {
 
 const Component* Entity::component(std::string_view typeId) const
 {
+    // An unknown component (see UnknownComponent) answers to the type it had
+    // in the file. All of them share one ComponentType, so that is a pointer
+    // comparison, not a dynamic_cast for every component looked at.
+    const ComponentType& unknownType = UnknownComponent::unknownType();
     for (const auto& c : m_components) {
-        if (c->type().id == typeId) {
-            return c.get();
-        }
-        if (const auto* unknown = dynamic_cast<const UnknownComponent*>(c.get());
-            unknown != nullptr && unknown->originalTypeId() == typeId) {
+        const ComponentType& type = c->type();
+        if (&type == &unknownType) {
+            if (static_cast<const UnknownComponent&>(*c).originalTypeId() == typeId || type.id == typeId) {
+                return c.get();
+            }
+        } else if (type.id == typeId) {
             return c.get();
         }
     }
@@ -46,6 +51,7 @@ Scene::Scene(const Scene& other)
     , m_ids(other.m_ids)
     , m_revision(other.m_revision)
     , m_contentRevision(other.m_contentRevision)
+    , m_structureRevision(other.m_structureRevision)
 {
     for (const auto& [id, entity] : other.m_entities) {
         auto copy = std::make_unique<Entity>();
@@ -162,6 +168,60 @@ void Scene::forEach(const std::function<void(const Entity&, int depth)>& visit) 
     }
 }
 
+// --- Finding by kind or name -------------------------------------------------------------
+
+const Scene::Index& Scene::index() const
+{
+    if (m_index.structureRevision == m_structureRevision) {
+        return m_index;
+    }
+    Index& made = m_index;
+    made.order.clear();
+    made.byName.clear();
+    for (auto& [type, list] : made.byType) {
+        list.clear();   // kept (emptied), so asking for a type that is gone gives an empty list
+    }
+    made.order.reserve(m_entities.size());
+    const ComponentType& unknownType = UnknownComponent::unknownType();
+    forEach([&](const Entity& entity, int) {
+        made.order.push_back(entity.id());
+        made.byName.try_emplace(entity.name(), entity.id());   // the first with a name wins
+        for (const auto& c : entity.components()) {
+            const ComponentType& type = c->type();
+            const std::string& id = &type == &unknownType
+                                        ? static_cast<const UnknownComponent&>(*c).originalTypeId()
+                                        : type.id;
+            auto found = made.byType.find(id);
+            if (found == made.byType.end()) {
+                found = made.byType.emplace(id, std::vector<EntityId>{}).first;
+            }
+            found->second.push_back(entity.id());
+        }
+    });
+    made.structureRevision = m_structureRevision;
+    return made;
+}
+
+const std::vector<EntityId>& Scene::entitiesWith(std::string_view componentType) const
+{
+    static const std::vector<EntityId> kNone;
+    const Index& made = index();
+    const auto found = made.byType.find(componentType);
+    return found != made.byType.end() ? found->second : kNone;
+}
+
+const std::vector<EntityId>& Scene::inOrder() const
+{
+    return index().order;
+}
+
+EntityId Scene::findByName(std::string_view name) const
+{
+    const Index& made = index();
+    const auto found = made.byName.find(name);
+    return found != made.byName.end() ? found->second : EntityId{};
+}
+
 // --- Changing ---------------------------------------------------------------------------
 
 EntityId Scene::newId()
@@ -193,7 +253,7 @@ Entity* Scene::create(std::string name, EntityId parent, std::optional<std::size
     m_entities.emplace(id, std::move(entity));
     const std::size_t at = std::min(index.value_or(siblings->size()), siblings->size());
     siblings->insert(siblings->begin() + static_cast<std::ptrdiff_t>(at), id);
-    markChanged();
+    markStructure();
     return raw;
 }
 
@@ -220,7 +280,7 @@ bool Scene::remove(EntityId id)
         siblings->erase(std::remove(siblings->begin(), siblings->end(), id), siblings->end());
     }
     eraseSubtree(id);
-    markChanged();
+    markStructure();
     return true;
 }
 
@@ -231,7 +291,7 @@ bool Scene::rename(EntityId id, std::string name)
         return false;
     }
     e->m_name = std::move(name);
-    markChanged();
+    markStructure();
     return true;
 }
 
@@ -263,7 +323,7 @@ bool Scene::move(EntityId id, EntityId newParent, std::size_t index)
     e->m_parent = newParent;
     const std::size_t at = std::min(index, target->size());
     target->insert(target->begin() + static_cast<std::ptrdiff_t>(at), id);
-    markChanged();
+    markStructure();
     return true;
 }
 
@@ -337,7 +397,7 @@ Component* Scene::addComponent(EntityId id, std::unique_ptr<Component> component
     Component* raw = component.get();
     const std::size_t at = std::min(index.value_or(e->m_components.size()), e->m_components.size());
     e->m_components.insert(e->m_components.begin() + static_cast<std::ptrdiff_t>(at), std::move(component));
-    markChanged();
+    markStructure();
     return raw;
 }
 
@@ -359,7 +419,7 @@ std::unique_ptr<Component> Scene::removeComponent(EntityId id, std::string_view 
         }
         std::unique_ptr<Component> removed = std::move(*it);
         e->m_components.erase(it);
-        markChanged();
+        markStructure();
         return removed;
     }
     return nullptr;
@@ -443,7 +503,7 @@ bool Scene::restore(const EntitySnapshot& snapshot, EntityId parent, std::size_t
         const std::size_t at = i == 0 ? std::min(index, siblings->size()) : siblings->size();
         siblings->insert(siblings->begin() + static_cast<std::ptrdiff_t>(at), item.id);
     }
-    markChanged();
+    markStructure();
     return true;
 }
 

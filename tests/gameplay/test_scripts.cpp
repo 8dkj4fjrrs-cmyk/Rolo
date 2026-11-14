@@ -702,3 +702,58 @@ TEST_CASE("Files named .luau are scripts too, and require finds them", "[gamepla
     REQUIRE(p.printed.size() == 1);
     CHECK(p.printed[0] == "scripts/main.luau: area 12");
 }
+
+TEST_CASE("Functions that take x, y also take one vector", "[gameplay][script]")
+{
+    ScriptProject p;
+    const AssetId mover = p.write("scripts/mover.lua", R"(
+        function start(self)
+            local home = vector.create(self.object:position())   -- x, y (z is 0)
+            self.object:setPosition(home + vector.create(10, 20, 0) * 2)
+            local x, y = self.object:position()
+            print(`at {x}, {y}`)
+            self.object:setPosition(1, 2)                         -- two numbers still work
+            print(`then {self.object:position()}`)
+            print(pcall(function() self.object:setPosition(vector.create(0 / 0, 1, 0)) end))
+            print(pcall(function() self.object:setPosition("left") end))
+            print(pcall(function() return ("text"):position() end))
+            local speed = vector.create(3, 4, 0)
+            print(`{vector.magnitude(speed)} {(-speed).x} {(speed * 2).y}`)   -- as in the scripting guide
+        end
+    )");
+    Scene scene;
+    const EntityId id = addScripted(scene, "Mover", mover);
+    scene.setProperty(id, "rolo.Transform", "position", Vec2{100.0f, 50.0f});
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 1);
+    INFO((p.problems.empty() ? std::string() : p.problems.front()));
+    REQUIRE(p.printed.size() == 6);
+    CHECK(p.printed[5] == "scripts/mover.lua: 5 -3 8");
+    CHECK(p.printed[0] == "scripts/mover.lua: at 120, 90");
+    CHECK(p.printed[1] == "scripts/mover.lua: then 1");
+    CHECK_THAT(p.printed[2], ContainsSubstring("false") && ContainsSubstring("finite"));
+    CHECK_THAT(p.printed[3], ContainsSubstring("false") && ContainsSubstring("number expected"));
+    CHECK_THAT(p.printed[4], ContainsSubstring("false"));
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("Objects from another kind of value are refused by name", "[gameplay][script]")
+{
+    ScriptProject p;
+    const AssetId s = p.write("scripts/wrong.lua", R"(
+        function start(self)
+            local setPosition = self.object.setPosition
+            print(pcall(setPosition, {}, 1, 2))
+            print(typeof(self.object), tostring(self.object == game.find("Wrong")))
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Wrong", s);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 1);
+    REQUIRE(p.printed.size() == 2);
+    CHECK_THAT(p.printed[0], ContainsSubstring("false") && ContainsSubstring("object expected"));
+    CHECK(p.printed[1] == "scripts/wrong.lua: object\ttrue");
+}

@@ -39,7 +39,9 @@ namespace rolo {
 
 namespace {
 
-constexpr const char* kObjectType = "rolo.Object";
+// Objects are "tagged" userdata: Luau checks the tag with one comparison,
+// where a named type costs a text lookup on every call a script makes.
+constexpr int kObjectTag = 1;
 constexpr std::string_view kCategory = "script";
 
 // --- Helpers ---------------------------------------------------------------------------------------------
@@ -85,6 +87,19 @@ float checkFloat(lua_State* L, int index)
     return static_cast<float>(value);
 }
 
+// An x, y pair: two numbers, or one Luau vector (vector.create(x, y)), which
+// scripts can do sums with without making garbage.
+Vec2 checkVec2(lua_State* L, int index)
+{
+    if (const float* v = lua_tovector(L, index)) {
+        if (!std::isfinite(v[0]) || !std::isfinite(v[1])) {
+            luaL_argerror(L, index, "a vector of finite numbers expected");
+        }
+        return {v[0], v[1]};
+    }
+    return {checkFloat(L, index), checkFloat(L, index + 1)};
+}
+
 std::string_view checkText(lua_State* L, int index)
 {
     std::size_t length = 0;
@@ -105,7 +120,10 @@ struct ObjectHandle {
 
 EntityId objectId(lua_State* L, int index)
 {
-    const auto* handle = static_cast<const ObjectHandle*>(luaL_checkudata(L, index, kObjectType));
+    const auto* handle = static_cast<const ObjectHandle*>(lua_touserdatatagged(L, index, kObjectTag));
+    if (handle == nullptr) {
+        luaL_typeerror(L, index, "object");
+    }
     return EntityId{handle->id};
 }
 
@@ -121,12 +139,14 @@ const Entity& objectEntity(lua_State* L, int index)
     return *entity;
 }
 
+// The object's Transform, to change it (the scene notes that it moved).
 Transform& objectTransform(lua_State* L, int index)
 {
-    const EntityId id = objectEntity(L, index).id();
-    Transform* transform = gameOf(L).transform(id);
+    const EntityId id = objectId(L, index);
+    Game& game = gameOf(L);
+    Transform* transform = game.isRunning() ? game.scene().edit<Transform>(id) : nullptr;
     if (transform == nullptr) {
-        luaL_error(L, "this object has no Transform");
+        luaL_error(L, "this object no longer exists (it was destroyed, or the scene changed)");
     }
     return *transform;
 }
@@ -147,7 +167,7 @@ int objectIsValid(lua_State* L)
 
 int objectPosition(lua_State* L)
 {
-    const Transform& t = objectTransform(L, 1);
+    const Transform& t = objectEntity(L, 1).transform();   // reading: not a change to the scene
     lua_pushnumber(L, static_cast<lua_Number>(t.position.x));
     lua_pushnumber(L, static_cast<lua_Number>(t.position.y));
     return 2;
@@ -156,7 +176,7 @@ int objectPosition(lua_State* L)
 int objectSetPosition(lua_State* L)
 {
     Transform& t = objectTransform(L, 1);
-    t.position = Vec2{checkFloat(L, 2), checkFloat(L, 3)};
+    t.position = checkVec2(L, 2);
     return 0;
 }
 
@@ -172,7 +192,7 @@ int objectWorldPosition(lua_State* L)
 int objectMove(lua_State* L)
 {
     const EntityId id = objectEntity(L, 1).id();
-    const MoveResult result = gameOf(L).move(id, Vec2{checkFloat(L, 2), checkFloat(L, 3)});
+    const MoveResult result = gameOf(L).move(id, checkVec2(L, 2));
     lua_pushnumber(L, static_cast<lua_Number>(result.moved.x));
     lua_pushnumber(L, static_cast<lua_Number>(result.moved.y));
     lua_pushboolean(L, result.blockedX || result.blockedY);
@@ -182,7 +202,7 @@ int objectMove(lua_State* L)
 
 int objectRotation(lua_State* L)
 {
-    lua_pushnumber(L, static_cast<lua_Number>(objectTransform(L, 1).rotation));
+    lua_pushnumber(L, static_cast<lua_Number>(objectEntity(L, 1).transform().rotation));
     return 1;
 }
 
@@ -194,7 +214,7 @@ int objectSetRotation(lua_State* L)
 
 int objectScale(lua_State* L)
 {
-    const Transform& t = objectTransform(L, 1);
+    const Transform& t = objectEntity(L, 1).transform();
     lua_pushnumber(L, static_cast<lua_Number>(t.scale.x));
     lua_pushnumber(L, static_cast<lua_Number>(t.scale.y));
     return 2;
@@ -832,7 +852,7 @@ int objectVelocity(lua_State* L)
 int objectSetVelocity(lua_State* L)
 {
     const EntityId id = bodyObject(L, 1);
-    gameOf(L).setVelocity(id, {checkFloat(L, 2), checkFloat(L, 3)});
+    gameOf(L).setVelocity(id, checkVec2(L, 2));
     return 0;
 }
 
@@ -852,14 +872,14 @@ int objectSetSpin(lua_State* L)
 int objectApplyImpulse(lua_State* L)
 {
     const EntityId id = bodyObject(L, 1);
-    gameOf(L).applyImpulse(id, {checkFloat(L, 2), checkFloat(L, 3)});
+    gameOf(L).applyImpulse(id, checkVec2(L, 2));
     return 0;
 }
 
 int objectApplyForce(lua_State* L)
 {
     const EntityId id = bodyObject(L, 1);
-    gameOf(L).applyForce(id, {checkFloat(L, 2), checkFloat(L, 3)});
+    gameOf(L).applyForce(id, checkVec2(L, 2));
     return 0;
 }
 
@@ -888,7 +908,7 @@ int gameGravity(lua_State* L)
 
 int gameSetGravity(lua_State* L)
 {
-    gameOf(L).setGravity({checkFloat(L, 1), checkFloat(L, 2)});
+    gameOf(L).setGravity(checkVec2(L, 1));
     return 0;
 }
 
@@ -1082,10 +1102,10 @@ void pushObjectForScripts(lua_State* L, EntityId id)
         lua_pushnil(L);
         return;
     }
-    auto* handle = static_cast<ObjectHandle*>(lua_newuserdata(L, sizeof(ObjectHandle)));
+    // Made with the objects' metatable already on it (set in openScriptApi).
+    auto* handle =
+        static_cast<ObjectHandle*>(lua_newuserdatataggedwithmetatable(L, sizeof(ObjectHandle), kObjectTag));
     handle->id = id.value();
-    luaL_getmetatable(L, kObjectType);
-    lua_setmetatable(L, -2);
 }
 
 void openScriptApi(ScriptHost& host)
@@ -1129,7 +1149,7 @@ void openScriptApi(ScriptHost& host)
         {"contacts", guarded<objectContacts>},
         {nullptr, nullptr},
     };
-    luaL_newmetatable(L, kObjectType);
+    lua_newtable(L);   // the objects' metatable
     lua_newtable(L);
     setFunctions(L, objectMethods);
     lua_setfield(L, -2, "__index");
@@ -1138,8 +1158,8 @@ void openScriptApi(ScriptHost& host)
     lua_pushcfunction(L, guarded<objectToString>, "__tostring");
     lua_setfield(L, -2, "__tostring");
     lua_pushliteral(L, "object");
-    lua_setfield(L, -2, "__name");
-    lua_pop(L, 1);
+    lua_setfield(L, -2, "__type");   // what typeof(obj) and error messages call it
+    lua_setuserdatametatable(L, kObjectTag);   // (takes it off the stack)
 
     static const luaL_Reg gameFunctions[] = {
         {"find", guarded<gameFind>},

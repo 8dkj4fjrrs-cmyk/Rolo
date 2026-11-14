@@ -73,6 +73,27 @@ struct Trigger : BehaviourBase<Trigger> {
     }
 };
 
+// On its first update, changes the scene at once (not at the end of the
+// frame, as Game::destroy does): removes `victim` and gives `host` a Walker.
+struct Meddler : BehaviourBase<Meddler> {
+    EntityId victim;
+    EntityId host;
+    bool done = false;
+    void update(Game& game, float) override
+    {
+        if (!done) {
+            done = true;
+            game.scene().remove(victim);
+            game.scene().addComponent(host, std::make_unique<Walker>());
+        }
+    }
+    static const ComponentType& componentType()
+    {
+        static const ComponentType type = ComponentTypeBuilder<Meddler>("test.Meddler", "Meddler").build();
+        return type;
+    }
+};
+
 struct Captured {
     Logger log;
     std::vector<std::string> errors;
@@ -265,4 +286,46 @@ TEST_CASE("Game modules register their behaviours", "[gameplay][module]")
     REQUIRE(c.errors.size() == 1);
     CHECK(c.errors[0].find("Game module 'test_game' could not add 'test.Walker'") != std::string::npos);
     CHECK(registry.find("rolo.Collider") != nullptr);
+}
+
+TEST_CASE("Behaviours may add and remove objects and components in the middle of a frame", "[gameplay][game]")
+{
+    // The game keeps its list of behaviours from frame to frame; a change in
+    // the middle of a frame must not leave it running something removed.
+    Captured c;
+    Scene edited("Level");
+    const EntityId first = edited.create("First")->id();
+    const EntityId meddler = edited.create("Meddler")->id();
+    const EntityId victim = edited.create("Victim")->id();
+    const EntityId last = edited.create("Last")->id();
+    const EntityId host = edited.create("Host")->id();
+    edited.addComponent(first, std::make_unique<Walker>());
+    auto m = std::make_unique<Meddler>();
+    m->victim = victim;
+    m->host = host;
+    edited.addComponent(meddler, std::move(m));
+    edited.addComponent(victim, std::make_unique<Walker>());   // listed after the meddler: must not run
+    edited.addComponent(last, std::make_unique<Walker>());
+
+    Game game(c.log, nullptr);
+    game.start(edited);
+    game.update(0.05f);
+    CHECK_FALSE(game.scene().contains(victim));
+    CHECK(behaviourOf<Walker>(game, first).updates == 1);
+    CHECK(behaviourOf<Walker>(game, last).updates == 1);    // those after the change still run
+    CHECK(behaviourOf<Walker>(game, host).updates == 0);    // new this frame: starts next frame
+    game.update(0.05f);
+    game.update(0.05f);
+    CHECK(behaviourOf<Walker>(game, first).updates == 3);
+    CHECK(behaviourOf<Walker>(game, last).updates == 3);
+    CHECK(behaviourOf<Walker>(game, host).starts == 1);
+    CHECK(behaviourOf<Walker>(game, host).updates == 2);
+    CHECK(c.errors.empty());
+
+    // game.find follows renames and removals.
+    CHECK(game.find("Last") == last);
+    game.scene().rename(last, "Renamed");
+    CHECK(game.find("Last").isNull());
+    CHECK(game.find("Renamed") == last);
+    CHECK(game.find("Victim").isNull());
 }

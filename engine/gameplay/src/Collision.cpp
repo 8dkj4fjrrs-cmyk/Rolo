@@ -21,7 +21,8 @@ bool overlapsDeeply(const Box& a, const Box& b)
 
 bool isActiveInScene(const Scene& scene, const Entity& entity)
 {
-    for (const Entity* e = &entity; e != nullptr; e = scene.find(e->parent())) {
+    // (A root's parent is the null ID: no need to look that up.)
+    for (const Entity* e = &entity; e != nullptr; e = e->parent().isNull() ? nullptr : scene.find(e->parent())) {
         if (!e->isActive()) {
             return false;
         }
@@ -53,15 +54,17 @@ struct Solid {
 std::vector<Solid> solidsIn(const Scene& scene, const AssetDatabase* assets, const Box& area, EntityId ignore)
 {
     std::vector<Solid> out;
-    scene.forEach([&](const Entity& entity, int) {
+    // Only the objects with a Collider (the scene keeps that list), not every object.
+    for (const EntityId id : scene.all<Collider>()) {
+        const Entity& entity = *scene.find(id);
         const Collider* collider = entity.get<Collider>();
-        if (collider == nullptr || !collider->solid || (!ignore.isNull() && scene.isAncestorOrSelf(ignore, entity.id()))) {
-            return;
+        if (collider == nullptr || !collider->solid || (!ignore.isNull() && scene.isAncestorOrSelf(ignore, id))) {
+            continue;
         }
-        if (const auto box = colliderBox(scene, entity.id()); box && box->overlaps(area)) {
-            out.push_back({*box, entity.id()});
+        if (const auto box = colliderBox(scene, id); box && box->overlaps(area)) {
+            out.push_back({*box, id});
         }
-    });
+    }
     for (const Box& tile : solidTiles(scene, assets, area)) {
         out.push_back({tile, {}});
     }
@@ -128,28 +131,29 @@ std::optional<Box> colliderBox(const Scene& scene, EntityId id)
 std::vector<EntityId> overlappingColliders(const Scene& scene, const Box& box, EntityId ignore)
 {
     std::vector<EntityId> out;
-    scene.forEach([&](const Entity& entity, int) {
-        if (entity.get<Collider>() == nullptr || (!ignore.isNull() && scene.isAncestorOrSelf(ignore, entity.id()))) {
-            return;
+    for (const EntityId id : scene.all<Collider>()) {
+        if (!ignore.isNull() && scene.isAncestorOrSelf(ignore, id)) {
+            continue;
         }
-        if (const auto b = colliderBox(scene, entity.id()); b && overlapsDeeply(*b, box)) {
-            out.push_back(entity.id());
+        if (const auto b = colliderBox(scene, id); b && overlapsDeeply(*b, box)) {
+            out.push_back(id);
         }
-    });
+    }
     return out;
 }
 
 std::vector<Box> solidTiles(const Scene& scene, const AssetDatabase* assets, const Box& area)
 {
     std::vector<Box> out;
-    scene.forEach([&](const Entity& entity, int) {
+    for (const EntityId mapId : scene.all<Tilemap>()) {
+        const Entity& entity = *scene.find(mapId);
         const Tilemap* map = entity.get<Tilemap>();
         if (map == nullptr || !isActiveInScene(scene, entity)) {
-            return;
+            continue;
         }
         const auto used = map->usedCells();
         if (!used) {
-            return;
+            continue;
         }
         // Tilemaps are assumed unrotated: their origin and scale place the grid.
         const Affine2 world = scene.worldTransform(entity.id());
@@ -157,7 +161,7 @@ std::vector<Box> solidTiles(const Scene& scene, const AssetDatabase* assets, con
         const float cw = map->cellSize.x * world.a;
         const float ch = map->cellSize.y * world.d;
         if (std::abs(cw) < 1e-6f || std::abs(ch) < 1e-6f) {
-            return;
+            continue;
         }
         const AssetRecord* record = assets != nullptr ? assets->find(map->tileset) : nullptr;
         const Tileset* tileset = record != nullptr && record->tileset ? &*record->tileset : nullptr;
@@ -191,7 +195,7 @@ std::vector<Box> solidTiles(const Scene& scene, const AssetDatabase* assets, con
                 }
             }
         }
-    });
+    }
     return out;
 }
 

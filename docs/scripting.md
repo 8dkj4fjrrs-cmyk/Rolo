@@ -147,7 +147,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `obj:name()` | its name, as in the Hierarchy |
 | `obj:isValid()` | true while it is still in the game |
 | `obj:position()` | its position: `x, y` (relative to its parent, if it has one) |
-| `obj:setPosition(x, y)` | moves it there, through walls |
+| `obj:setPosition(x, y)` | moves it there, through walls. (Like every function that takes `x, y`, it also takes one vector: `obj:setPosition(v)`; see [fast scripts](#writing-fast-scripts)) |
 | `obj:worldPosition()` | its position in the world, parents included |
 | `obj:move(dx, dy)` | moves it by `dx, dy`, stopping at anything solid (give it a Collider). Returns `movedX, movedY, blocked, hit`: how far it went, whether something stopped it, and the object it ran into (nil for a wall of tiles) |
 | `obj:rotation()`, `obj:setRotation(degrees)` | turning |
@@ -302,6 +302,47 @@ function update(self, dt)
     self.health = maths.clamp((self.health or 100) - dt, 0, 100)
 end
 ```
+
+## Writing fast scripts
+
+Rolo is built so that thousands of scripted objects fit in a frame (the
+[stress test](../examples/stress/README.md) measures it). What costs time
+in your scripts is mostly **garbage**: tables and strings made every frame
+and thrown away, which Luau must clear up. Too much of it is felt as
+stutter.
+
+- **Keep numbers in locals or in `self`**, not in a new table each frame:
+  `local x, y = self.object:position()` makes no garbage (Rolo's functions
+  return plain numbers).
+- **Use a vector for a point or a direction.** A Luau vector is a value,
+  like a number: making one leaves no garbage, and vectors add, subtract
+  and multiply. Every function here that takes `x, y` also takes one
+  vector:
+
+  ```lua
+  function start(self)
+      self.home = vector.create(self.object:position())   -- x, y
+      self.speed = vector.create(120, 0, 0)
+  end
+
+  function update(self, dt)
+      local at = vector.create(self.object:position())
+      self.object:setPosition(at + self.speed * dt)
+      if vector.magnitude(at - self.home) > 300 then self.speed = -self.speed end
+  end
+  ```
+
+  (`v.x`, `v.y`; vectors have a `z` too, which Rolo ignores.)
+- **Build text only when it changes**: `"Score: " .. score` every frame
+  makes a new string every frame.
+- **Find objects once**, in `start`, and keep them: `self.door =
+  game.find("Door")`.
+- **Reuse objects**: scripts cannot make new objects yet, so keep a pool
+  switched off and switch them on (`setActive`), as the stress test's
+  bullets do.
+
+In the stress test, 1000 objects doing the same sums take 1.3 ms a frame
+written with a new table per point, and 0.5 ms with locals or vectors.
 
 ## Luau, the language
 

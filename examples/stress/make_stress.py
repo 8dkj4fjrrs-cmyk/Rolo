@@ -6,12 +6,15 @@ to scripting (ADR 0019).
     python3 examples/stress/make_stress.py examples/stress/project
 
 Every scene is the same each time (no randomness), so runs can be compared.
-The scripts are written so they run unchanged on Lua 5.4 and on Luau.
+The scripts were written to run unchanged on Lua 5.4 and on Luau (all but
+vectors.lua, which uses Luau's vectors).
 
 Scenes:
   scripts   2000 objects, each with its own script moving it every frame
   garbage   1000 objects whose scripts make new tables and strings every frame
   tidy      the same as garbage, with the same maths, but making no garbage
+  vectors   the same again, written with Luau vectors: points as values,
+            like garbage's tables, but no garbage
   bullets   one spawner firing 1200 bullets a second from a pool of 2000,
             each bullet with its own script
   physics   800 bodies (circles and boxes) falling into a box and piling up
@@ -33,7 +36,7 @@ CX, CY = VIEW_W / 2, VIEW_H / 2
 
 _NAMES = ["dot.png", "orbit.lua", "garbage.lua", "spawner.lua", "bullet.lua",
           "scripts.lscene", "garbage.lscene", "bullets.lscene", "physics.lscene", "sprites.lscene",
-          "busy.lscene", "tidy.lua", "tidy.lscene"]
+          "busy.lscene", "tidy.lua", "tidy.lscene", "vectors.lua", "vectors.lscene"]
 IDS = {n: f"53545253{i + 1:08x}" for i, n in enumerate(_NAMES)}   # "STRS..."
 
 # --- Scripts (Lua 5.4 and Luau alike) ---------------------------------------------------------------------
@@ -99,6 +102,31 @@ function update(self, dt)
     end
     self.labelX, self.labelY = math.floor(firstX), math.floor(firstY)
     self.object:setPosition(self.x + firstX, self.y + firstY)
+end
+"""
+
+VECTORS = """-- vectors.lua: the same maths as garbage.lua, with each point a Luau vector
+-- instead of a table. A vector is a value, like a number: making one leaves
+-- no garbage, and vectors add and multiply (home + offset). Rolo's functions
+-- take a vector wherever they take x, y.
+
+local function offset(t)
+    return vector.create(math.cos(t) * 30, math.sin(t) * 30, 0)
+end
+
+function start(self)
+    local x, y = self.object:position()
+    self.home = vector.create(x, y, 0)
+    self.t = (x + y) * 0.01
+end
+
+function update(self, dt)
+    self.t = self.t + dt
+    local first = offset(self.t - 0.1)
+    for i = 2, 8 do
+        local point = offset(self.t - i * 0.1)
+    end
+    self.object:setPosition(self.home + first)
 end
 """
 
@@ -277,6 +305,9 @@ def scenes():
     s = Scene("Tidy", "a70000")
     add_movers(s, 1000, "tidy.lua", "Tidy")
     out["tidy.lscene"] = s
+    s = Scene("Vectors", "a80000")
+    add_movers(s, 1000, "vectors.lua", "Vector")
+    out["vectors.lscene"] = s
     s = Scene("Bullets", "a30000")
     add_bullets(s, 2000)
     out["bullets.lscene"] = s
@@ -305,7 +336,7 @@ def main():
     art.mkdir(parents=True, exist_ok=True)
     Image.new("RGBA", (4, 4), (255, 255, 255, 255)).save(art / "dot.png")
     write(art / "dot.png.meta", meta("dot.png", "image", {"filter": "pixel"}))
-    for name, code in (("orbit.lua", ORBIT), ("garbage.lua", GARBAGE), ("tidy.lua", TIDY),
+    for name, code in (("orbit.lua", ORBIT), ("garbage.lua", GARBAGE), ("tidy.lua", TIDY), ("vectors.lua", VECTORS),
                        ("spawner.lua", SPAWNER), ("bullet.lua", BULLET)):
         (root / "scripts").mkdir(exist_ok=True)
         (root / "scripts" / name).write_text(code, encoding="utf-8")
