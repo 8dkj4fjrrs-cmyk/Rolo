@@ -262,8 +262,10 @@ editor raises the project's version code by one for the next export.
   when one is used, the on-screen controls step aside and button
   pictures follow the controller. Rumble shakes the controller if it can
   (untried on a real one); the phone itself is not shaken.
+- **Keyboards** (a Chromebook's, a tablet's, one plugged into a phone)
+  work as on a computer: the same keys reach your game's actions.
 - Luau scripts and Rolo's own components run there; C++ game modules do
-  not (as on the web). No keyboards yet.
+  not (as on the web).
 - From the command line: `rolo_editor --project "My Game" --export-android
   Exports --android-package com.yourname.mygame`. With `--android-key
   my-key.jks` the `.apk` is signed with your key and the `.aab` is made too; the key's password is read from

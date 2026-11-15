@@ -407,6 +407,40 @@ the score, the stick and the Pause button are drawn that much further in.
 Not done: rounded corners (not measured; the controls' own margin has to
 do), objects that are not children of the Camera, and no real phone.
 
+## Step 4, part 3: keyboards, and a lost graphics context (2026-11-15)
+
+**Keyboards.** Axmol's Android code passes on nine keys. `RoloKeys.java`
+takes every key event that comes from a keyboard (leaving Android's own
+buttons, and Back, which stays the game's Escape by way of Axmol), keeps
+them in order, and the game fetches them once a frame
+(`rolo::android::takeKeys`), where Android's key codes become `rolo::Key`.
+Held keys count as let go when the app leaves the front.
+
+**A lost graphics context.** Android may throw away an app's graphics
+context while it is in the background; Axmol asks it not to
+(`setPreserveEGLContextOnPause`), which most phones honour, but not
+always. Step 1 guessed that Rolo's textures would not survive it. To find
+out, `RoloActivity` has a switch for tests (`am start ... --ez
+rolo.loseContext true`) that stops asking, so every trip to the
+background loses the context. The guess was right: the game came back
+with its texts and shapes, and without its sprites, tiles and button
+labels. Axmol refills the textures it loaded itself, and Rolo loads its
+own (ADR 0023).
+
+- Images from files: `TextureStore::reloadAll` reads them again into the
+  same texture objects, on the first frame after the context is back (not
+  inside Axmol's "recreated" event, where Axmol is still rebuilding).
+  Nothing is kept in memory for this; coming back costs the loading time.
+- Text pictures are small and made from fonts: Axmol is told to keep
+  their pixels (`VolatileTextureMgr::addImage`) and refills them itself.
+
+Tested in the emulator: keys injected by Android reach the game (D,
+Space, Escape, arrows, Enter: the hints turn to key pictures, the pause
+menu opens, Quit is chosen); with the switch on, Home and back loses the
+context, the log says so, and the picture afterwards shows the level and
+the labelled buttons again. Not tested: a real keyboard, a phone that
+loses the context by itself.
+
 ## Alternatives considered
 
 - **One click with nothing to install** (Defold's way): Rolo would pack

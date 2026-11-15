@@ -10,6 +10,7 @@
 #include <platform/android/jni/JniHelper.h>
 
 #include <android/asset_manager.h>
+#include <android/keycodes.h>
 
 #include <chrono>
 #include <fstream>
@@ -109,6 +110,74 @@ SafeInsets safeInsets()
         jint values[4] = {};
         env->GetIntArrayRegion(list, 0, 4, values);
         out = {values[0], values[1], values[2], values[3]};
+    }
+    if (list != nullptr) {
+        env->DeleteLocalRef(list);
+    }
+    env->DeleteLocalRef(method.classID);
+    return out;
+}
+
+Key keyFromAndroid(int code)
+{
+    // Runs of keys that follow one another in both lists.
+    if (code >= AKEYCODE_A && code <= AKEYCODE_Z) {
+        return static_cast<Key>(static_cast<int>(Key::A) + (code - AKEYCODE_A));
+    }
+    if (code >= AKEYCODE_0 && code <= AKEYCODE_9) {
+        return static_cast<Key>(static_cast<int>(Key::Num0) + (code - AKEYCODE_0));
+    }
+    if (code >= AKEYCODE_NUMPAD_0 && code <= AKEYCODE_NUMPAD_9) {
+        return static_cast<Key>(static_cast<int>(Key::Num0) + (code - AKEYCODE_NUMPAD_0));
+    }
+    if (code >= AKEYCODE_F1 && code <= AKEYCODE_F12) {
+        return static_cast<Key>(static_cast<int>(Key::F1) + (code - AKEYCODE_F1));
+    }
+    switch (code) {
+        case AKEYCODE_SPACE: return Key::Space;
+        case AKEYCODE_ENTER:
+        case AKEYCODE_NUMPAD_ENTER:
+        case AKEYCODE_DPAD_CENTER: return Key::Enter;
+        case AKEYCODE_ESCAPE: return Key::Escape;
+        case AKEYCODE_TAB: return Key::Tab;
+        case AKEYCODE_DEL: return Key::Backspace;   // (Android's name for the key that deletes backwards)
+        case AKEYCODE_DPAD_LEFT: return Key::Left;
+        case AKEYCODE_DPAD_RIGHT: return Key::Right;
+        case AKEYCODE_DPAD_UP: return Key::Up;
+        case AKEYCODE_DPAD_DOWN: return Key::Down;
+        case AKEYCODE_SHIFT_LEFT: return Key::LeftShift;
+        case AKEYCODE_SHIFT_RIGHT: return Key::RightShift;
+        case AKEYCODE_CTRL_LEFT: return Key::LeftControl;
+        case AKEYCODE_CTRL_RIGHT: return Key::RightControl;
+        case AKEYCODE_ALT_LEFT: return Key::LeftAlt;
+        case AKEYCODE_ALT_RIGHT: return Key::RightAlt;
+        default: return Key::Unknown;
+    }
+}
+
+std::vector<KeyChange> takeKeys()
+{
+    std::vector<KeyChange> out;
+    ax::JniMethodInfo method;
+    if (!ax::JniHelper::getStaticMethodInfo(method, "dev/roloengine/player/RoloKeys", "take", "()[I")) {
+        if (JNIEnv* env = ax::JniHelper::getEnv(); env != nullptr && env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
+        return out;
+    }
+    JNIEnv* env = method.env;
+    const auto list = static_cast<jintArray>(env->CallStaticObjectMethod(method.classID, method.methodID));
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    } else if (list != nullptr) {
+        const jsize count = env->GetArrayLength(list);
+        std::vector<jint> values(static_cast<std::size_t>(count));
+        env->GetIntArrayRegion(list, 0, count, values.data());
+        for (std::size_t i = 0; i + 1 < values.size(); i += 2) {
+            if (const Key key = keyFromAndroid(values[i]); key != Key::Unknown) {
+                out.push_back({key, values[i + 1] != 0});
+            }
+        }
     }
     if (list != nullptr) {
         env->DeleteLocalRef(list);

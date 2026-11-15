@@ -5,6 +5,11 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Keyboards on Android**: all of Rolo's keys reach the game (Axmol
+  passed on only Enter and the arrows).
+- **Fixed on Android**: when Android took the graphics context from a
+  game in the background, the game came back without its images
+  (sprites, tiles, button labels). They are loaded again now.
 - **Camera notches on Android**: on-screen controls, and scores and
   menus fixed to the Camera, keep clear of a phone's notch or camera
   hole, also when the phone is turned round.

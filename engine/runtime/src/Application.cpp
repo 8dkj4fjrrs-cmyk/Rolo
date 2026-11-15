@@ -201,6 +201,7 @@ struct Application::Impl {
     Vec2 viewSize;      // how much of the world the window shows (the game size, or more: ScreenFit)
     ScreenInsets safeInsets;   // strips of it to keep scores and controls out of (a phone's notch)
     int insetsChecked = 0;     // frames since the notch was last asked about (Android)
+    bool contextWasLost = false;   // the graphics context was made anew: images must be loaded again
     void fitScreen();
     bool fitLogged = false;
     // The program was set aside (minimised; on a phone, another app is in
@@ -519,6 +520,16 @@ bool Application::Impl::startWindow()
 #endif
 #ifdef __ANDROID__
         screenChanged();   // later changes come through AndroidHost
+        // Android may take the graphics context away from an app in the
+        // background (its pictures in the graphics card's memory are gone).
+        // Axmol makes its own things again (shaders, shapes, texts it was
+        // told about); the images Rolo loaded from files are Rolo's to
+        // load again.
+        ax::Director::getInstance()->getEventDispatcher()->addCustomEventListener(EVENT_RENDERER_RECREATED, [this](ax::EventCustom*) {
+            // Not here: Axmol is in the middle of making its own things
+            // again. At the start of the next frame (onFrame).
+            contextWasLost = true;
+        });
 #else
         fitScreen();
         director->getEventDispatcher()->addCustomEventListener(ax::RenderViewImpl::EVENT_WINDOW_RESIZED,
@@ -1118,6 +1129,13 @@ void Application::Impl::onFrame(float deltaSeconds)
 {
     realClock += static_cast<double>(deltaSeconds);
 #ifdef __ANDROID__
+    if (contextWasLost) {
+        contextWasLost = false;
+        if (textures) {
+            textures->reloadAll();
+        }
+        log().info(kCategory, "Graphics: the context was lost in the background; the game's images were loaded again.");
+    }
     if (++insetsChecked >= 30) {   // about twice a second
         insetsChecked = 0;
         fitScreen();
@@ -1128,6 +1146,16 @@ void Application::Impl::onFrame(float deltaSeconds)
             gamepads = std::make_unique<GamepadReader>(log());
         }
         gamepads->read(*gameInput);   // before the game's update reads them
+#ifdef __ANDROID__
+        // A keyboard's keys (RoloKeys.java collects them; Axmol passes on only a few).
+        for (const android::KeyChange& change : android::takeKeys()) {
+            if (change.down) {
+                gameInput->press(change.key);
+            } else {
+                gameInput->release(change.key);
+            }
+        }
+#endif
         updateTouchControls();
     }
     if (frameCallback) {

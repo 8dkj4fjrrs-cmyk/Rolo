@@ -35,6 +35,11 @@ public:
     /// Releases every texture.
     void clear();
 
+    /// Fills every texture from its file again. For when the graphics
+    /// context was lost (Android may take it from an app in the
+    /// background): the textures are still there, but empty.
+    void reloadAll();
+
     /// Goes up whenever a texture is loaded again or its filter changes, so
     /// users holding texture pointers know to fetch them again.
     std::uint64_t generation() const noexcept { return m_generation; }
@@ -45,6 +50,8 @@ private:
         std::filesystem::file_time_type stamp;
         bool pixelArt = false;
     };
+
+    bool fill(ax::Texture2D& texture, const std::filesystem::path& path, bool pixelArt);
 
     const Logger& m_log;
     std::unordered_map<std::string, Entry> m_entries;

@@ -73,7 +73,7 @@ and AI assistants.
   (`.github/workflows/android.yml`, `tools/android/check_android_game.py`), which is separate from CI
   and must stay so. Android-only code is behind `__ANDROID__`, in `engine/runtime`, `player/` and
   `engine/core/src/Log.cpp` only; there is no `main()` and no GLFW there (`rolo/runtime/Android.hpp`,
-  `UiHostNone.hpp`; gamepads come from `RoloGamepads.java` through `Gamepads_android.cpp`), and `Application::run` returns while the game goes on, as on
+  `UiHostNone.hpp`; gamepads come from `RoloGamepads.java` through `Gamepads_android.cpp`, keyboards from `RoloKeys.java` through `android::takeKeys`), and `Application::run` returns while the game goes on, as on
   the web. The app's Java is Axmol's plus `RoloActivity`; classes Axmol mentions but Rolo leaves out
   are Rolo's own stand-ins in `player/android/app/src/axmol_compat` (never copy the originals), and
   the app asks for no permissions and has no Maven dependencies: keep it so.
@@ -87,6 +87,9 @@ and AI assistants.
   and a link each; check them again before changing it, and never write that something was uploaded
   or seen in the Play Console unless it was. Only the `saves` folder is in Android's backup
   (`res/xml/rolo_backup.xml`, `rolo_data_extraction.xml`): keep it so.
+  A lost graphics context: any texture Rolo makes on Android must come back after one, either read
+  again by `TextureStore::reloadAll` or handed to Axmol with `VolatileTextureMgr::addImage`; the
+  workflow's `--lose-context` run shows whether it does.
 - Images: Rolo decodes PNG and JPEG files itself (`rolo/assets/ImageDecode.hpp`, stb_image inside
   `rolo_assets`) and writes screenshots itself (`ImageEncode.hpp`, stb_image_write). Axmol is built
   with no JPEG library, no libpng and no OpenSSL (`AX_WITH_JPEG`, `AX_WITH_PNG`, `AX_WITH_OPENSSL`
