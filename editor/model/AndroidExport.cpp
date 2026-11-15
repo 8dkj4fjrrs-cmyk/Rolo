@@ -856,8 +856,8 @@ AndroidExportResult exportAndroidGame(const AndroidExportOptions& options, const
             const fs::path file = result.project.folder / "Google Play icon (512).png";
             if (writePngFile(file, large.rgba.data(), 512, 512, 4)) {
                 result.storeIcon = file;
-                std::error_code ec;
-                if (fs::file_size(file, ec) > 1024u * 1024u) {
+                std::error_code sizeError;
+                if (fs::file_size(file, sizeError) > 1024u * 1024u && !sizeError) {
                     say("Note: " + file.filename().string() + " is larger than the 1024 KB Google Play allows for "
                         "the store's icon. A simpler picture (fewer colours, less detail) makes a smaller file.");
                 }

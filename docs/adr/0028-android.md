@@ -1,6 +1,6 @@
 # ADR 0028: Android
 
-- **Status:** Accepted. Steps 1 (the player runs on Android) and 2 (export from the editor) are done; steps 3 and 4 are not started
+- **Status:** Accepted. Steps 1 (the player runs on Android) and 2 (export from the editor) are done; step 3 (Google Play) is done as far as it can be without an upload (the upload and the pre-launch report are open); step 4 is not started
 - **Date:** 2026-11-14
 - **Follows:** ADR 0019 (direction: desktop, web and mobile), ADR 0022 (web export), ADR 0026 (touch), ADR 0027 (screen sizes)
 
@@ -267,6 +267,67 @@ Left for later:
 - The exported project is written anew at every export, so Gradle's own
   build cache inside it is lost (its downloads are kept elsewhere).
 - Very long folder names on Windows may exceed what its tools accept.
+
+## Step 3, as built (2026-11-15)
+
+**What could and could not be done.** Step 3 asked for a guide, the key
+kept safely, version codes, the store's forms, "and what the pre-launch
+report said". Rolo's developers have no Google Play account and no Android
+device, so nothing was uploaded and **no pre-launch report exists**. That
+part of the step stays open until a maker does it; the guide asks them to
+report back. Everything else was done, and checked as far as Google's own
+tools allow outside the store.
+
+**The guide** is `docs/google-play.md` (Help › Publishing on Google Play),
+written from Google's help pages as they stood in November 2026, with a
+link beside each rule because they change yearly: US$25 once; identity
+checks; a new personal account must show an Android device and run a
+closed test with 12 testers for 14 days before applying for production;
+target API level 36 since 31 August 2026 (what Rolo builds for); the App
+content forms; the listing's pictures.
+
+**A correction to the plan above.** It said that losing the upload key
+locks the maker out of updating the game. That is not so for new apps:
+with Play App Signing, Google holds the key players' copies are signed
+with, and replaces a lost upload key on request. The guide says so, and
+still asks for a safe copy, because the reset takes days.
+
+**Backups: decided, on.** Step 2 left `allowBackup` off "to be decided
+with step 3". A player who changes phone expects saved games to follow.
+The manifest now allows backup of **only the `saves` folder**
+(`res/xml/rolo_backup.xml` for Android 11 and older,
+`rolo_data_extraction.xml` for 12 and newer, cloud backup and
+phone-to-phone transfer alike); the unpacked game beside it is left out,
+as it comes with the app. The files go to the player's own Google account
+by Android's service; neither the maker nor Rolo receives them, so the
+guide's answer to the Data safety form stays "collects nothing" (with the
+advice to read Google's definitions, the answers being the maker's).
+
+**Small helps in the export.**
+- With the file for Google Play, the export writes `Google Play icon
+  (512).png` (the store's listing wants the icon uploaded separately).
+- After such an export the editor raises the project's version code by
+  one (an undoable command), since Google Play refuses a code it has
+  seen. The command line does not change the project; it takes
+  `--android-version-code`.
+- The file for Google Play is refused for package names starting with
+  `com.example` (Google Play rejects them) or still containing Rolo's
+  placeholder `yourname` (the name is for ever). Exports to try stay
+  allowed with a note, as before.
+
+**Checks added to the Android workflow** (GitHub's Linux machines):
+- Google's **bundletool** (Apache-2.0; downloaded there, not a dependency
+  of Rolo or of games) validates the `.aab`, and its manifest is checked:
+  package, version code, target level 36, backup on, no permissions, not
+  debuggable. It then builds the app from the bundle as Google Play does,
+  reports the download size, and that app is played in the emulator.
+- `tools/android/check_android_backup.sh`: with the emulator's local
+  stand-in for Google's backup, a saved game is backed up, the game
+  removed and installed again, and the saved game returns while a file
+  outside `saves` does not.
+
+Not tested: an upload, Google's review, Play App Signing, the pre-launch
+report, a real phone, a backup to a real Google account.
 
 ## Alternatives considered
 

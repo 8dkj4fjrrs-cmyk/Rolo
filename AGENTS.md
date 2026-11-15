@@ -83,6 +83,10 @@ and AI assistants.
   key's password only travels in the environment of the program that needs it: never store it, log
   it or put it on a command line. The export is built on a worker thread (`AndroidExportJob`), which
   must not touch the Logger or the UI.
+  Google Play (step 3): `docs/google-play.md` states Google's rules with the month they were checked
+  and a link each; check them again before changing it, and never write that something was uploaded
+  or seen in the Play Console unless it was. Only the `saves` folder is in Android's backup
+  (`res/xml/rolo_backup.xml`, `rolo_data_extraction.xml`): keep it so.
 - Images: Rolo decodes PNG and JPEG files itself (`rolo/assets/ImageDecode.hpp`, stb_image inside
   `rolo_assets`) and writes screenshots itself (`ImageEncode.hpp`, stb_image_write). Axmol is built
   with no JPEG library, no libpng and no OpenSSL (`AX_WITH_JPEG`, `AX_WITH_PNG`, `AX_WITH_OPENSSL`

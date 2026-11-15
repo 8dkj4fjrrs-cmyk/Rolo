@@ -164,10 +164,10 @@ Then choose **Android** in the Export dialog and click **Continue**:
 |---|---|
 | Package name | The app's identity on devices and in Google Play, like `com.yourname.yourgame`: something that is yours (your name, or a web address you own, backwards), then the game. Small letters, digits and dots. **Once a game is published it can never change.** Names starting with `com.example` are not accepted by Google Play. |
 | Version | What players see, e.g. `1.0`. |
-| Version code | A whole number. Google Play wants it **higher with every upload** (1, 2, 3...). |
+| Version code | A whole number. Google Play wants it **higher with every upload** (1, 2, 3...); after each export with the file for Google Play, the editor raises it by one. |
 | Held | Sideways (landscape) or upright (portrait). By default it follows the game's size. |
 | Icon | A square PNG picture in your project (512 × 512 is best), or Rolo's own. |
-| Also make the file for Google Play | Makes the `.aab` as well, signed with your **upload key** (below). |
+| Also make the file for Google Play | Makes the `.aab` as well, signed with your **upload key** (below). Not with a package name that starts with `com.example` or still says `yourname`. |
 
 These are kept in the project (`project.rolo`, under `"android"`), so the
 next export starts from them. If Rolo cannot find Google's tools it says
@@ -208,16 +208,21 @@ games.
   a new key.
 - Never put the key file inside a project you share or publish.
 
-Publishing itself (a Google Play developer account, the store's forms,
-testing) is the next step of Rolo's Android work and has no guide yet.
+**Publishing** has its own guide, from the developer account to the
+release: [Publishing on Google Play](google-play.md). With the file for
+Google Play, the export folder also gets `Google Play icon (512).png` (the
+icon as the store's page wants it, if the game has its own), and the
+editor raises the project's version code by one for the next export.
 
 **Good to know**
 - The app runs on Android 7.0 and newer, on phones and tablets (arm64)
   and on emulators and Chromebooks with Intel or AMD processors (x86_64).
 - It asks for **no permissions** and does not use the internet.
 - Android's **Back** button is the Escape key to your game.
-- Saved games are kept on the device in the app's own folder; Android
-  removes them with the app.
+- Saved games are kept on the device in the app's own folder. They (and
+  nothing else of the game) are part of Android's own backup: if the
+  player has it switched on, they come back on a new phone or after
+  installing the game again.
 - Luau scripts and Rolo's own components run there; C++ game modules do
   not (as on the web). No gamepads or keyboards yet.
 - From the command line: `rolo_editor --project "My Game" --export-android

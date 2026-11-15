@@ -122,7 +122,13 @@ In order:
      needed); tools found and checked in plain words; an upload key made
      with Java's `keytool`. Tested on GitHub's Linux machines from the
      command line; not yet on a Mac, Windows or a real phone.
-   - Step 3: Google Play. Step 4: polish (gamepads, notches, performance).
+   - Step 3: Google Play. **Rolo's part is done**: a
+     [guide](google-play.md) from account to release, saved games in
+     Android's backup, the store's icon, version codes raised by the
+     editor, and the bundle checked with Google's bundletool and played
+     from it in an emulator. **Open until a maker with a Play account has
+     done it**: the upload itself and what the pre-launch report says.
+   - Step 4: polish (gamepads, notches, performance).
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).
 

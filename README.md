@@ -75,6 +75,7 @@ and phones, scripted in Luau ([direction](docs/adr/0019-direction.md),
 * [Sound and music](docs/sound.md): effects, music and volumes, with or without code
 * [Gameplay in C++](docs/gameplay.md): behaviours and game modules (Rolo built from source)
 * [Exporting games](docs/exporting.md): making a program to share
+* [Publishing on Google Play](docs/google-play.md): from the Android export to the store (experimental)
 * [Making The Lantern Keeper](docs/making-the-lantern-keeper.md): a whole RPG, built step by step
 * [File formats](docs/formats/scene.md) · [Known limitations](docs/known-limitations.md) ·
   [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md)
