@@ -61,6 +61,14 @@ TextSprite makeTextSprite(const std::string& fontFile, std::string_view text, fl
     if (image->initWithRawData(rgba.data(), static_cast<ssize_t>(rgba.size()), drawn->width, drawn->height, 8, true)
         && texture->initWithImage(image)) {
         texture->setAntiAliasTexParameters();
+#if AX_ENABLE_CACHE_TEXTURE_DATA
+        // Where the graphics context can be lost (Android, when the app is in
+        // the background), Axmol keeps the picture and fills the texture
+        // from it again. It does that for textures it loads itself; this
+        // one it has to be told about. (Images from files are read again
+        // instead: TextureStore::reloadAll.)
+        ax::VolatileTextureMgr::addImage(texture, image);
+#endif
         auto* sprite = ax::Sprite::createWithTexture(texture);
         // The text's box is the picture without its margin.
         const auto pad = static_cast<float>(drawn->padding);

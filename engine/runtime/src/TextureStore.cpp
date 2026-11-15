@@ -17,6 +17,44 @@ void applyFilter(ax::Texture2D& texture, bool pixelArt)
 }
 } // namespace
 
+// Reads an image file into `texture` (new, or one whose picture was lost).
+// Rolo decodes the file itself (rolo/assets/ImageDecode.hpp): Axmol is built
+// without JPEG and PNG libraries (ADR 0023, ADR 0024). See-through images
+// are handed over with their colours already multiplied by alpha, which is
+// what Axmol's own PNG loading did.
+bool TextureStore::fill(ax::Texture2D& texture, const std::filesystem::path& path, bool pixelArt)
+{
+    std::string why;
+    auto decoded = decodeImageFile(path, &why);
+    if (!decoded) {
+        m_log.warning(kCategory, path.string() + ": " + why + ".");
+        return false;
+    }
+    if (decoded->hasAlpha) {
+        premultiplyAlpha(*decoded);
+    }
+    auto* image = new ax::Image();
+    const bool filled = image->initWithRawData(decoded->rgba.data(), static_cast<ssize_t>(decoded->rgba.size()),
+                                               decoded->width, decoded->height, 8, decoded->hasAlpha)
+                        && texture.initWithImage(image);
+    image->release();
+    if (filled) {
+        applyFilter(texture, pixelArt);
+    }
+    return filled;
+}
+
+void TextureStore::reloadAll()
+{
+    // The same texture objects are filled again, so the sprites that use
+    // them need not be told.
+    for (auto& [path, entry] : m_entries) {
+        if (entry.texture != nullptr && !fill(*entry.texture, path, entry.pixelArt)) {
+            m_log.warning(kCategory, "Could not load the image " + path + " again.");
+        }
+    }
+}
+
 TextureStore::TextureStore(const Logger& log)
     : m_log(log)
 {
@@ -57,32 +95,12 @@ ax::Texture2D* TextureStore::get(const std::filesystem::path& path, bool pixelAr
     entry.stamp = stamp;
     entry.pixelArt = pixelArt;
     if (!ec) {
-        // Rolo decodes the file itself (rolo/assets/ImageDecode.hpp): Axmol
-        // is built without JPEG and PNG libraries (ADR 0023, ADR 0024).
-        // See-through images are handed over with their colours already
-        // multiplied by alpha, which is what Axmol's own PNG loading did.
-        auto* image = new ax::Image();
-        bool loaded = false;
-        std::string why;
-        if (auto decoded = decodeImageFile(path, &why)) {
-            if (decoded->hasAlpha) {
-                premultiplyAlpha(*decoded);
-            }
-            loaded = image->initWithRawData(decoded->rgba.data(), static_cast<ssize_t>(decoded->rgba.size()),
-                                            decoded->width, decoded->height, 8, decoded->hasAlpha);
+        auto* texture = new ax::Texture2D();
+        if (fill(*texture, path, pixelArt)) {
+            entry.texture = texture; // keeps the reference from `new`
         } else {
-            m_log.warning(kCategory, key + ": " + why + ".");
+            texture->release();
         }
-        if (loaded) {
-            auto* texture = new ax::Texture2D();
-            if (texture->initWithImage(image)) {
-                applyFilter(*texture, pixelArt);
-                entry.texture = texture; // keeps the reference from `new`
-            } else {
-                texture->release();
-            }
-        }
-        image->release();
     }
     if (entry.texture == nullptr) {
         m_log.warning(kCategory, "Could not load the image " + key + ".");
