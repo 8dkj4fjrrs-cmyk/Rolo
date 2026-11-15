@@ -33,6 +33,25 @@ std::optional<ScreenFit> screenFitFromName(std::string_view name);
 /// size grown along one side to the window's shape.
 Vec2 visibleSize(Vec2 gameSize, Vec2 windowSize, ScreenFit fit);
 
+/// The strips along a screen's edges that are not safe to put things in:
+/// a phone's camera notch or hole is there. In the same units as the
+/// screen's size they go with; all 0 on screens without such things.
+struct ScreenInsets {
+    float left = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
+    float top = 0.0f;
+
+    bool any() const noexcept { return left > 0.0f || right > 0.0f || bottom > 0.0f || top > 0.0f; }
+    friend bool operator==(const ScreenInsets&, const ScreenInsets&) = default;
+};
+
+/// A screen's insets as the system gives them (`pixels`, for a screen of
+/// `frame` pixels) in the units of what the screen shows (`visible`, drawn
+/// as large as fits, centred). Where bars beside the picture already cover
+/// a notch, nothing is left of that inset.
+ScreenInsets insetsInView(ScreenInsets pixels, Vec2 frame, Vec2 visible);
+
 /// How an object fixed to the camera moves when the screen shows more than
 /// the game size.
 struct ScreenPin {
@@ -48,6 +67,8 @@ struct ScreenPin {
 /// and down. `coverage`: the object's size if it is a filled rectangle
 /// (else 0, 0): one that covers the whole game size along a side (a
 /// darkening veil, a backdrop) is stretched to cover the whole screen.
-ScreenPin pinToScreen(Vec2 place, Vec2 coverage, Vec2 gameSize, Vec2 visible);
+/// `insets`: an object kept at an edge stays that much further in, clear
+/// of a notch there. Stretched rectangles still cover the whole screen.
+ScreenPin pinToScreen(Vec2 place, Vec2 coverage, Vec2 gameSize, Vec2 visible, ScreenInsets insets = {});
 
 } // namespace rolo

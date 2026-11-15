@@ -129,7 +129,7 @@ In order:
      from it in an emulator. **Open until a maker with a Play account has
      done it**: the upload itself and what the pre-launch report says.
    - Step 4: polish. ~~Gamepads and rumble~~ **done** (tried in the
-     emulator; rumble untried). Still to do: notches and rounded corners,
+     emulator; rumble untried). ~~Camera notches~~ **done**. Still to do:
      a graphics context lost in the background, keyboards, performance.
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).

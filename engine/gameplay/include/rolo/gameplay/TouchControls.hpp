@@ -17,6 +17,7 @@
 // the screen is `width` × `height` in the game's own units (its resolution).
 
 #include "rolo/gameplay/Input.hpp"
+#include "rolo/scene/ScreenFit.hpp"
 
 #include <string>
 #include <vector>
@@ -51,8 +52,9 @@ public:
     std::vector<std::string> actions() const;
 
     /// Places the controls on a screen of this size. Call again when the
-    /// size changes or the actions do.
-    void layout(float width, float height);
+    /// size changes or the actions do. `insets`: strips along the edges to
+    /// keep clear (a phone's camera notch); the controls move in past them.
+    void layout(float width, float height, ScreenInsets insets = {});
 
     /// A finger went down, moved, or lifted. touchBegan answers whether a
     /// control took it; such a finger is then not the game's.
@@ -84,6 +86,7 @@ private:
     std::vector<Held> m_held;
     float m_width = 0.0f;
     float m_height = 0.0f;
+    ScreenInsets m_insets;
     unsigned m_revision = 0;
     unsigned m_layoutRevision = 0;
 };

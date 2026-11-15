@@ -195,3 +195,28 @@ TEST_CASE("The on-screen stick steers", "[input][touch]")
     f.controls.apply(f.input);
     CHECK_FALSE(f.input.isActionDown("jump"));
 }
+
+TEST_CASE("Touch controls move in past a camera notch", "[touch]")
+{
+    Fixture plain;
+    Fixture notched;
+    // A notch on the left and one at the top (as when a phone is turned).
+    notched.controls.layout(1280.0f, 720.0f, ScreenInsets{80.0f, 0.0f, 0.0f, 50.0f});
+    CHECK(notched.controls.stick().rest.x == Catch::Approx(plain.controls.stick().rest.x + 80.0f));
+    CHECK(notched.controls.stick().rest.y == Catch::Approx(plain.controls.stick().rest.y));
+    CHECK(notched.controls.stick().rest.x - notched.controls.stick().radius >= 80.0f);
+    // The jump button at the right is where it was; the pause button is lower, and
+    // in the middle of what is left.
+    CHECK(notched.button("jump").center.x == Catch::Approx(plain.button("jump").center.x));
+    CHECK(notched.button("pause").center.y == Catch::Approx(plain.button("pause").center.y - 50.0f));
+    CHECK(notched.button("pause").center.x == Catch::Approx(plain.button("pause").center.x + 40.0f));
+
+    // On the right and at the bottom.
+    notched.controls.layout(1280.0f, 720.0f, ScreenInsets{0.0f, 90.0f, 30.0f, 0.0f});
+    CHECK(notched.button("jump").center.x == Catch::Approx(plain.button("jump").center.x - 90.0f));
+    CHECK(notched.button("jump").center.y == Catch::Approx(plain.button("jump").center.y + 30.0f));
+    CHECK(notched.controls.stick().rest.y == Catch::Approx(plain.controls.stick().rest.y + 30.0f));
+    // New actions keep the notch in mind.
+    notched.controls.setActions(notched.input);
+    CHECK(notched.button("jump").center.x == Catch::Approx(plain.button("jump").center.x - 90.0f));
+}

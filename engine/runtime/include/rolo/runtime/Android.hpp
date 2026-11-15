@@ -42,6 +42,17 @@ std::string installStamp();
 /// Copies a file packed inside the app (one of its "assets") to a real file.
 Status copyPackedFile(std::string_view name, const std::filesystem::path& to);
 
+/// The strips along the screen's edges, in pixels, where a camera notch or
+/// hole is (Android's "display cutout"): left, right, bottom, top. All 0 on
+/// screens without one. They change when the phone is turned round.
+struct SafeInsets {
+    int left = 0;
+    int right = 0;
+    int bottom = 0;
+    int top = 0;
+};
+SafeInsets safeInsets();
+
 /// Shows a message with an OK button over the app. For problems at
 /// start-up: a player has no log to look at.
 void showMessage(const std::string& title, const std::string& text);

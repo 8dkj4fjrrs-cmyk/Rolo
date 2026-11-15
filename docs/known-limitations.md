@@ -92,8 +92,10 @@ Please report what you find.
   updating); Google's developer verification for such apps has not been
   gone through by anyone working on Rolo. Gamepads work there in the emulator (with Android's stand-in
   controller; no real one was tried, and rumble could not be tried at
-  all). No keyboards there, no care for
-  notches, no adaptive icon, sound and speed unjudged, and a graphics
+  all). No keyboards there. Camera notches are
+  kept clear of controls and pinned scores (tried with the emulator's
+  notch; rounded corners are not measured, and with Fill the Screen off
+  a notch is only avoided where the bars already cover it). No adaptive icon, sound and speed unjudged, and a graphics
   context lost in the background is not handled.
 - **Web games** ([exporting](exporting.md#for-the-web)): no rumble, and
   the shipped web runtime has no C++ game modules. Tested in headless

@@ -253,6 +253,11 @@ editor raises the project's version code by one for the next export.
   nothing else of the game) are part of Android's own backup: if the
   player has it switched on, they come back on a new phone or after
   installing the game again.
+- **Camera notches**: the game fills the whole screen, also beside a
+  notch or camera hole. The on-screen controls, and scores and menus
+  that are children of the Camera (with **Fill the Screen** on), are
+  moved in from that edge so nothing of them is hidden; it follows when
+  the phone is turned round. Your level itself is drawn under the notch.
 - **Gamepads** work as on a computer (Bluetooth or USB; up to four):
   when one is used, the on-screen controls step aside and button
   pictures follow the controller. Rumble shakes the controller if it can

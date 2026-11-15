@@ -383,6 +383,30 @@ the left stick moves the hero, Start opens the pause menu, d-pad and A
 choose Quit. Not tested: any real controller; several at once; unplugging;
 rumble (the injected gamepad has no motors).
 
+## Step 4, part 2: camera notches (2026-11-15)
+
+The game goes on filling the whole screen, under a notch too (bars beside
+a game are worse than a notch over a bit of sky). What must not be hidden
+is what the player reads and touches:
+
+- `RoloActivity` learns the notch's place from Android (the display
+  cutout's safe insets, whenever they change) and the game asks for them
+  (`rolo::android::safeInsets`) when fitting the screen and about twice a
+  second after, because turning the phone round moves the notch without
+  changing the screen's size.
+- `insetsInView` (rolo/scene/ScreenFit.hpp) turns the pixels into the
+  game's units, less what bars already cover. `pinToScreen` and
+  `TouchControls::layout` take these `ScreenInsets`: things at an edge
+  move in by that edge's inset; things in the middle and rectangles
+  covering the screen are left alone.
+
+Tested: unit tests for the rules (all systems), and in the emulator,
+whose screen has a cutout of 128 pixels on the left when held sideways:
+the log says "kept clear for the camera notch: left 85 ... points", and
+the score, the stick and the Pause button are drawn that much further in.
+Not done: rounded corners (not measured; the controls' own margin has to
+do), objects that are not children of the Camera, and no real phone.
+
 ## Alternatives considered
 
 - **One click with nothing to install** (Defold's way): Rolo would pack

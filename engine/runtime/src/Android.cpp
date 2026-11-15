@@ -7,6 +7,7 @@
 #include <axmol.h>
 #include <platform/android/FileUtils-android.h>
 #include <platform/android/jni/Java_dev_axmol_lib_AxmolEngine.h>
+#include <platform/android/jni/JniHelper.h>
 
 #include <android/asset_manager.h>
 
@@ -87,6 +88,33 @@ Status copyPackedFile(std::string_view name, const std::filesystem::path& to)
                                + ". Is the device's storage full?");
     }
     return Status::success();
+}
+
+SafeInsets safeInsets()
+{
+    // RoloActivity keeps them (Android tells its Java side); one call fetches all four.
+    SafeInsets out;
+    ax::JniMethodInfo method;
+    if (!ax::JniHelper::getStaticMethodInfo(method, "dev/roloengine/player/RoloActivity", "safeInsets", "()[I")) {
+        if (JNIEnv* env = ax::JniHelper::getEnv(); env != nullptr && env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
+        return out;
+    }
+    JNIEnv* env = method.env;
+    const auto list = static_cast<jintArray>(env->CallStaticObjectMethod(method.classID, method.methodID));
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    } else if (list != nullptr && env->GetArrayLength(list) >= 4) {
+        jint values[4] = {};
+        env->GetIntArrayRegion(list, 0, 4, values);
+        out = {values[0], values[1], values[2], values[3]};
+    }
+    if (list != nullptr) {
+        env->DeleteLocalRef(list);
+    }
+    env->DeleteLocalRef(method.classID);
+    return out;
 }
 
 void showMessage(const std::string& title, const std::string& text)

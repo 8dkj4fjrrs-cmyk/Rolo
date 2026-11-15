@@ -11,12 +11,25 @@ import android.hardware.input.InputManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
+import android.view.DisplayCutout;
 import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 
 import dev.axmol.lib.AxmolActivity;
 
 public class RoloActivity extends AxmolActivity implements InputManager.InputDeviceListener {
+    // Where the screen's camera notch is: how many pixels along the left,
+    // right, bottom and top edges are not safe to put things in. Android
+    // tells this side; the game asks for it (rolo::android::safeInsets).
+    private static volatile int[] sSafeInsets = {0, 0, 0, 0};
+
+    /** Called by the game: left, right, bottom, top, in pixels. */
+    public static int[] safeInsets() {
+        return sSafeInsets;
+    }
+
     // True for the activity that runs the game (see onCreate).
     private boolean mRunsTheGame = false;
 
@@ -43,6 +56,20 @@ public class RoloActivity extends AxmolActivity implements InputManager.InputDev
             WindowManager.LayoutParams params = getWindow().getAttributes();
             params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
             getWindow().setAttributes(params);
+            // ...and learn where the notch is, now and whenever it moves
+            // (the phone turned round), so scores and the on-screen
+            // controls can be kept out from under it.
+            getWindow().getDecorView().setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View view, WindowInsets insets) {
+                    final DisplayCutout cutout = insets.getDisplayCutout();
+                    sSafeInsets = cutout == null
+                            ? new int[] {0, 0, 0, 0}
+                            : new int[] {cutout.getSafeInsetLeft(), cutout.getSafeInsetRight(),
+                                         cutout.getSafeInsetBottom(), cutout.getSafeInsetTop()};
+                    return view.onApplyWindowInsets(insets);
+                }
+            });
         }
     }
 

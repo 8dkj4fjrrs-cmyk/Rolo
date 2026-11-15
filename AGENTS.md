@@ -96,7 +96,9 @@ and AI assistants.
 - Screen sizes (ADR 0027): the game's size is the project's (`ProjectSettings::width/height`), never a
   literal 1280 x 720. With `screenFit: expand` a game window shows more than that; ask
   `Game::viewSize()` / `Application::viewSize()`. The Camera's children are pinned by
-  `pinToScreen` in the renderer; the editor always shows exactly the game's size.
+  `pinToScreen` in the renderer; the editor always shows exactly the game's size. A phone's camera
+  notch is `ScreenInsets` (from `rolo::android::safeInsets`): things placed at the screen's edges
+  (`pinToScreen`, `TouchControls::layout`) take them; the picture itself still fills the screen.
 - Touch (ADR 0026): on-screen controls are made from the game's actions (`rolo/gameplay/TouchControls.hpp`,
   logic only; `Application` reports fingers and draws them). Gameplay code asks for actions, never for
   keys, so that it works on touch screens. On the web, touches are read from the canvas directly, not

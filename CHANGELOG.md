@@ -5,6 +5,9 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Camera notches on Android**: on-screen controls, and scores and
+  menus fixed to the Camera, keep clear of a phone's notch or camera
+  hole, also when the phone is turned round.
 - **Gamepads on Android** (ADR 0028, step 4): up to four controllers,
   with the same buttons, sticks, button pictures and remapping as on a
   computer; the on-screen controls hide while one is used. Rumble goes
