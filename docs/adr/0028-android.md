@@ -330,6 +330,33 @@ advice to read Google's definitions, the answers being the maker's).
 Not tested: an upload, Google's review, Play App Signing, the pre-launch
 report, a real phone, a backup to a real Google account.
 
+## After step 3: the `.apk` to share (2026-11-15)
+
+The owner cannot use Google Play, so games need another way to players.
+Until now the `.apk` was always a debug build signed with Google's
+throwaway key: installable, but impossible to update (the next export on
+another computer has another debug key) and marked debuggable.
+
+- **With the maker's key, the `.apk` is now a release build signed with
+  that key** (`:app:assembleRelease`), next to the `.aab` (same key).
+  Without a key it stays the debug build "to try". One file name either
+  way, so there is never a choice of files to send; the README and the
+  dialog say which kind it is. The dialog's box is now "Sign with my own
+  key".
+- The checks for Google Play apply to it as well (no `com.example`, no
+  `yourname`), and the editor raises the version code after such an
+  export: Android, too, only takes a higher one as an update.
+- **Developer verification.** Google has begun to require that makers of
+  apps installed from files register with it (enforced in four countries
+  since 30 September 2026, elsewhere from 2027 by its plan). Rolo can do
+  nothing about that but say so: the export guide explains it and links
+  Google's page. Nobody working on Rolo has registered.
+
+Checked by the Android workflow: the `.apk`'s certificate is the key
+file's; it is not debuggable; the no-key export is a debug build signed
+otherwise; in the emulator, version code 8 installs over 7, and going
+back to 7 or installing the debug-signed copy over it is refused.
+
 ## Alternatives considered
 
 - **One click with nothing to install** (Defold's way): Rolo would pack

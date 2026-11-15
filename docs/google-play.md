@@ -23,7 +23,7 @@ page is right.
 | Cost | US$25, once, for the developer account. No yearly fee. |
 | You need | To be 18 or older, a Google account, an identity document, a payment card, and **an Android phone or tablet** (a new personal account must show it has one). |
 | How long | About **three weeks** at least for a first game on a new personal account: Google wants it tested by 12 people for 14 days before it may be published. |
-| What you upload | `My Game.aab`, made by **File › Export Game… › Android** with *Also make the file for Google Play* ticked. |
+| What you upload | `My Game.aab`, made by **File › Export Game… › Android** with *Sign with my own key* ticked. |
 
 ## 1. Before you start
 
