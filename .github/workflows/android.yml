@@ -156,8 +156,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download -R google/bundletool --pattern 'bundletool-all-*.jar' --output bundletool.jar
-          echo "bundletool $(java -jar bundletool.jar version), sha256 $(sha256sum bundletool.jar | cut -d' ' -f1)"
+          gh release download 1.18.3 -R google/bundletool --pattern 'bundletool-all-1.18.3.jar' --output bundletool.jar
+          echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  bundletool.jar" | sha256sum --check
+          echo "bundletool $(java -jar bundletool.jar version)"
           java -jar bundletool.jar validate --bundle rolo-exported-game.aab | head -40
           java -jar bundletool.jar dump manifest --bundle rolo-exported-game.aab | tee bundle-manifest.xml
           grep -q 'package="dev.roloengine.platformer"' bundle-manifest.xml

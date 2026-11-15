@@ -14,13 +14,18 @@ as_app() { adb shell run-as "$PACKAGE" sh -c "'$1'"; }
 
 adb uninstall "$PACKAGE" > /dev/null 2>&1 || true
 adb install "$APK" > /dev/null
+# Android does not back up an app that was never started.
+adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 > /dev/null
+sleep 8
+adb shell input keyevent KEYCODE_HOME
+sleep 2
 as_app "mkdir -p files/saves && echo kept > files/saves/backup-check.sav && echo left > files/backup-check-other.txt"
 
 adb shell bmgr enable true
 adb shell bmgr transport com.android.localtransport/.LocalTransport
 adb shell settings put secure backup_local_transport_parameters is_encrypted=false
 adb shell bmgr backupnow "$PACKAGE" | tee backup-out.txt
-grep -q "Success" backup-out.txt || { echo "The backup did not succeed."; exit 1; }
+grep -q "$PACKAGE with result: Success" backup-out.txt || { echo "The backup did not succeed."; exit 1; }
 
 adb uninstall "$PACKAGE" > /dev/null
 adb install "$APK" > /dev/null
