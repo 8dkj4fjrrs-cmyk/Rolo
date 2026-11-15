@@ -122,13 +122,14 @@ void SceneRenderer::update()
     }
 }
 
-void SceneRenderer::setScreen(Vec2 gameSize, Vec2 visible)
+void SceneRenderer::setScreen(Vec2 gameSize, Vec2 visible, ScreenInsets insets)
 {
-    if (gameSize == m_gameSize && visible == m_visible) {
+    if (gameSize == m_gameSize && visible == m_visible && insets == m_insets) {
         return;
     }
     m_gameSize = gameSize;
     m_visible = visible;
+    m_insets = insets;
     pinCameraChildren();
 }
 
@@ -139,7 +140,7 @@ void SceneRenderer::pinCameraChildren()
     if (m_scene == nullptr) {
         return;
     }
-    const bool wanted = m_visible.x > 0.0f && m_visible != m_gameSize;
+    const bool wanted = m_visible.x > 0.0f && (m_visible != m_gameSize || m_insets.any());
     if (!wanted && !m_pinned) {
         return;
     }
@@ -164,7 +165,7 @@ void SceneRenderer::pinCameraChildren()
             if (const Shape* shape = entity.get<Shape>(); shape != nullptr && shape->filled && shape->kind == ShapeKind::Rectangle) {
                 coverage = {shape->size.x * std::abs(t.scale.x) * zoom, shape->size.y * std::abs(t.scale.y) * zoom};
             }
-            pin = pinToScreen({t.position.x * zoom, t.position.y * zoom}, coverage, m_gameSize, m_visible);
+            pin = pinToScreen({t.position.x * zoom, t.position.y * zoom}, coverage, m_gameSize, m_visible, m_insets);
         }
         node->setPosition(t.position.x + pin.offset.x / zoom, t.position.y + pin.offset.y / zoom);
         node->setScale(t.scale.x * pin.scale.x, t.scale.y * pin.scale.y);

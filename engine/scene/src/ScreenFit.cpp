@@ -36,7 +36,19 @@ Vec2 visibleSize(Vec2 gameSize, Vec2 windowSize, ScreenFit fit)
     return {gameSize.x, std::min(gameSize.x / window, gameSize.y * 3.0f)};
 }
 
-ScreenPin pinToScreen(Vec2 place, Vec2 coverage, Vec2 gameSize, Vec2 visible)
+ScreenInsets insetsInView(ScreenInsets pixels, Vec2 frame, Vec2 visible)
+{
+    if (frame.x <= 0.0f || frame.y <= 0.0f || visible.x <= 0.0f || visible.y <= 0.0f) {
+        return {};
+    }
+    const float scale = std::min(frame.x / visible.x, frame.y / visible.y);   // pixels per unit
+    const float barX = (frame.x - visible.x * scale) * 0.5f;
+    const float barY = (frame.y - visible.y * scale) * 0.5f;
+    const auto inside = [scale](float inset, float bar) { return std::max(0.0f, inset - bar) / scale; };
+    return {inside(pixels.left, barX), inside(pixels.right, barX), inside(pixels.bottom, barY), inside(pixels.top, barY)};
+}
+
+ScreenPin pinToScreen(Vec2 place, Vec2 coverage, Vec2 gameSize, Vec2 visible, ScreenInsets insets)
 {
     ScreenPin pin;
     const Vec2 extra{(visible.x - gameSize.x) * 0.5f, (visible.y - gameSize.y) * 0.5f};
@@ -46,12 +58,15 @@ ScreenPin pinToScreen(Vec2 place, Vec2 coverage, Vec2 gameSize, Vec2 visible)
     if (wide) {
         pin.scale.x = visible.x / gameSize.x;   // covers the width: keeps covering it
     } else {
-        pin.offset.x = side(place.x, gameSize.x) * extra.x;
+        const float s = side(place.x, gameSize.x);
+        // Out to the screen's edge, and back in past a notch on that side.
+        pin.offset.x = s * extra.x + (s < 0.0f ? insets.left : s > 0.0f ? -insets.right : 0.0f);
     }
     if (tall) {
         pin.scale.y = visible.y / gameSize.y;
     } else {
-        pin.offset.y = side(place.y, gameSize.y) * extra.y;
+        const float s = side(place.y, gameSize.y);
+        pin.offset.y = s * extra.y + (s < 0.0f ? insets.bottom : s > 0.0f ? -insets.top : 0.0f);
     }
     return pin;
 }

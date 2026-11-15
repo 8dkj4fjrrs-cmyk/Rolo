@@ -60,7 +60,7 @@ void TouchControls::setActions(const Input& input, const std::vector<std::string
     m_buttons = std::move(buttons);
     m_held.clear();
     m_stick.held = false;
-    layout(m_width, m_height);
+    layout(m_width, m_height, m_insets);
 }
 
 std::vector<std::string> TouchControls::actions() const
@@ -72,10 +72,11 @@ std::vector<std::string> TouchControls::actions() const
     return names;
 }
 
-void TouchControls::layout(float width, float height)
+void TouchControls::layout(float width, float height, ScreenInsets insets)
 {
     m_width = width;
     m_height = height;
+    m_insets = insets;
     ++m_revision;
     ++m_layoutRevision;
     // Sizes follow the shorter side, so the controls are as large under a
@@ -84,7 +85,7 @@ void TouchControls::layout(float width, float height)
     const float margin = unit * 0.06f;
 
     m_stick.radius = unit * 0.13f;
-    m_stick.rest = {margin + m_stick.radius * 1.25f, margin + m_stick.radius * 1.25f};
+    m_stick.rest = {insets.left + margin + m_stick.radius * 1.25f, insets.bottom + margin + m_stick.radius * 1.25f};
     if (!m_stick.held) {
         m_stick.base = m_stick.rest;
         m_stick.knob = m_stick.rest;
@@ -95,7 +96,7 @@ void TouchControls::layout(float width, float height)
     const float big = unit * 0.095f;
     const float other = unit * 0.08f;
     const float menuRadius = unit * 0.05f;
-    const Vec2 corner{width - margin - big, margin + big};
+    const Vec2 corner{width - insets.right - margin - big, insets.bottom + margin + big};
     const float ring = big + other + unit * 0.035f;
     struct Place {
         float degrees;
@@ -110,8 +111,9 @@ void TouchControls::layout(float width, float height)
         if (b.menu) {
             // Top middle, side by side: clear of scores in the corners.
             b.radius = menuRadius;
-            b.center = {width * 0.5f + (static_cast<float>(menu) - (menus - 1.0f) * 0.5f) * menuRadius * 2.6f,
-                        height - margin - menuRadius};
+            const float middle = (insets.left + width - insets.right) * 0.5f;
+            b.center = {middle + (static_cast<float>(menu) - (menus - 1.0f) * 0.5f) * menuRadius * 2.6f,
+                        height - insets.top - margin - menuRadius};
             ++menu;
         } else if (main == 0) {
             b.radius = big;

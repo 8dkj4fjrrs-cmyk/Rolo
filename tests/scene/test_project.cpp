@@ -255,3 +255,34 @@ TEST_CASE("Things fixed to the camera follow the screen's edges", "[project][scr
     // The same shape of screen as the game: nothing moves.
     CHECK(pinToScreen({-616.0f, 340.0f}, {}, game, game).offset == Vec2{0.0f, 0.0f});
 }
+
+TEST_CASE("A camera notch: things at that edge stay clear of it", "[project][screen]")
+{
+    const Vec2 game{1280.0f, 720.0f};
+    const Vec2 wide{1600.0f, 720.0f};   // 160 more on each side
+    // A phone of 2400 x 1080 pixels with a notch of 120 pixels on its left: 80 of the game's points.
+    const ScreenInsets notch = insetsInView({120.0f, 0.0f, 0.0f, 0.0f}, {2400.0f, 1080.0f}, wide);
+    CHECK(notch == ScreenInsets{80.0f, 0.0f, 0.0f, 0.0f});
+    CHECK(notch.any());
+    CHECK_FALSE(ScreenInsets{}.any());
+
+    // The score at the top-left goes to the left edge, but not under the notch;
+    // the help at the top-right is not moved by a notch on the other side.
+    CHECK(pinToScreen({-616.0f, 340.0f}, {}, game, wide, notch).offset == Vec2{-80.0f, 0.0f});
+    CHECK(pinToScreen({616.0f, 340.0f}, {}, game, wide, notch).offset == Vec2{160.0f, 0.0f});
+    // What is in the middle stays there, and a veil over everything still covers everything.
+    CHECK(pinToScreen({0.0f, -260.0f}, {1040.0f, 180.0f}, game, wide, notch).offset == Vec2{0.0f, 0.0f});
+    const ScreenPin veil = pinToScreen({0.0f, 0.0f}, {1280.0f, 720.0f}, game, wide, notch);
+    CHECK(veil.scale == Vec2{1.25f, 1.0f});
+    CHECK(veil.offset == Vec2{0.0f, 0.0f});
+    // Held upright with the notch at the top: 60 points down from the top edge.
+    const ScreenInsets top = insetsInView({0.0f, 0.0f, 0.0f, 90.0f}, {1080.0f, 2400.0f}, {720.0f, 1600.0f});
+    CHECK(top == ScreenInsets{0.0f, 0.0f, 0.0f, 60.0f});
+    CHECK(pinToScreen({-300.0f, 600.0f}, {}, {720.0f, 1280.0f}, {720.0f, 1600.0f}, top).offset == Vec2{0.0f, 100.0f});
+
+    // With bars beside the game (it is shown whole), a notch under a bar needs nothing...
+    CHECK(insetsInView({120.0f, 0.0f, 0.0f, 0.0f}, {2400.0f, 1080.0f}, game) == ScreenInsets{});
+    // ...and one wider than the bar only what sticks out: (300 - 240) pixels at 1.5 a point.
+    CHECK(insetsInView({300.0f, 0.0f, 0.0f, 0.0f}, {2400.0f, 1080.0f}, game) == ScreenInsets{40.0f, 0.0f, 0.0f, 0.0f});
+    CHECK(insetsInView({120.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, game) == ScreenInsets{});
+}

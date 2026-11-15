@@ -199,6 +199,8 @@ struct Application::Impl {
     void listenForTouches(ax::Scene& scene);
     void updateTouchControls();
     Vec2 viewSize;      // how much of the world the window shows (the game size, or more: ScreenFit)
+    ScreenInsets safeInsets;   // strips of it to keep scores and controls out of (a phone's notch)
+    int insetsChecked = 0;     // frames since the notch was last asked about (Android)
     void fitScreen();
     bool fitLogged = false;
     // The program was set aside (minimised; on a phone, another app is in
@@ -681,8 +683,27 @@ void Application::Impl::fitScreen()
                                       + " points of the world (more than the game's size: it fills the window)");
         }
     }
+#ifdef __ANDROID__
+    // Where the screen's camera notch is, if it has one. Asked again now and
+    // then (onFrame): turning the phone round moves it to the other side
+    // without the screen changing size.
+    {
+        const android::SafeInsets px = android::safeInsets();
+        const ScreenInsets insets = insetsInView({static_cast<float>(px.left), static_cast<float>(px.right),
+                                                  static_cast<float>(px.bottom), static_cast<float>(px.top)},
+                                                 {frame.x, frame.y}, visible);
+        if (!(insets == safeInsets)) {
+            safeInsets = insets;
+            touchLaidOut = 0;
+            const auto whole = [](float v) { return std::to_string(static_cast<int>(v + 0.5f)); };
+            log().info(kCategory, "Screen: kept clear for the camera notch: left " + whole(insets.left) + ", right "
+                                      + whole(insets.right) + ", bottom " + whole(insets.bottom) + ", top "
+                                      + whole(insets.top) + " points");
+        }
+    }
+#endif
     if (renderer) {
-        renderer->setScreen(game, visible);
+        renderer->setScreen(game, visible, safeInsets);
     }
     applyGameCamera();
 }
@@ -972,7 +993,7 @@ void Application::Impl::updateTouchControls()
         return;
     }
     if (touchLaidOut == 0) {
-        touchControls->layout(viewSize.x, viewSize.y);
+        touchControls->layout(viewSize.x, viewSize.y, safeInsets);
     }
     const bool shown = gameInput->lastDevice() == InputDevice::Touch;
     if (!shown && touchNode->isVisible()) {
@@ -1096,6 +1117,12 @@ void Application::Impl::logDiagnostics(ax::RenderView& view)
 void Application::Impl::onFrame(float deltaSeconds)
 {
     realClock += static_cast<double>(deltaSeconds);
+#ifdef __ANDROID__
+    if (++insetsChecked >= 30) {   // about twice a second
+        insetsChecked = 0;
+        fitScreen();
+    }
+#endif
     if (gameInput != nullptr) {
         if (!gamepads) {
             gamepads = std::make_unique<GamepadReader>(log());
