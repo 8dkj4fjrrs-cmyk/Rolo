@@ -196,6 +196,13 @@ class Check:
             adb("shell", "input", "keyevent", "3")
         elif step == "return":
             adb("shell", "am", "start", "-n", self.package + "/" + ACTIVITY)
+        elif step.startswith("pad:"):
+            # A gamepad's button, pressed and let go (e.g. pad:BUTTON_A, pad:DPAD_DOWN).
+            adb("shell", "input", "gamepad", "keyevent", step[4:])
+        elif step.startswith("stick:"):
+            # A gamepad's left stick, moved to x,y (-1 to 1; Android's y points down).
+            x, y = step[6:].split(",")
+            adb("shell", "input", "joystick", "motionevent", "MOVE", x, y)
         elif step.startswith("shot:"):
             self.screenshot(step[5:])
             return
