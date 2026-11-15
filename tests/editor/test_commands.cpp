@@ -520,6 +520,21 @@ TEST_CASE("The project's game options are changed through undoable steps", "[edi
     CHECK(settings().width == 1280);
     CHECK(settings().height == 720);
     CHECK(settings().screenFit == ScreenFit::Bars);
+
+    // What the Android export dialog keeps in the project.
+    AndroidSettings android;
+    android.package = "com.example.game";
+    android.versionCode = 4;
+    android.versionName = "1.1";
+    REQUIRE(f.doc.execute(std::make_unique<SetAndroidSettings>(android)));
+    CHECK(settings().android == android);
+    CHECK_FALSE(settings().escapeQuits);   // the rest is kept
+    CHECK_FALSE(f.doc.execute(std::make_unique<SetAndroidSettings>(android)));   // already
+    AndroidSettings bad = android;
+    bad.package = "not a package";
+    CHECK_FALSE(f.doc.execute(std::make_unique<SetAndroidSettings>(bad)));
+    REQUIRE(f.doc.undo());
+    CHECK(settings().android == AndroidSettings{});
 }
 
 TEST_CASE("Content files are edited through undoable steps", "[editor][commands][assets]")

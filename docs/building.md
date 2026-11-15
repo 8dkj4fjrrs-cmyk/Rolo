@@ -138,50 +138,42 @@ you export for the web, and where packaging takes it from
 
 ### For Android
 
-**Experimental** ([ADR 0028](adr/0028-android.md), step 1): Rolo's player
-builds as an Android app with one game inside. The editor cannot export
-for Android yet; this is the groundwork for it. It is built and tried on
-GitHub's machines (the **Android (experimental)** workflow), in an
-emulator only: so far never on a real phone.
+**Experimental** ([ADR 0028](adr/0028-android.md)). Games exported for
+Android ([exporting](exporting.md#for-android)) use Rolo's **Android
+runtime**: the player built for Android, inside a small Android (Gradle)
+project that the editor copies and adds the game to. A downloaded Rolo
+has it already. It is built on GitHub's machines (the **Android
+(experimental)** workflow and the release), on Linux; **building it on a
+Mac has not been tried**.
 
-The app is the Gradle project in `player/android`: the kind of project
-Android Studio opens. To build it yourself you need
-[Android Studio](https://developer.android.com/studio), and in its
-**SDK Manager › SDK Tools** (tick *Show Package Details*): NDK
-`27.3.13750724`, CMake `3.31.5`, and Android SDK Platform 36. Then, in a
-terminal:
+To build it from source you need [Android Studio](https://developer.android.com/studio)
+and, in its **SDK Manager › SDK Tools** (tick *Show Package Details*):
+NDK `27.3.13750724`, CMake `3.31.5` and Android SDK Platform 36. Also
+Gradle 9.7.1 (`brew install gradle` gives a newer one, which may or may
+not agree with Google's build plugin). Then:
 
 ```sh
-# 1. Pack the game: one file with everything in the project.
-cmake --preset core && cmake --build --preset core --target rolo_pack
-build/core/bin/rolo_pack templates/platformer/project game.pack
-
-# 2. Build the app (Gradle 9.7.1; `brew install gradle` gives a newer one,
-#    which may or may not agree with Google's build plugin).
 export ANDROID_HOME="$HOME/Library/Android/sdk"     # where Android Studio keeps the SDK on a Mac
 cd player/android
-gradle :app:assembleDebug -ProloGamePack="$PWD/../../game.pack" -ProloAbis=arm64-v8a
+gradle :app:roloAndroidRuntime       # compiles the player for arm64-v8a and x86_64: a while
 ```
 
-The app lands in `player/android/app/build/outputs/apk/debug/app-debug.apk`.
-Drag it onto a running emulator (Android Studio › Device Manager) to
-install it. `arm64-v8a` is for phones and for emulators on Apple silicon
-Macs; add `x86_64` (`-ProloAbis=arm64-v8a:x86_64`) for emulators on Intel
-or AMD computers. The other settings are listed at the top of
-`player/android/app/build.gradle`.
+It lands in `player/android/app/build/android-runtime`, which is where
+the editor of a source build looks when you export for Android, and where
+packaging takes it from (`ROLO_ANDROID_RUNTIME_DIR`).
 
-**Building on a Mac has not been tried**: the steps above are what
-GitHub's Linux machines do. The easier way to try it today: every run of
-the workflow keeps the app it built (on the run's page, **Artifacts ›
-android-check**, with screenshots and Android's log).
-
+- Only the player is built for Android: no editor, no tests.
+- Exporting a game needs none of the NDK, CMake or Gradle above: only
+  Android Studio's SDK and Java. The runtime has the player compiled
+  already, and brings Gradle's own starter.
+- An app can also be built straight from the sources, with a game pack
+  inside (`rolo_pack`, `tools/pack`):
+  `gradle :app:assembleDebug -ProloGamePack=/path/to/game.pack`.
 - The game's messages go to Android's log: `adb logcat -s Rolo`, or the
   Logcat window of Android Studio with the filter `tag:Rolo`.
-- `python3 tools/android/check_android_game.py app-debug.apk` installs the
-  app on the one running emulator or connected phone, plays it and checks
-  the log, as the workflow does.
-- Not there yet: gamepads, keyboards, keeping clear of notches. See the
-  ADR for the list.
+- `python3 tools/android/check_android_game.py "My Game.apk" --package
+  com.yourname.mygame` installs an app on the one running emulator or
+  connected phone, plays it and checks the log, as the workflow does.
 
 ### Your game's code
 

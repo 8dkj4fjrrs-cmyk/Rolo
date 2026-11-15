@@ -9,6 +9,9 @@
 #include "../model/ConsoleLog.hpp"
 #include "../model/EditorState.hpp"
 #include "../model/GameExport.hpp"
+#include "Exporting.hpp"
+
+#include "rolo/ui/widgets/Dialog.hpp"
 #include "../model/Preferences.hpp"
 #include "../model/SceneDocument.hpp"
 #include "../panels/Panels.hpp"
@@ -151,6 +154,21 @@ private:
     static constexpr const char* kShowWelcomeKey = "welcome.show";
     static constexpr const char* kMuteKey = "sound.muted";   // Game > Mute Sound
     void exportNow(const std::string& name, const std::filesystem::path& folder, ExportTarget target);
+
+    // Exporting for Android (AndroidExportUi.cpp; ADR 0028).
+    void showAndroidExportDialog(const std::string& gameName, const std::filesystem::path& into);
+    /// Where Google's tools are: shown when they are not found, or on request. `then` runs after "Use These".
+    void showAndroidToolsDialog(std::function<void()> then);
+    void showNewAndroidKeyDialog(std::function<void(const AndroidSigning&)> made);
+    void startAndroidExport(AndroidExportOptions options, AndroidSigning signing);
+    /// Each frame while an Android export runs: passes on what it says, and shows the result at the end.
+    void updateAndroidExport();
+    static constexpr const char* kAndroidSdkKey = "android.sdk";        // the folders the maker chose, if any
+    static constexpr const char* kAndroidJavaKey = "android.java";
+    static constexpr const char* kAndroidKeyFileKey = "android.keyFile";   // the upload key's file (never its password)
+    std::unique_ptr<AndroidExportJob> m_androidJob;
+    ui::Dialog* m_androidProgress = nullptr;      // the progress dialog, while it is open
+    ui::Label* m_androidProgressLine = nullptr;
     void reportIssues(const std::filesystem::path& file, const std::vector<FileIssue>& issues);
     /// Re-reads the project's assets (also every few seconds) and reports problems.
     void refreshAssets();

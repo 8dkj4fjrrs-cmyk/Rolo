@@ -1,6 +1,6 @@
 # ADR 0028: Android
 
-- **Status:** Accepted. Step 1 (the player runs on Android) is done; steps 2 to 4 are not started
+- **Status:** Accepted. Steps 1 (the player runs on Android) and 2 (export from the editor) are done; steps 3 and 4 are not started
 - **Date:** 2026-11-14
 - **Follows:** ADR 0019 (direction: desktop, web and mobile), ADR 0022 (web export), ADR 0026 (touch), ADR 0027 (screen sizes)
 
@@ -169,7 +169,104 @@ Not done in step 1, and where it belongs:
 - The **Gradle wrapper** (`gradlew` and its `.jar`) is not in the
   repository: the workflow installs Gradle itself, and Android Studio
   reads the version from `gradle-wrapper.properties`. Step 2 decides how
-  the editor runs Gradle on a maker's computer.
+  the editor runs Gradle on a maker's computer. (It did: the `.jar` is in
+  the repository since step 2, below.)
+
+## Step 2, as built (2026-11-15)
+
+**Export Game… › Android** in the editor, and `rolo_editor --export-android`
+on the command line, make an `.apk` to try and, with the maker's upload
+key, a signed `.aab` for Google Play. The guide is
+[exporting, "For Android"](../exporting.md#for-android).
+
+Two things step 1 left open were decided:
+
+- **Rolo's download carries the player already built**, not sources. The
+  "Android runtime" (`gradle :app:roloAndroidRuntime`, built by the
+  release and the Android workflow) is the Gradle project of step 1 with
+  the player's libraries for arm64-v8a and x86_64 compiled in (optimised,
+  without debugging information: about 23 MB for both), the shaders and
+  Axmol's Java. An export copies it and adds the game. So a maker needs
+  **only Android Studio's SDK and Java: no NDK, no CMake, no C++ build**,
+  which is where the versions go wrong in engines that compile on the
+  maker's computer, and an export takes a minute or two instead of ten.
+  The price: games' own C++ modules cannot be in an Android game exported
+  this way (as on the web); they need a runtime built from source.
+- **Gradle is started by its own wrapper**, run with Java directly
+  (`java -classpath gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain`:
+  what the `gradlew` scripts do, without a shell). The wrapper downloads
+  the pinned Gradle the first time. For this, `gradle-wrapper.jar`
+  (Apache 2.0, 45 KB) is now in the repository and in the runtime; the
+  workflow checks it is Gradle's own. Makers need no Gradle of their own.
+
+How it works:
+
+- **The tools are found by themselves**: the SDK where `ANDROID_HOME`
+  says or where Android Studio puts it on each system, Java inside
+  Android Studio (its "jbr" folder) or where `JAVA_HOME` says. Before
+  anything is built Rolo checks them (the SDK folder, SDK Platform 36,
+  Java 17 or newer, by running it) and says in plain words what is
+  missing and how to get it. The folders can be chosen by hand (kept in
+  the editor's preferences).
+- **The app's details** (package name, version code and name, orientation,
+  icon) are asked for in a dialog, checked (a package name's rules, with
+  the reason when one is refused), and kept in `project.rolo` under
+  `"android"`, changed through an undoable command. The orientation
+  follows the game's size unless chosen. The icon is a PNG of the project,
+  scaled by Rolo to Android's five sizes.
+- **The export** writes `<Game> Android/project` (the runtime, the game
+  pack, license texts, `rolo-game.json` with the details, the name and
+  icon as Android resources), runs Gradle (`:app:assembleDebug`, and with
+  a key `:app:bundleRelease`), and puts `<Game>.apk` and `<Game>.aab`
+  beside the project with a README. In the editor it runs on a worker
+  thread; the window stays usable and the Console shows Gradle's output.
+  Known failures (a wrong password, no internet for the first download,
+  a missing SDK part, a full disk, a wrong Java) are explained in plain
+  words; others point at Gradle's own.
+- **Signing**: the `.apk` gets Google's throwaway debug key (made by its
+  tools). The `.aab` is signed by Google's tools with the maker's upload
+  key. **New Key…** makes one with Java's `keytool` (RSA 2048, valid about
+  27 years, a PKCS12 file, never overwriting an existing file). The
+  password is typed at every export, kept only in memory, and handed to
+  `keytool` and Gradle through their environment: it is on no command
+  line, in no file, and not in the log. Rolo still has no cryptography of
+  its own (ADR 0024).
+- **Other programs** are started through one small piece of code
+  (`editor/model/Process`), without a shell, on all three systems.
+
+Tested (2026-11-15), and where:
+- Unit tests on Linux, macOS and Windows (CI): the project settings, the
+  tool checks, the written project, icons, the commands for Google's
+  tools, running programs (also cancelling them), the password field.
+- **The real thing, on GitHub's Linux machines** (the Android workflow):
+  the runtime is built; the editor makes a key and exports the Platformer
+  Starter from the command line; Gradle builds the `.apk` and the `.aab`
+  with only the SDK and Java (35 seconds there; an `.apk` of 23 MB for
+  both kinds of processor, an `.aab` of 9 MB); the app's name, package
+  and version, its 16 KB pages and the bundle's signature are checked; an
+  export with the wrong password must fail saying so; and the exported
+  `.apk` is played in the emulator as in step 1.
+- The editor's dialogs were tried by hand on a virtual screen on Linux,
+  with a real `keytool` (a key was made) and stand-ins for the SDK and the
+  runtime (so no app was built from the window).
+
+Not tested, and to be honest about:
+- **Exporting on a Mac or on Windows** has not been done at all: finding
+  Android Studio's tools there is written from where Android Studio is
+  documented to put them, and checked only with stand-in folders.
+- **No real phone**, still, and nothing has been uploaded to Google Play:
+  that the `.aab` is accepted there is step 3's first question.
+- The release workflow now builds and packs the Android runtime; that
+  part runs for the first time at the next release. If it fails, the
+  packages are still made, without Android export.
+
+Left for later:
+- An **adaptive icon** (Android 8+ shapes icons itself from two layers);
+  the app has a plain one.
+- **C++ game modules** in exported Android games.
+- The exported project is written anew at every export, so Gradle's own
+  build cache inside it is lost (its downloads are kept elsewhere).
+- Very long folder names on Windows may exceed what its tools accept.
 
 ## Alternatives considered
 

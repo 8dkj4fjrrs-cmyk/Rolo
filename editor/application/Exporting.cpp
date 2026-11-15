@@ -121,6 +121,118 @@ std::vector<std::string> moduleComponentsUsed(const std::filesystem::path& folde
     return used;
 }
 
+std::size_t warnAboutModuleComponents(const std::filesystem::path& project, const ComponentRegistry& registry,
+                                      const Logger& log, const char* where)
+{
+    // The web and Android players have Rolo's own components and Luau
+    // scripts, not the C++ game modules this editor was built with.
+    const bool web = std::string_view(where) == "web";
+    const std::vector<std::string> used = moduleComponentsUsed(project, registry);
+    for (const std::string& type : used) {
+        log.warning(kCategory, "The game uses " + type + ", a C++ behaviour from a game module. Rolo's "
+                                   + (web ? "web" : "Android") + " runtime does not contain game modules, so it will "
+                                   + "do nothing " + (web ? "in a browser" : "on Android") + " (docs/exporting.md, \"For "
+                                   + (web ? "the web" : "Android") + "\").");
+    }
+    return used.size();
+}
+
+AndroidSetup findAndCheckAndroidTools(const std::filesystem::path& chosenSdk, const std::filesystem::path& chosenJava,
+                                      const RoloResources& resources)
+{
+    AndroidSetup setup;
+    const HostOs os = currentOs();
+    setup.tools = findAndroidTools(chosenSdk, chosenJava, os, realEnvironment);
+    std::string version;
+    if (isJavaHome(setup.tools.javaHome, os)) {
+        static_cast<void>(runProcess(javaVersionCommand(setup.tools.javaHome, os),
+                                     [&](std::string_view line) { version += std::string(line) + "\n"; }));
+    }
+    setup.report = checkAndroidTools(setup.tools, os, version, resources.androidRuntime);
+    return setup;
+}
+
+AndroidExportOptions androidExportOptions(const std::filesystem::path& project, const std::filesystem::path& output,
+                                          const std::string& gameName, const AndroidSettings& android,
+                                          const AndroidTools& tools, const RoloResources& resources)
+{
+    AndroidExportOptions options;
+    options.project = project;
+    options.output = output;
+    options.gameName = gameName;
+    options.runtime = resources.androidRuntime;
+    options.licenses = resources.licenses;
+    options.version = std::string(versionString());
+    options.android = android;
+    options.tools = tools;
+    return options;
+}
+
+AndroidRun exportProjectForAndroid(const AndroidExportOptions& options, const AndroidSigning& signing,
+                                   const AndroidToolsReport& tools, const ComponentRegistry& registry, const Logger& log)
+{
+    AndroidRun run;
+    for (const std::string& note : tools.notes) {
+        log.info(kCategory, note);
+    }
+    if (!tools.ok()) {
+        for (const std::string& problem : tools.problems) {
+            log.error(kCategory, problem);
+        }
+        run.message = "The game was not exported: " + tools.problems.front();
+        return run;
+    }
+    log.info(kCategory, "Checking " + options.project.string() + " before exporting...");
+    run.check = checkProject(options.project, registry, log);
+    if (run.check.errors > 0) {
+        run.message = "The game was not exported: the check found " + std::to_string(run.check.errors)
+                      + (run.check.errors == 1 ? " error" : " errors") + " (each one is listed above). Fix them, then "
+                        "export again.";
+        log.error(kCategory, run.message);
+        return run;
+    }
+    run.check.warnings += warnAboutModuleComponents(options.project, registry, log, "android");
+    run.result = exportAndroidGame(options, signing, [&](std::string_view line) { log.info("android", std::string(line)); });
+    run.ok = run.result.ok;
+    run.message = run.result.message;
+    if (run.ok) {
+        log.info(kCategory, run.message);
+    } else {
+        log.error(kCategory, run.message);
+    }
+    return run;
+}
+
+AndroidExportJob::AndroidExportJob(AndroidExportOptions options, AndroidSigning signing)
+{
+    m_worker = std::thread([this, options = std::move(options), signing = std::move(signing)] {
+        m_result = exportAndroidGame(
+            options, signing,
+            [this](std::string_view line) {
+                const std::lock_guard<std::mutex> lock(m_mutex);
+                m_lines.emplace_back(line);
+            },
+            &m_cancel);
+        m_finished = true;
+    });
+}
+
+AndroidExportJob::~AndroidExportJob()
+{
+    m_cancel = true;
+    if (m_worker.joinable()) {
+        m_worker.join();
+    }
+}
+
+std::vector<std::string> AndroidExportJob::takeLines()
+{
+    const std::lock_guard<std::mutex> lock(m_mutex);
+    std::vector<std::string> lines;
+    lines.swap(m_lines);
+    return lines;
+}
+
 #if defined(__APPLE__)
 namespace {
 // Signs an app bundle ad hoc with the codesign tool every Mac has. False,
@@ -182,14 +294,7 @@ ExportRun exportProject(const std::filesystem::path& project, const std::filesys
         return run;
     }
     if (target == ExportTarget::Web) {
-        // The web player has Rolo's own components and Luau scripts, not the
-        // C++ game modules this editor was built with.
-        for (const std::string& type : moduleComponentsUsed(project, registry)) {
-            ++run.check.warnings;
-            log.warning(kCategory, "The game uses " + type + ", a C++ behaviour from a game module. Rolo's web "
-                                   "runtime does not contain game modules, so it will do nothing in a browser "
-                                   "(docs/exporting.md, \"For the web\").");
-        }
+        run.check.warnings += warnAboutModuleComponents(project, registry, log, "web");
     }
 #if defined(__APPLE__)
     if (target == ExportTarget::Desktop) {

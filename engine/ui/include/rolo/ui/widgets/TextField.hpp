@@ -89,6 +89,10 @@ public:
     /// (setOnCommit) stops "editing" once Enter commits, even if it keeps focus,
     /// so an undo can update it straight away.
     bool isEditing() const noexcept { return isFocused() && (!m_onCommit || m_state.text() != m_textAtFocus); }
+    /// For passwords: shows a dot for every character, and does not let the
+    /// text be copied or cut.
+    void setSecret(bool secret) { m_secret = secret; }
+    bool isSecret() const noexcept { return m_secret; }
     /// Keeps text clear of the right end (for a label drawn there, e.g. "X").
     void setRightInset(float inset) { m_rightInset = inset; }
 
@@ -123,6 +127,12 @@ private:
     std::string m_textAtFocus;
     float m_rightInset = 0.0f;
     bool m_selectAllOnFocus = false;
+    bool m_secret = false;
+
+    /// What is drawn: the text, or for a secret a '*' per character; and the
+    /// place in it of a place in the text.
+    std::string shownText() const;
+    std::size_t shownIndex(std::size_t textIndex) const;
 
     void commit(Context& ctx);
 

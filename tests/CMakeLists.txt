@@ -24,6 +24,7 @@ add_executable(rolo_tests
     editor/test_console_log.cpp
     editor/test_editor_paths_and_cli.cpp
     editor/test_preferences.cpp
+    editor/test_process.cpp
     ui/test_ui_context.cpp
     ui/test_ui_docking.cpp
     ui/test_ui_foundations.cpp
@@ -32,6 +33,7 @@ add_executable(rolo_tests
     editor/test_commands.cpp
     editor/test_resources.cpp
     editor/test_export.cpp
+    editor/test_android_export.cpp
     scene/test_scene.cpp
     scene/test_legacy_names.cpp
     scene/test_scene_file.cpp

@@ -53,9 +53,36 @@ jobs:
             build/web/bin/rolo_player/rolo_player.data
           if-no-files-found: error
 
+  # The Android runtime (the player for Android, in a Gradle project) is the
+  # same for every system too. Android is experimental (ADR 0028): if this
+  # job fails, the packages are still made, without Android export.
+  android-runtime:
+    name: Android runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+      - name: Build
+        working-directory: player/android
+        run: gradle :app:roloAndroidRuntime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-runtime
+          path: player/android/app/build/android-runtime
+          if-no-files-found: error
+
   package:
     name: package / ${{ matrix.os }}
-    needs: web-runtime
+    needs: [web-runtime, android-runtime]
+    if: ${{ always() && needs.web-runtime.result == 'success' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -97,6 +124,13 @@ jobs:
           name: web-runtime
           path: build/web/bin/rolo_player
 
+      # Where the package looks for it (ROLO_ANDROID_RUNTIME_DIR's default).
+      - uses: actions/download-artifact@v4
+        if: ${{ needs.android-runtime.result == 'success' }}
+        with:
+          name: android-runtime
+          path: player/android/app/build/android-runtime
+
       - name: Configure and build (release)
         run: |
           cmake --preset release
@@ -122,6 +156,14 @@ jobs:
         run: |
           found=$(find dist -name rolo_player.wasm -path "*web-runtime*" | head -1)
           if [ -z "$found" ]; then echo "The package has no web-runtime/rolo_player.wasm" >&2; exit 1; fi
+          echo "$found"
+
+      - name: Check the package has the Android runtime
+        if: ${{ needs.android-runtime.result == 'success' }}
+        shell: bash
+        run: |
+          found=$(find dist -name librolo_player.so -path "*android-runtime*" | head -2)
+          if [ -z "$found" ]; then echo "The package has no android-runtime with the player's libraries" >&2; exit 1; fi
           echo "$found"
 
       # A program that cannot find a DLL does not start on players' PCs,
@@ -162,7 +204,7 @@ jobs:
           fi
       - uses: actions/download-artifact@v4
         with:
-          pattern: rolo-*   # the packages (not the web-runtime artifact)
+          pattern: rolo-*   # the packages (not the web-runtime and android-runtime artifacts)
           path: dist
           merge-multiple: true
       - name: Draft release with the packages

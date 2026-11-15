@@ -864,4 +864,37 @@ void SetGameScreen::revert(Scene&)
     static_cast<void>(write(m_oldWidth, m_oldHeight, m_oldFit));
 }
 
+// --- SetAndroidSettings ----------------------------------------------------------------------------
+
+bool SetAndroidSettings::write(const AndroidSettings& android) const
+{
+    auto project = m_assets != nullptr ? Project::open(m_assets->projectFolder()) : std::nullopt;
+    if (!project) {
+        return false;
+    }
+    ProjectSettings settings = project->settings();
+    settings.android = android;
+    project->setSettings(std::move(settings));
+    return static_cast<bool>(project->save());
+}
+
+bool SetAndroidSettings::apply(Scene&)
+{
+    auto project = m_assets != nullptr ? Project::open(m_assets->projectFolder()) : std::nullopt;
+    // (An empty package is allowed: none chosen yet.)
+    if (!project || (!m_after.package.empty() && !isValidAndroidPackage(m_after.package)) || m_after.versionCode < 1) {
+        return false;
+    }
+    if (project->settings().android == m_after) {
+        return false;
+    }
+    m_before = project->settings().android;
+    return write(m_after);
+}
+
+void SetAndroidSettings::revert(Scene&)
+{
+    static_cast<void>(write(m_before));
+}
+
 } // namespace rolo::editor

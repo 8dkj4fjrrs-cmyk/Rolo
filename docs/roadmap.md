@@ -116,8 +116,13 @@ In order:
      (`player/android`) builds the player as an app with one game inside,
      and an experimental workflow plays it in an emulator. Not yet on a
      real phone.
-   - Step 2: Export Game… › Android in the editor. Step 3: Google Play.
-     Step 4: polish (gamepads, notches, performance).
+   - ~~Step 2: Export Game… › Android in the editor.~~ **Done**: an
+     `.apk` to try and a signed `.aab` for Google Play, built by Android
+     Studio's tools from a runtime Rolo's download carries (no NDK
+     needed); tools found and checked in plain words; an upload key made
+     with Java's `keytool`. Tested on GitHub's Linux machines from the
+     command line; not yet on a Mac, Windows or a real phone.
+   - Step 3: Google Play. Step 4: polish (gamepads, notches, performance).
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).
 

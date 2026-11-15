@@ -160,6 +160,32 @@ TEST_CASE("TextField: typing, shortcuts, clipboard and change notifications", "[
     CHECK(h.widget->text().empty()); // word-delete removed the single word
 }
 
+TEST_CASE("TextField: a secret is typed as usual, shown as stars and never copied", "[ui][text]")
+{
+    Harness<TextField> h;
+    std::string clipboard = "before";
+    h.ctx.platform().getClipboard = [&] { return clipboard; };
+    h.ctx.platform().setClipboard = [&](std::string_view s) { clipboard = std::string(s); };
+    h.widget->setSecret(true);
+    h.click(h.widget->bounds().center());
+    h.type(U"p\u00e4ss w\u00f6rd");
+    CHECK(h.widget->text() == "p\xc3\xa4ss w\xc3\xb6rd");
+
+    const Modifiers cmd = primary(h.ctx.platform());
+    h.key(Key::A, cmd);
+    h.key(Key::C, cmd);
+    h.key(Key::X, cmd);
+    CHECK(clipboard == "before");
+    CHECK(h.widget->text() == "p\xc3\xa4ss w\xc3\xb6rd");   // not cut either
+    // Pasting into it works, and a click still places the caret between characters.
+    h.key(Key::V, cmd);
+    CHECK(h.widget->text() == "before");
+    h.click({h.widget->bounds().x + 2.0f, h.widget->bounds().center().y});
+    h.type(U"\u00e9");
+    CHECK(h.widget->text().size() == 8);
+    CHECK(h.widget->text().find("before") != std::string::npos);
+}
+
 TEST_CASE("TextField: Enter submits, and the clear button empties it", "[ui][text]")
 {
     Harness<TextField> h;

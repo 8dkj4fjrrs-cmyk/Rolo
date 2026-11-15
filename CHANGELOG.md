@@ -5,13 +5,29 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Exporting for Android** (experimental; [guide](docs/exporting.md#for-android),
+  [ADR 0028](docs/adr/0028-android.md)): **Export Game… › Android** makes
+  an `.apk` to try on a phone or emulator and, with your upload key, a
+  signed `.aab` for Google Play.
+  - Needs Android Studio installed (for Google's tools: the Android SDK
+    and Java), and nothing else: Rolo's download carries the player
+    already built for Android. Rolo finds the tools, checks them, and
+    says in plain words what is missing.
+  - Asks for the package name, version, orientation and icon, and keeps
+    them in the project (`project.rolo`, `"android"`).
+  - **New Key…** makes an upload key. Its password is typed at every
+    export and never stored.
+  - From the command line: `rolo_editor --project P --export-android OUT`
+    (`rolo_editor --help` lists the options).
+  - Tested on GitHub's Linux machines (exported from the command line,
+    built, and played in an emulator). Not yet tried on a Mac, on
+    Windows, or on a real phone.
 - **Android, step 1** ([ADR 0028](docs/adr/0028-android.md),
   [building](docs/building.md#for-android)): experimental. Rolo's player
   builds as an Android app with one game inside (`player/android`, a
   Gradle project), and a separate workflow on GitHub plays it in an
   emulator: the first scene, the on-screen controls, Back (as Escape),
-  going to the background and back, quitting. Not yet on a real phone,
-  and not yet from the editor.
+  going to the background and back, quitting. Not yet on a real phone.
   - On Android the game is unpacked from the app into the app's own
     folder on the first start; saved games are kept beside it; messages
     go to Android's log (tag `Rolo`). The app asks for no permissions.

@@ -12,6 +12,7 @@
 # never depend on the editor.
 
 add_library(rolo_editor_core STATIC
+    model/AndroidExport.cpp
     model/CommandLine.cpp
     model/Commands.cpp
     model/ConsoleLog.cpp
@@ -20,6 +21,7 @@ add_library(rolo_editor_core STATIC
     model/GameExport.cpp
     model/RoloResources.cpp
     model/Preferences.cpp
+    model/Process.cpp
     model/SceneDocument.cpp)
 target_include_directories(rolo_editor_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/model")
 target_link_libraries(rolo_editor_core PUBLIC rolo::core rolo::scene rolo::assets
@@ -27,10 +29,11 @@ target_link_libraries(rolo_editor_core PUBLIC rolo::core rolo::scene rolo::asset
 rolo_set_warnings(rolo_editor_core)
 # Only RoloResources.cpp reads JSON (template.json); nlohmann/json needs
 # char8_t in C++20 mode (see engine/scene/CMakeLists.txt).
+# (These two use the JSON library, which needs char8_t; Axmol's settings switch it off elsewhere.)
 if(MSVC)
-    set_source_files_properties(model/RoloResources.cpp PROPERTIES COMPILE_OPTIONS /Zc:char8_t)
+    set_source_files_properties(model/RoloResources.cpp model/AndroidExport.cpp PROPERTIES COMPILE_OPTIONS /Zc:char8_t)
 else()
-    set_source_files_properties(model/RoloResources.cpp PROPERTIES COMPILE_OPTIONS -fchar8_t)
+    set_source_files_properties(model/RoloResources.cpp model/AndroidExport.cpp PROPERTIES COMPILE_OPTIONS -fchar8_t)
 endif()
 
 if(NOT TARGET rolo_runtime)
@@ -42,6 +45,7 @@ add_executable(rolo_editor
     application/main.cpp
     application/EditorApp.cpp
     application/Exporting.cpp
+    application/AndroidExportUi.cpp
     panels/AssetsPanel.cpp
     panels/ConsolePanel.cpp
     panels/FolderPicker.cpp
@@ -56,6 +60,8 @@ add_executable(rolo_editor
 # The runtime gives the editor Rolo's own headers only — never Axmol's —
 # so editor code cannot reach into the backend by accident.
 target_link_libraries(rolo_editor PRIVATE rolo_editor_core rolo::runtime rolo::audio)
+find_package(Threads REQUIRED)   # an Android export is built on a worker thread
+target_link_libraries(rolo_editor PRIVATE Threads::Threads)
 rolo_set_warnings(rolo_editor)
 rolo_link_game_modules(rolo_editor)   # behaviours for the Inspector and play mode
 # Where a build of the editor (not an installed copy) finds templates,

@@ -36,6 +36,12 @@ struct RoloResources {
     /// resources when installed; in a source tree, where a web build puts it
     /// (build/web/bin/rolo_player). May not exist: exporting says so.
     std::filesystem::path webPlayer;
+    /// Rolo's Android runtime, for exporting games for Android: a Gradle
+    /// project with the player built in (AndroidExport.hpp).
+    /// "android-runtime" beside the other resources when installed; in a
+    /// source tree, where its build puts it
+    /// (player/android/app/build/android-runtime). May not exist: exporting says so.
+    std::filesystem::path androidRuntime;
     bool installed = false;            // false: running from a build folder
 };
 

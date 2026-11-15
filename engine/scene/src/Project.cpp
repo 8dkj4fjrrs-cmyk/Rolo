@@ -131,7 +131,96 @@ std::optional<ProjectSettings> Project::parseSettings(std::string_view text, std
         }
         settings.touchButtons = list.get<std::vector<std::string>>();
     }
+    if (j.contains("android")) {
+        const Json& a = j["android"];
+        if (!a.is_object()) {
+            setError(error, "The project's \"android\" must be a group of settings, like {\"package\": \"com.you.game\"}.");
+            return std::nullopt;
+        }
+        AndroidSettings& android = settings.android;
+        for (const auto& [key, value] : {std::pair{"package", &android.package},
+                                         std::pair{"versionName", &android.versionName},
+                                         std::pair{"orientation", &android.orientation},
+                                         std::pair{"icon", &android.icon}}) {
+            if (a.contains(key)) {
+                if (!a[key].is_string()) {
+                    setError(error, std::string("The project's Android \"") + key + "\" must be text.");
+                    return std::nullopt;
+                }
+                *value = a[key].get<std::string>();
+            }
+        }
+        if (a.contains("versionCode")) {
+            // Google Play's limit for version codes is 2100000000.
+            if (!a["versionCode"].is_number_integer() || a["versionCode"].get<long long>() < 1
+                || a["versionCode"].get<long long>() > 2100000000LL) {
+                setError(error, "The project's Android \"versionCode\" must be a whole number from 1 to 2100000000.");
+                return std::nullopt;
+            }
+            android.versionCode = a["versionCode"].get<int>();
+        }
+        std::string why;
+        if (!android.package.empty() && !isValidAndroidPackage(android.package, &why)) {
+            setError(error, "The project's Android package name \"" + android.package + "\" cannot be used: " + why);
+            return std::nullopt;
+        }
+        if (!android.orientation.empty() && android.orientation != "landscape" && android.orientation != "portrait") {
+            setError(error, "The project's Android \"orientation\" must be \"landscape\" or \"portrait\".");
+            return std::nullopt;
+        }
+        if (!android.icon.empty() && !isValidRelativePath(android.icon)) {
+            setError(error, "The project's Android \"icon\" must be a file inside the project, like \"icon.png\".");
+            return std::nullopt;
+        }
+    }
     return settings;
+}
+
+bool isValidAndroidPackage(std::string_view name, std::string* why)
+{
+    const auto fail = [&](std::string message) {
+        setError(why, std::move(message));
+        return false;
+    };
+    if (name.empty()) {
+        return fail("it is empty. It looks like com.yourname.yourgame.");
+    }
+    // Words Java keeps for itself; Android refuses them as parts of a package name.
+    static constexpr std::string_view kKeywords[] = {
+        "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue",
+        "default", "do", "double", "else", "enum", "extends", "false", "final", "finally", "float", "for", "goto",
+        "if", "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "null", "package",
+        "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch",
+        "synchronized", "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while"};
+    int parts = 0;
+    std::size_t start = 0;
+    while (start <= name.size()) {
+        const std::size_t dot = std::min(name.find('.', start), name.size());
+        const std::string_view part = name.substr(start, dot - start);
+        if (part.empty()) {
+            return fail("it has an empty part (two dots together, or a dot at an end).");
+        }
+        const auto letter = [](char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); };
+        if (!letter(part.front())) {
+            return fail("the part \"" + std::string(part) + "\" must start with a letter.");
+        }
+        for (const char c : part) {
+            if (!letter(c) && !(c >= '0' && c <= '9') && c != '_') {
+                return fail("the part \"" + std::string(part)
+                            + "\" may only have letters (a to z), digits and _ (no spaces or hyphens).");
+            }
+        }
+        if (std::find(std::begin(kKeywords), std::end(kKeywords), part) != std::end(kKeywords)) {
+            return fail("\"" + std::string(part) + "\" is a word of the Java language, which Android does not allow "
+                        "as a part.");
+        }
+        ++parts;
+        start = dot + 1;
+    }
+    if (parts < 2) {
+        return fail("it needs at least two parts joined by a dot, like com.yourname.yourgame.");
+    }
+    return true;
 }
 
 std::string Project::serializeSettings(const ProjectSettings& settings)
@@ -160,6 +249,22 @@ std::string Project::serializeSettings(const ProjectSettings& settings)
     }
     if (settings.screenFit != ScreenFit::Bars) {
         j["screenFit"] = std::string(screenFitName(settings.screenFit));
+    }
+    if (settings.android != AndroidSettings{}) {
+        Json a;
+        const AndroidSettings& android = settings.android;
+        if (!android.package.empty()) {
+            a["package"] = android.package;
+        }
+        a["versionCode"] = android.versionCode;
+        a["versionName"] = android.versionName;
+        if (!android.orientation.empty()) {
+            a["orientation"] = android.orientation;
+        }
+        if (!android.icon.empty()) {
+            a["icon"] = android.icon;
+        }
+        j["android"] = std::move(a);
     }
     return j.dump(2) + "\n";
 }

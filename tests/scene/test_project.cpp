@@ -158,6 +158,59 @@ TEST_CASE("A project's game size and screen fit are read and written only when c
     CHECK(error.find("screenFit") != std::string::npos);
 }
 
+TEST_CASE("A project's Android settings are read and written only when set", "[project][android]")
+{
+    ProjectSettings settings;
+    CHECK(Project::serializeSettings(settings).find("android") == std::string::npos);
+
+    settings.android.package = "com.example.platformer";
+    settings.android.versionCode = 7;
+    settings.android.versionName = "1.2";
+    settings.android.orientation = "portrait";
+    settings.android.icon = "art/icon.png";
+    const auto back = Project::parseSettings(Project::serializeSettings(settings));
+    REQUIRE(back);
+    CHECK(back->android == settings.android);
+
+    // A project file without the group has the defaults.
+    const auto plain = Project::parseSettings(R"({"format": "rolo.project", "version": 1, "name": "G"})");
+    REQUIRE(plain);
+    CHECK(plain->android == AndroidSettings{});
+    CHECK(plain->android.versionCode == 1);
+
+    const auto with = [](const std::string& android) {
+        std::string error;
+        const auto parsed = Project::parseSettings(
+            R"({"format": "rolo.project", "version": 1, "name": "G", "android": )" + android + "}", &error);
+        return parsed ? std::string() : error;
+    };
+    CHECK(with(R"({"package": "com.example.game"})").empty());
+    CHECK(with(R"({"package": "My Game"})").find("package name") != std::string::npos);
+    CHECK(with(R"({"versionCode": 0})").find("versionCode") != std::string::npos);
+    CHECK(with(R"({"orientation": "sideways"})").find("orientation") != std::string::npos);
+    CHECK(with(R"({"icon": "../icon.png"})").find("icon") != std::string::npos);
+    CHECK(with(R"("yes")").find("android") != std::string::npos);
+}
+
+TEST_CASE("Android package names are checked, with a reason", "[project][android]")
+{
+    CHECK(isValidAndroidPackage("com.example.game"));
+    CHECK(isValidAndroidPackage("io.itch.my_name.Game2"));
+    std::string why;
+    CHECK_FALSE(isValidAndroidPackage("", &why));
+    CHECK_FALSE(isValidAndroidPackage("game", &why));
+    CHECK(why.find("two parts") != std::string::npos);
+    CHECK_FALSE(isValidAndroidPackage("com.my game", &why));
+    CHECK_FALSE(isValidAndroidPackage("com.my-game", &why));
+    CHECK(why.find("hyphens") != std::string::npos);
+    CHECK_FALSE(isValidAndroidPackage("com.2048.game", &why));
+    CHECK(why.find("start with a letter") != std::string::npos);
+    CHECK_FALSE(isValidAndroidPackage("com..game", &why));
+    CHECK_FALSE(isValidAndroidPackage("com.game.", &why));
+    CHECK_FALSE(isValidAndroidPackage("com.new.game", &why));
+    CHECK(why.find("Java") != std::string::npos);
+}
+
 TEST_CASE("How much of the world a window shows", "[project][screen]")
 {
     const Vec2 game{1280.0f, 720.0f};

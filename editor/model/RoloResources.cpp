@@ -36,6 +36,8 @@ RoloResources resourcesIn(const fs::path& root, const fs::path& player, bool ins
     r.docs = root / "docs";
     r.player = player;
     r.webPlayer = installed ? root / "web-runtime" : root / "build" / "web" / "bin" / "rolo_player";
+    r.androidRuntime = installed ? root / "android-runtime"
+                                 : root / "player" / "android" / "app" / "build" / "android-runtime";
     r.installed = installed;
     return r;
 }

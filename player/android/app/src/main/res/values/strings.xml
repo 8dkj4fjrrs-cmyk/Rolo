@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The app's name comes from app/build.gradle (roloAppName), not from here. -->
+<!-- The name under the app's icon. The editor writes the game's name here when it exports. -->
 <resources>
+    <string name="app_name">Rolo Player</string>
 </resources>

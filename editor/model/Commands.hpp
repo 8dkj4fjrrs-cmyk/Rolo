@@ -390,6 +390,28 @@ private:
     AssetDatabase* m_assets = nullptr;   // the project's folder comes from here; not owned
 };
 
+/// Changes what the project's Android app is called and how it is held
+/// (project.rolo's "android": package, version, orientation, icon), as
+/// chosen in the Android export dialog. Saved straight away.
+class SetAndroidSettings final : public Command {
+public:
+    explicit SetAndroidSettings(AndroidSettings settings)
+        : m_after(std::move(settings))
+    {
+    }
+    std::string label() const override { return "Change the Android Settings"; }
+    bool apply(Scene& scene) override;
+    void revert(Scene& scene) override;
+    bool changesScene() const override { return false; }
+    void useAssets(AssetDatabase* assets) override { m_assets = assets; }
+
+private:
+    bool write(const AndroidSettings& settings) const;
+    AndroidSettings m_after;
+    AndroidSettings m_before;
+    AssetDatabase* m_assets = nullptr;   // the project's folder comes from here; not owned
+};
+
 class RenameScene final : public Command {
 public:
     explicit RenameScene(std::string name)

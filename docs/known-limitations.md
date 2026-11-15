@@ -76,12 +76,16 @@ Please report what you find.
   with Fill the Screen, what is pinned to which edge follows a rule of
   thumb (by where a Camera's child is placed), with no setting per object;
   changing the game's size does not move anything. Not tried on a real phone.
-- **Android** ([ADR 0028](adr/0028-android.md), [building](building.md#for-android)):
-  experimental. Rolo's player builds as an Android app with one game
-  inside and plays in an emulator on GitHub's machines (Android 14,
-  touch, Back, pausing, quitting); it has **never run on a real phone**,
-  and the editor cannot export for Android yet. No gamepads or keyboards
-  there, no care for notches, sound and speed unjudged, and a graphics
+- **Android** ([exporting](exporting.md#for-android), [ADR 0028](adr/0028-android.md)):
+  experimental. The editor exports games for Android (an `.apk` to try
+  and a signed `.aab` for Google Play), built by Google's tools from
+  Android Studio. On GitHub's machines (Linux) an export from the command
+  line is built and played in an emulator (Android 14: touch, Back,
+  pausing, quitting). Not yet done by anyone: running on a **real
+  phone**, exporting on a **Mac or Windows**, exporting from the editor's
+  window with real tools (its dialogs were tried with stand-ins), and
+  uploading to Google Play. No gamepads or keyboards there, no care for
+  notches, no adaptive icon, sound and speed unjudged, and a graphics
   context lost in the background is not handled.
 - **Web games** ([exporting](exporting.md#for-the-web)): no rumble, and
   the shipped web runtime has no C++ game modules. Tested in headless
