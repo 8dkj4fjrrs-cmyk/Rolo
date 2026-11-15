@@ -188,6 +188,9 @@ struct AndroidExportResult {
     std::string message;              // what happened, for the maker
     AndroidProject project;
     std::filesystem::path apk;        // "<folder>/<Game>.apk"
+    /// Whether the .apk is signed with the maker's own key (the one to
+    /// share with players) or with Google's throwaway debug key (to try).
+    bool apkSignedWithOwnKey = false;
     std::filesystem::path aab;        // "<folder>/<Game>.aab", if a key was given
     /// "<folder>/Google Play icon (512).png": the icon in the size Google
     /// Play's store listing asks for, if the project has an icon of its own.

@@ -234,7 +234,7 @@ void EditorApp::showAndroidExportDialog(const std::string& gameName, const std::
     }
 
     // Google Play.
-    auto& play = body.emplace<ui::Checkbox>("Also make the file for Google Play (.aab), signed with my upload key");
+    auto& play = body.emplace<ui::Checkbox>("Sign with my own key: the app to share, and the file for Google Play (.aab)");
     body.emplace<ui::Label>("Upload key file", ui::Label::Style::Dim);
     auto& keyRow = body.emplace<ui::Row>(6.0f);
     auto& keyFile = keyRow.emplace<ui::TextField>("None yet: make one with New Key…");
@@ -306,7 +306,7 @@ void EditorApp::showAndroidExportDialog(const std::string& gameName, const std::
             signing.password = password.text();
             std::error_code missing;
             if (signing.keystore.empty() || !std::filesystem::is_regular_file(signing.keystore, missing)) {
-                error.setText("Choose your upload key file, or make one with New Key… (or untick the Google Play box "
+                error.setText("Choose your upload key file, or make one with New Key… (or untick \"Sign with my own key\" "
                               "to make only the app to try).");
                 return;
             }
@@ -437,6 +437,9 @@ void EditorApp::updateAndroidExport()
     body.emplace<ui::Label>("To try it: start an emulator in Android Studio (More Actions > Virtual Device Manager) and "
                             "drag " + result.apk.filename().string() + " onto it; or copy the file to a phone and open "
                             "it there."
+                                + (result.apkSignedWithOwnKey
+                                       ? " It is signed with your key: this is also the file to give to players yourself."
+                                       : " It is only for trying: to share the game, export with \"Sign with my own key\".")
                                 + (result.aab.empty()
                                        ? std::string()
                                        : " For Google Play, upload " + result.aab.filename().string()

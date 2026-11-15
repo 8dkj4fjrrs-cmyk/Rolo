@@ -105,11 +105,26 @@ std::string androidReadme(const AndroidExportOptions& o, const std::string& name
 {
     const std::string title = name + " (for Android)";
     std::string text = title + "\n" + std::string(title.size(), '=') + "\n\n";
-    text += name + ".apk\n"
-            "    The game as an Android app, to try. Drag it onto a running emulator (Android\n"
-            "    Studio > Device Manager), or copy it to a phone and open it there (the phone asks\n"
-            "    once whether to allow installing apps from files). It is signed with a throwaway\n"
-            "    \"debug\" key: fine for trying, not accepted by Google Play.\n\n";
+    if (withBundle) {
+        text += name + ".apk\n"
+                "    The game as an Android app, signed with your own key: the file to give to players\n"
+                "    yourself (on itch.io, your own site, or by sending it). They open it on their\n"
+                "    phone, which asks once whether to allow installing apps from files. To try it,\n"
+                "    drag it onto a running emulator (Android Studio > Device Manager).\n"
+                "    Updates must be signed with the same key and have a higher version code, or\n"
+                "    phones refuse to install them over the old one. A copy you installed earlier that\n"
+                "    was exported WITHOUT your key has to be removed from the phone first.\n"
+                "    Google is bringing in \"developer verification\": phones will only install apps\n"
+                "    whose maker has registered with Google. See docs/exporting.md, \"Sharing the\n"
+                "    .apk yourself\".\n\n";
+    } else {
+        text += name + ".apk\n"
+                "    The game as an Android app, to try. Drag it onto a running emulator (Android\n"
+                "    Studio > Device Manager), or copy it to a phone and open it there (the phone asks\n"
+                "    once whether to allow installing apps from files). It is signed with a throwaway\n"
+                "    \"debug\" key: fine for trying, not for giving to players (you could never\n"
+                "    update it) and not accepted by Google Play.\n\n";
+    }
     if (withBundle) {
         text += name + ".aab\n"
                 "    The game for Google Play (an Android App Bundle), signed with your upload key.\n"
@@ -121,8 +136,8 @@ std::string androidReadme(const AndroidExportOptions& o, const std::string& name
                 "    Rolo's guide from account to release is docs/google-play.md (in the editor: Help >\n"
                 "    Publishing on Google Play).\n\n";
     } else {
-        text += "No .aab (the file Google Play wants) was made: that needs your upload key. Choose\n"
-                "\"Also make the file for Google Play\" in the export dialog.\n\n";
+        text += "No app to share and no .aab (the file Google Play wants) were made: those need your\n"
+                "own key. Choose \"Sign with my own key\" in the export dialog.\n\n";
     }
     text += "project/\n"
             "    What both were built from: a Gradle project, which Android Studio can open\n"
@@ -794,9 +809,12 @@ AndroidExportResult exportAndroidGame(const AndroidExportOptions& options, const
         tell("Note: " + note);
     }
 
+    // Without a key: an app to try, signed with Google's throwaway debug
+    // key. With the maker's key: the app to share and the bundle for Google
+    // Play, both signed with it by Google's tools.
     std::vector<std::string> tasks = {":app:assembleDebug"};
     if (signing.wanted()) {
-        tasks.emplace_back(":app:bundleRelease");
+        tasks = {":app:assembleRelease", ":app:bundleRelease"};
     }
     tell("Building the app with Google's tools (Gradle). This takes a few minutes; the first time it also "
          "downloads the tools, a few hundred MB.");
@@ -834,10 +852,13 @@ AndroidExportResult exportAndroidGame(const AndroidExportOptions& options, const
     const fs::path outputs = result.project.gradleProject / "app" / "build" / "outputs";
     std::error_code ec;
     result.apk = result.project.folder / (name + ".apk");
-    fs::copy_file(outputs / "apk" / "debug" / "app-debug.apk", result.apk, fs::copy_options::overwrite_existing, ec);
+    result.apkSignedWithOwnKey = signing.wanted();
+    const fs::path builtApk = signing.wanted() ? outputs / "apk" / "release" / "app-release.apk"
+                                               : outputs / "apk" / "debug" / "app-debug.apk";
+    fs::copy_file(builtApk, result.apk, fs::copy_options::overwrite_existing, ec);
     if (ec) {
-        result.message = "Gradle finished, but the app was not where it should be ("
-                         + (outputs / "apk" / "debug" / "app-debug.apk").string() + "): " + ec.message();
+        result.message = "Gradle finished, but the app was not where it should be (" + builtApk.string()
+                         + "): " + ec.message();
         return result;
     }
     if (signing.wanted()) {
@@ -870,8 +891,10 @@ AndroidExportResult exportAndroidGame(const AndroidExportOptions& options, const
     char size[32];
     std::snprintf(size, sizeof size, "%.1f MB", static_cast<double>(fs::file_size(result.apk, ec)) / (1024.0 * 1024.0));
     result.ok = true;
-    result.message = "Exported " + result.apk.filename().string() + " (" + size + ")"
-                     + (signing.wanted() ? " and " + result.aab.filename().string() + " for Google Play" : std::string())
+    result.message = "Exported " + result.apk.filename().string() + " (" + size
+                     + (signing.wanted() ? ", signed with your key, to share) and " + result.aab.filename().string()
+                                               + " for Google Play"
+                                         : std::string(", to try)"))
                      + " to " + result.project.folder.string() + ".";
     return result;
 }
