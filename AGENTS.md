@@ -77,6 +77,12 @@ and AI assistants.
   the web. The app's Java is Axmol's plus `RoloActivity`; classes Axmol mentions but Rolo leaves out
   are Rolo's own stand-ins in `player/android/app/src/axmol_compat` (never copy the originals), and
   the app asks for no permissions and has no Maven dependencies: keep it so.
+  Exporting (step 2): `editor/model/AndroidExport.*` writes the Gradle project (a copy of the Android
+  runtime, `gradle :app:roloAndroidRuntime`, plus the game) and gives the commands for Java, Gradle and
+  keytool; other programs are only ever started through `editor/model/Process.*` (no shell), and a
+  key's password only travels in the environment of the program that needs it: never store it, log
+  it or put it on a command line. The export is built on a worker thread (`AndroidExportJob`), which
+  must not touch the Logger or the UI.
 - Images: Rolo decodes PNG and JPEG files itself (`rolo/assets/ImageDecode.hpp`, stb_image inside
   `rolo_assets`) and writes screenshots itself (`ImageEncode.hpp`, stb_image_write). Axmol is built
   with no JPEG library, no libpng and no OpenSSL (`AX_WITH_JPEG`, `AX_WITH_PNG`, `AX_WITH_OPENSSL`

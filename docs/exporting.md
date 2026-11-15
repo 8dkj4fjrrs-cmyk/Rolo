@@ -1,8 +1,9 @@
 # Exporting games
 
 Exporting makes a copy of your game that runs **without the editor**, to give
-to players: a **program** for the kind of computer you are on, or a
-**web page** that plays in a browser ([for the web](#for-the-web), below).
+to players: a **program** for the kind of computer you are on, a
+**web page** that plays in a browser ([for the web](#for-the-web), below),
+or an **Android app** ([for Android](#for-android), experimental).
 It contains:
 - Rolo's game runtime (the player program, renamed after your game);
 - your project's files;
@@ -14,7 +15,7 @@ Click **Build** in the toolbar, or **File > Export Game…**:
 
 | Field | Meaning |
 |---|---|
-| Export for | **This computer** (a program for macOS, Windows or Linux, whichever you are on) or **Web browsers** (a folder for a web host). |
+| Export for | **This computer** (a program for macOS, Windows or Linux, whichever you are on), **Web browsers** (a folder for a web host) or **Android** (an app; it asks for more in a second step, [below](#for-android)). |
 | Game name | Names the game's folder (or macOS app) and its program. Letters, digits, spaces, `-` and `_` are kept. |
 | Export into | The folder the game is made in (by default `Documents/Rolo Exports`). It cannot be inside the project. |
 
@@ -46,7 +47,8 @@ rolo_editor --project "path/to/My Game" --export "path/to/Exports"
 This runs the same checks and export without opening a window. It prints
 the game program's path and exits with code 0, or 1 if it failed. It is
 useful in scripts and continuous integration. `--export-web` in place of
-`--export` exports for the web.
+`--export` exports for the web, and `--export-android` for Android (with
+more options: `rolo_editor --help`).
 
 ## What you get
 
@@ -140,6 +142,91 @@ version elsewhere.
 The page loads `game.pack`, whose format is described in
 [formats/game-pack.md](formats/game-pack.md).
 
+## For Android
+
+**Experimental.** Android exports are built and played in an emulator on
+GitHub's machines with every change to them, but have **not yet run on a
+real phone**, and exporting has not yet been tried on a Mac or on Windows
+by hand ([known limitations](known-limitations.md)).
+
+Android apps are built by Google's own tools, as in Godot and Cocos
+Creator. Rolo writes an Android project with your game in it and has
+those tools build it. So, once:
+
+1. Install **[Android Studio](https://developer.android.com/studio)** (free;
+   several GB). It brings the tools Rolo uses: the Android SDK and Java.
+2. Open it once and let its setup wizard finish (it downloads the SDK).
+   You need not make a project in it, or keep it open.
+
+Then choose **Android** in the Export dialog and click **Continue**:
+
+| Field | Meaning |
+|---|---|
+| Package name | The app's identity on devices and in Google Play, like `com.yourname.yourgame`: something that is yours (your name, or a web address you own, backwards), then the game. Small letters, digits and dots. **Once a game is published it can never change.** Names starting with `com.example` are not accepted by Google Play. |
+| Version | What players see, e.g. `1.0`. |
+| Version code | A whole number. Google Play wants it **higher with every upload** (1, 2, 3...). |
+| Held | Sideways (landscape) or upright (portrait). By default it follows the game's size. |
+| Icon | A square PNG picture in your project (512 × 512 is best), or Rolo's own. |
+| Also make the file for Google Play | Makes the `.aab` as well, signed with your **upload key** (below). |
+
+These are kept in the project (`project.rolo`, under `"android"`), so the
+next export starts from them. If Rolo cannot find Google's tools it says
+what is missing and where it looked; **Tools…** lets you choose their
+folders yourself.
+
+The export takes a few minutes. The **first one** takes longer: Google's
+build tool (Gradle) downloads itself and its parts, a few hundred MB,
+once. You can go on working; the Console shows the progress.
+
+You get a folder:
+
+```
+My Game Android/
+  My Game.apk     the app, to try
+  My Game.aab     the app for Google Play (only with an upload key)
+  project/        the Android project both were built from (it opens in Android Studio)
+  README.txt
+```
+
+**Trying it.** In Android Studio, start an emulator (**More Actions ›
+Virtual Device Manager**, the ▶ beside a device) and drag `My Game.apk`
+onto it. Or copy the file to a phone and open it there; the phone asks
+once whether to allow installing apps from files. The `.apk` is signed
+with a throwaway "debug" key: fine for trying, not accepted by Google
+Play.
+
+**The upload key.** Google Play only accepts updates of a game that are
+signed with the same key as its first upload: the key proves they come
+from you. **New Key…** makes one (a file, by default in `Documents/Rolo
+Keys`, protected by a password you choose). Use the same key for all your
+games.
+
+- Rolo remembers where the key file is, and **never stores its password**:
+  you type it at every export for Google Play.
+- Keep the file and the password safe, with a copy of both somewhere else.
+  If either is lost, the game can only be updated after asking Google for
+  a new key.
+- Never put the key file inside a project you share or publish.
+
+Publishing itself (a Google Play developer account, the store's forms,
+testing) is the next step of Rolo's Android work and has no guide yet.
+
+**Good to know**
+- The app runs on Android 7.0 and newer, on phones and tablets (arm64)
+  and on emulators and Chromebooks with Intel or AMD processors (x86_64).
+- It asks for **no permissions** and does not use the internet.
+- Android's **Back** button is the Escape key to your game.
+- Saved games are kept on the device in the app's own folder; Android
+  removes them with the app.
+- Luau scripts and Rolo's own components run there; C++ game modules do
+  not (as on the web). No gamepads or keyboards yet.
+- From the command line: `rolo_editor --project "My Game" --export-android
+  Exports --android-package com.yourname.mygame`. With `--android-key
+  upload-key.jks` the `.aab` is made too; the key's password is read from
+  the environment variable `ROLO_ANDROID_KEYSTORE_PASSWORD` (never from
+  the command line, where other programs could see it).
+  `--new-android-key FILE --android-key-owner "Your Name"` makes a key.
+
 ## Screens of other shapes
 
 Your game has a **size** (1280 × 720 unless you change it): what the
@@ -177,8 +264,8 @@ A program export contains the runtime of the computer it was made on, so:
 - export on Windows for Windows;
 - export on Linux for Linux.
 
-There is no cross-export of programs yet (web exports are the same from
-every system).
+There is no cross-export of programs yet (web and Android exports are the
+same from every system).
 
 - **macOS**: the editor signs the exported app "ad hoc", but it is not
   signed or notarized with an Apple Developer ID. So the first time, players:

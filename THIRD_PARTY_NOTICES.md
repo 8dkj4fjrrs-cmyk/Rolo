@@ -130,10 +130,20 @@ Java code mentions. Rolo provides its own small stand-ins for those
 classes (`player/android/app/src/axmol_compat`), so an Android game has no
 Maven dependencies.
 
-Build tools, not in games and not in this repository: the Android SDK and
-NDK, Gradle 9.7.1 and the Android Gradle Plugin 9.3.2 (Apache-2.0), and on
-GitHub the emulator and the `reactivecircus/android-emulator-runner`,
-`gradle/actions` and `actions/setup-java` actions.
+Build tools, not in games: the Android SDK and NDK, Gradle 9.7.1 and the
+Android Gradle Plugin 9.3.2 (Apache-2.0), and on GitHub the emulator and
+the `reactivecircus/android-emulator-runner`, `gradle/actions` and
+`actions/setup-java` actions. None of them is in this repository, with one
+exception:
+
+| Software | Version | License | Where |
+|---|---|---|---|
+| Gradle Wrapper (`gradle-wrapper.jar`): Gradle's own small starter program, which downloads the right Gradle and runs it | as made by Gradle 9.7.1 (the copy in Axmol 2.11.5's Android template; SHA-256 `423cb469…57e8d9`) | Apache-2.0 | `player/android/gradle/wrapper/`; in Rolo's download (the Android runtime) and in every exported Android project. Not inside the apps. |
+
+The editor runs it with Java when it exports a game for Android, so that a
+maker needs no Gradle of their own. The Android workflow checks that the
+file is Gradle's own, unchanged (`gradle/actions/setup-gradle` validates
+wrappers).
 
 ## Sound (`engine/audio`)
 
