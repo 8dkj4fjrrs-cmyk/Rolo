@@ -87,7 +87,10 @@ Please report what you find.
   the editor's window with real tools (its dialogs were tried with
   stand-ins), and **uploading to Google Play**: the
   [publishing guide](google-play.md) is written from Google's help pages,
-  not from an upload, and no pre-launch report has been seen. No gamepads or keyboards there, no care for
+  not from an upload, and no pre-launch report has been seen. Sharing the
+  signed `.apk` outside Google Play works in the emulator (installing,
+  updating); Google's developer verification for such apps has not been
+  gone through by anyone working on Rolo. No gamepads or keyboards there, no care for
   notches, no adaptive icon, sound and speed unjudged, and a graphics
   context lost in the background is not handled.
 - **Web games** ([exporting](exporting.md#for-the-web)): no rumble, and

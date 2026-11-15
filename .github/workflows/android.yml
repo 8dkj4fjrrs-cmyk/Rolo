@@ -115,13 +115,42 @@ jobs:
           cat "android-export/Platformer Starter Android/README.txt"
           cp "android-export/Platformer Starter Android/Platformer Starter.apk" rolo-exported-game.apk
           cp "android-export/Platformer Starter Android/Platformer Starter.aab" rolo-exported-game.aab
+          # The next version, to see below that a phone takes it as an update.
+          build/dev/bin/rolo_editor/rolo_editor --project templates/platformer/project \
+            --export-android android-export-update --android-package dev.roloengine.platformer \
+            --android-version-code 8 --android-version-name 1.3 --android-key "$RUNNER_TEMP/upload.jks"
+          cp "android-export-update/Platformer Starter Android/Platformer Starter.apk" rolo-exported-game-update.apk
+          # And without a key: the app "to try", signed with the debug key
+          # (a newer version still, so that only its key can be what stops
+          # it from replacing the others below).
+          build/dev/bin/rolo_editor/rolo_editor --project templates/platformer/project \
+            --export-android android-export-try --android-package dev.roloengine.platformer \
+            --android-version-code 9 --android-version-name 1.4
+          test ! -e "android-export-try/Platformer Starter Android/Platformer Starter.aab"
+          cp "android-export-try/Platformer Starter Android/Platformer Starter.apk" rolo-game-to-try.apk
 
       # What is inside, and: every part of each library that is loaded into
       # memory must be laid out for 16 KB pages (0x4000), or new phones
       # refuse it and Google Play rejects the app.
       - name: Check the exported app and the file for Google Play
+        env:
+          ROLO_ANDROID_KEYSTORE_PASSWORD: a-test-password
         run: |
           BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          # The app to share is signed with the maker's key (the same
+          # certificate as in the key file), and is not a debug build; the
+          # app to try is a debug build signed with another key.
+          "$BUILD_TOOLS/apksigner" verify --print-certs rolo-exported-game.apk | tee apk-signer.txt
+          grep -q "Rolo's Test" apk-signer.txt
+          KEY_PRINT="$(keytool -list -v -keystore "$RUNNER_TEMP/upload.jks" -storepass:env ROLO_ANDROID_KEYSTORE_PASSWORD | grep 'SHA256:' | head -1 | sed 's/.*SHA256: *//' | tr -d ':' | tr 'A-F' 'a-f')"
+          APK_PRINT="$(grep 'certificate SHA-256 digest' apk-signer.txt | head -1 | sed 's/.*digest: *//')"
+          echo "Key file: $KEY_PRINT"; echo "App:      $APK_PRINT"
+          test -n "$KEY_PRINT" && test "$KEY_PRINT" = "$APK_PRINT"
+          if "$BUILD_TOOLS/aapt2" dump badging rolo-exported-game.apk | grep -q "application-debuggable"; then echo "::error::The app to share is debuggable"; exit 1; fi
+          "$BUILD_TOOLS/aapt2" dump badging rolo-game-to-try.apk | grep -q "application-debuggable"
+          "$BUILD_TOOLS/apksigner" verify --print-certs rolo-game-to-try.apk | grep "certificate DN" | tee try-signer.txt
+          if grep -q "Rolo's Test" try-signer.txt; then echo "::error::The app to try is signed with the maker's key"; exit 1; fi
+          "$BUILD_TOOLS/aapt2" dump badging rolo-exported-game-update.apk | grep -q "versionCode='8'"
           "$BUILD_TOOLS/aapt2" dump badging rolo-exported-game.apk | grep -E "^package|application-label:|sdkVersion|native-code" | tee badging.txt
           grep -q "name='dev.roloengine.platformer'" badging.txt
           grep -q "versionCode='7'" badging.txt
@@ -220,7 +249,8 @@ jobs:
             python3 tools/android/check_android_game.py rolo-exported-game.apk --package dev.roloengine.platformer --keep-installed --screenshot android-second-start.png --log android-log-2.txt --reject "Unpacking the game" --expect "Playing the game inside this app"
             adb uninstall dev.roloengine.platformer
             python3 tools/android/check_android_game.py rolo-game-from-bundle.apk --package dev.roloengine.platformer --screenshot android-from-bundle.png --log android-log-3.txt --expect "Unpacking the game" --expect-ended --play "200,200>330,200;-112,112;back;back;50%,-79;200,200>200,60;200,200>200,60;-112,112"
-            sh tools/android/check_android_backup.sh rolo-exported-game.apk dev.roloengine.platformer
+            sh tools/android/check_android_update.sh rolo-exported-game.apk rolo-exported-game-update.apk rolo-game-to-try.apk dev.roloengine.platformer
+            sh tools/android/check_android_backup.sh rolo-game-to-try.apk dev.roloengine.platformer
 
       - uses: actions/upload-artifact@v4
         if: always()

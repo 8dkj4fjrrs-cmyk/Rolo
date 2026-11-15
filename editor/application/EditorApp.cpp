@@ -1329,7 +1329,7 @@ void EditorApp::showExportDialog()
         about.setText(web ? "A folder to put on a web host (itch.io, GitHub Pages...): players open a page, with "
                             "nothing to install. Luau scripts and Rolo's own components run there; C++ game "
                             "modules do not."
-                      : android ? "An Android app: an .apk to try on a phone or an emulator, and the file Google "
+                      : android ? "An Android app: an .apk to try or to share, and the file Google "
                                   "Play wants. It is built by Google's tools, so Android Studio must be installed "
                                   "(free); the next step asks for the app's details. Luau scripts and Rolo's own "
                                   "components run there; C++ game modules do not."

@@ -5,6 +5,13 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Android games can be shared without Google Play**: exported with
+  your own key (*Sign with my own key*, formerly *Also make the file for
+  Google Play*), `My Game.apk` is now signed with that key and is the
+  file to give to players; updates with a higher version code install
+  over it. Without a key the `.apk` is, as before, a debug build to try.
+  [Exporting, "Sharing the .apk yourself"](docs/exporting.md#for-android)
+  also explains Google's new developer verification.
 - **Publishing on Google Play** ([guide](docs/google-play.md), ADR 0028
   step 3; **Help › Publishing on Google Play**): from the developer
   account to the release, checked against Google's rules of November

@@ -467,8 +467,9 @@ TEST_CASE("Android: the whole export, with a stand-in for Google's tools", "[and
     };
 
     fakeJava("echo \"building in $PWD with $ANDROID_HOME\"\n"
-             "mkdir -p app/build/outputs/apk/debug app/build/outputs/bundle/release\n"
-             "echo apk > app/build/outputs/apk/debug/app-debug.apk\n"
+             "mkdir -p app/build/outputs/apk/debug app/build/outputs/apk/release app/build/outputs/bundle/release\n"
+             "case \"$*\" in *assembleDebug*) echo apk > app/build/outputs/apk/debug/app-debug.apk;; esac\n"
+             "case \"$*\" in *assembleRelease*) echo \"apk signed with $ROLO_ANDROID_KEY_ALIAS\" > app/build/outputs/apk/release/app-release.apk;; esac\n"
              "if [ -n \"$ROLO_ANDROID_KEYSTORE\" ]; then echo \"signed with $ROLO_ANDROID_KEY_ALIAS\" > app/build/outputs/bundle/release/app-release.aab; fi\n"
              "echo 'BUILD SUCCESSFUL'\n");
     const AndroidExportResult tried = exportAndroidGame(s.options, {}, say);
@@ -476,6 +477,7 @@ TEST_CASE("Android: the whole export, with a stand-in for Google's tools", "[and
     REQUIRE(tried.ok);
     CHECK(tried.apk == s.root / "exports/My Game Android/My Game.apk");
     CHECK(s.read(tried.apk) == "apk\n");
+    CHECK_FALSE(tried.apkSignedWithOwnKey);
     CHECK(tried.aab.empty());
     CHECK_FALSE(fs::exists(s.root / "exports/My Game Android/My Game.aab"));
     CHECK(tried.message.find("Exported My Game.apk") != std::string::npos);
@@ -505,6 +507,10 @@ TEST_CASE("Android: the whole export, with a stand-in for Google's tools", "[and
     INFO(published.message);
     REQUIRE(published.ok);
     CHECK(s.read(published.aab) == "signed with upload\n");
+    // ...and the .apk is now the one to share: signed with the same key, not the debug one.
+    CHECK(published.apkSignedWithOwnKey);
+    CHECK(s.read(published.apk) == "apk signed with upload\n");
+    CHECK(s.read(published.project.folder / "README.txt").find("signed with your own key") != std::string::npos);
     REQUIRE(published.storeIcon == published.project.folder / "Google Play icon (512).png");
     const auto storeIcon = decodeImageFile(published.storeIcon);
     REQUIRE(storeIcon);

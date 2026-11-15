@@ -167,7 +167,7 @@ Then choose **Android** in the Export dialog and click **Continue**:
 | Version code | A whole number. Google Play wants it **higher with every upload** (1, 2, 3...); after each export with the file for Google Play, the editor raises it by one. |
 | Held | Sideways (landscape) or upright (portrait). By default it follows the game's size. |
 | Icon | A square PNG picture in your project (512 × 512 is best), or Rolo's own. |
-| Also make the file for Google Play | Makes the `.aab` as well, signed with your **upload key** (below). Not with a package name that starts with `com.example` or still says `yourname`. |
+| Sign with my own key | Signs the `.apk` with **your key** (below), which makes it the file to share with players, and makes the `.aab` for Google Play as well. Not with a package name that starts with `com.example` or still says `yourname`. |
 
 These are kept in the project (`project.rolo`, under `"android"`), so the
 next export starts from them. If Rolo cannot find Google's tools it says
@@ -182,8 +182,8 @@ You get a folder:
 
 ```
 My Game Android/
-  My Game.apk     the app, to try
-  My Game.aab     the app for Google Play (only with an upload key)
+  My Game.apk     the app: to try, or (signed with your key) to share
+  My Game.aab     the app for Google Play (only with your key)
   project/        the Android project both were built from (it opens in Android Studio)
   README.txt
 ```
@@ -191,13 +191,16 @@ My Game Android/
 **Trying it.** In Android Studio, start an emulator (**More Actions ›
 Virtual Device Manager**, the ▶ beside a device) and drag `My Game.apk`
 onto it. Or copy the file to a phone and open it there; the phone asks
-once whether to allow installing apps from files. The `.apk` is signed
-with a throwaway "debug" key: fine for trying, not accepted by Google
-Play.
+once whether to allow installing apps from files. Exported without your
+key, the `.apk` is signed with a throwaway "debug" key: fine for trying,
+but not for giving to players (you could never update it) and not
+accepted by Google Play.
 
-**The upload key.** Google Play only accepts updates of a game that are
-signed with the same key as its first upload: the key proves they come
-from you. **New Key…** makes one (a file, by default in `Documents/Rolo
+**Your key.** Android only installs an update over a game if it is
+signed with the same key as the copy already there, and Google Play only
+accepts uploads signed with the key of the first one: the key proves
+they come from you. (Google Play calls it the "upload key".) **New
+Key…** makes one (a file, by default in `Documents/Rolo
 Keys`, protected by a password you choose). Use the same key for all your
 games.
 
@@ -208,7 +211,34 @@ games.
   a new key.
 - Never put the key file inside a project you share or publish.
 
-**Publishing** has its own guide, from the developer account to the
+**Sharing the `.apk` yourself.** Exported with your key, `My Game.apk`
+is a finished app: put it on itch.io or your own site, or send it.
+Players open the file on their phone, which asks once whether to allow
+installing apps from files. Good to know:
+
+- **Updates**: export again with a **higher version code** and the same
+  key, and players install the new file over the old one; their saved
+  games stay. Android refuses a lower version code, and a file signed
+  with another key.
+- A copy exported *without* your key (the app to try) cannot be updated
+  to the signed one: remove it from the phone first.
+- **Google's "developer verification"**: Google is bringing in a rule
+  that phones with Google's apps only install apps, from any source,
+  whose maker has registered with Google and proved who they are. It is
+  enforced since 30 September 2026 in Brazil, Indonesia, Singapore and
+  Thailand, and Google says the rest of the world follows from 2027.
+  Makers who are not on Google Play register in the *Android Developer
+  Console* (not the Play Console), where the package name and your key
+  are entered; Google describes a lighter kind of account for hobbyists
+  and students. Players can still choose to install an unregistered app
+  through a longer "advanced" path on the phone. Read
+  [Google's page](https://developer.android.com/developer-verification)
+  before you count on any of this: it is new, and **Rolo's makers have
+  not been through it**.
+- Other stores (Amazon's, Samsung's, F-Droid) have their own rules and
+  have not been tried with Rolo.
+
+**Publishing on Google Play** has its own guide, from the developer account to the
 release: [Publishing on Google Play](google-play.md). With the file for
 Google Play, the export folder also gets `Google Play icon (512).png` (the
 icon as the store's page wants it, if the game has its own), and the
@@ -227,7 +257,7 @@ editor raises the project's version code by one for the next export.
   not (as on the web). No gamepads or keyboards yet.
 - From the command line: `rolo_editor --project "My Game" --export-android
   Exports --android-package com.yourname.mygame`. With `--android-key
-  upload-key.jks` the `.aab` is made too; the key's password is read from
+  my-key.jks` the `.apk` is signed with your key and the `.aab` is made too; the key's password is read from
   the environment variable `ROLO_ANDROID_KEYSTORE_PASSWORD` (never from
   the command line, where other programs could see it).
   `--new-android-key FILE --android-key-owner "Your Name"` makes a key.
