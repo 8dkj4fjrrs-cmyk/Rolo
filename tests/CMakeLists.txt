@@ -24,6 +24,7 @@ add_executable(rolo_tests
     editor/test_console_log.cpp
     editor/test_editor_paths_and_cli.cpp
     editor/test_preferences.cpp
+    editor/test_process.cpp
     ui/test_ui_context.cpp
     ui/test_ui_docking.cpp
     ui/test_ui_foundations.cpp

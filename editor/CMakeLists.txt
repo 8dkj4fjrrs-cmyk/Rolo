@@ -20,6 +20,7 @@ add_library(rolo_editor_core STATIC
     model/GameExport.cpp
     model/RoloResources.cpp
     model/Preferences.cpp
+    model/Process.cpp
     model/SceneDocument.cpp)
 target_include_directories(rolo_editor_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/model")
 target_link_libraries(rolo_editor_core PUBLIC rolo::core rolo::scene rolo::assets

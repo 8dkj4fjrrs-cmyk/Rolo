@@ -24,6 +24,30 @@
 
 namespace rolo {
 
+/// What an Android app made from the project is called and how it sits on
+/// a device (ADR 0028). Only the editor's Android export reads it; games do not.
+struct AndroidSettings {
+    /// The app's identity on a device and in Google Play, like
+    /// "com.yourname.yourgame". Once a game is published it can never change.
+    std::string package;
+    /// A whole number Google Play wants higher with every upload.
+    int versionCode = 1;
+    /// The version players see, e.g. "1.0".
+    std::string versionName = "1.0";
+    /// "landscape" (held sideways), "portrait" (upright), or empty: by the
+    /// game's size (wider than tall: landscape).
+    std::string orientation;
+    /// The app's icon: a square PNG in the project, e.g. "icon.png". Empty: Rolo's.
+    std::string icon;
+
+    friend bool operator==(const AndroidSettings&, const AndroidSettings&) = default;
+};
+
+/// True if `name` can be an Android app's package: at least two parts
+/// joined by dots, each starting with a letter, of letters, digits and '_'
+/// (and no Java keyword, which Android refuses). `why` says what is wrong.
+bool isValidAndroidPackage(std::string_view name, std::string* why = nullptr);
+
 struct ProjectSettings {
     std::string name = "My Game";
     std::string startScene = "scenes/main.lscene";   // relative to the project folder
@@ -46,6 +70,8 @@ struct ProjectSettings {
     /// What a screen of another shape shows: bars beside the game size, or
     /// more of the world.
     ScreenFit screenFit = ScreenFit::Bars;
+    /// For exporting to Android (written by the editor's export dialog).
+    AndroidSettings android;
 
     static constexpr int kMinSize = 160;
     static constexpr int kMaxSize = 4096;
