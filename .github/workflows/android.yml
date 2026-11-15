@@ -249,6 +249,7 @@ jobs:
             python3 tools/android/check_android_game.py rolo-exported-game.apk --package dev.roloengine.platformer --keep-installed --screenshot android-second-start.png --log android-log-2.txt --reject "Unpacking the game" --expect "Playing the game inside this app"
             adb uninstall dev.roloengine.platformer
             python3 tools/android/check_android_game.py rolo-game-from-bundle.apk --package dev.roloengine.platformer --screenshot android-from-bundle.png --log android-log-3.txt --expect "Unpacking the game" --expect-ended --play "200,200>330,200;-112,112;back;back;50%,-79;200,200>200,60;200,200>200,60;-112,112"
+            python3 tools/android/check_android_game.py rolo-exported-game.apk --package dev.roloengine.platformer --pictures-in-output --screenshot android-gamepad.png --log android-log-4.txt --expect "Gamepad 1 plugged in" --expect-ended --play "wait:2;shot:android-pad-before.png;pad:BUTTON_A;wait:1;stick:1,0;wait:3;stick:0,0;shot:android-pad-after-stick.png;pad:BUTTON_START;wait:1;shot:android-pad-pause.png;pad:DPAD_DOWN;pad:DPAD_DOWN;pad:BUTTON_A"
             sh tools/android/check_android_update.sh rolo-exported-game.apk rolo-exported-game-update.apk rolo-game-to-try.apk dev.roloengine.platformer
             sh tools/android/check_android_backup.sh rolo-game-to-try.apk dev.roloengine.platformer
 

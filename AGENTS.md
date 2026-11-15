@@ -73,7 +73,7 @@ and AI assistants.
   (`.github/workflows/android.yml`, `tools/android/check_android_game.py`), which is separate from CI
   and must stay so. Android-only code is behind `__ANDROID__`, in `engine/runtime`, `player/` and
   `engine/core/src/Log.cpp` only; there is no `main()` and no GLFW there (`rolo/runtime/Android.hpp`,
-  `UiHostNone.hpp`, `Gamepads_none.cpp`), and `Application::run` returns while the game goes on, as on
+  `UiHostNone.hpp`; gamepads come from `RoloGamepads.java` through `Gamepads_android.cpp`), and `Application::run` returns while the game goes on, as on
   the web. The app's Java is Axmol's plus `RoloActivity`; classes Axmol mentions but Rolo leaves out
   are Rolo's own stand-ins in `player/android/app/src/axmol_compat` (never copy the originals), and
   the app asks for no permissions and has no Maven dependencies: keep it so.

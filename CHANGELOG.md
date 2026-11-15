@@ -5,6 +5,10 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Gamepads on Android** (ADR 0028, step 4): up to four controllers,
+  with the same buttons, sticks, button pictures and remapping as on a
+  computer; the on-screen controls hide while one is used. Rumble goes
+  to the controller's motors (not tried on a real controller).
 - **Android games can be shared without Google Play**: exported with
   your own key (*Sign with my own key*, formerly *Also make the file for
   Google Play*), `My Game.apk` is now signed with that key and is the

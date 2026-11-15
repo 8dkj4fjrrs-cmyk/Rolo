@@ -90,7 +90,9 @@ Please report what you find.
   not from an upload, and no pre-launch report has been seen. Sharing the
   signed `.apk` outside Google Play works in the emulator (installing,
   updating); Google's developer verification for such apps has not been
-  gone through by anyone working on Rolo. No gamepads or keyboards there, no care for
+  gone through by anyone working on Rolo. Gamepads work there in the emulator (with Android's stand-in
+  controller; no real one was tried, and rumble could not be tried at
+  all). No keyboards there, no care for
   notches, no adaptive icon, sound and speed unjudged, and a graphics
   context lost in the background is not handled.
 - **Web games** ([exporting](exporting.md#for-the-web)): no rumble, and

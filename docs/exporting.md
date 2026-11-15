@@ -253,8 +253,12 @@ editor raises the project's version code by one for the next export.
   nothing else of the game) are part of Android's own backup: if the
   player has it switched on, they come back on a new phone or after
   installing the game again.
+- **Gamepads** work as on a computer (Bluetooth or USB; up to four):
+  when one is used, the on-screen controls step aside and button
+  pictures follow the controller. Rumble shakes the controller if it can
+  (untried on a real one); the phone itself is not shaken.
 - Luau scripts and Rolo's own components run there; C++ game modules do
-  not (as on the web). No gamepads or keyboards yet.
+  not (as on the web). No keyboards yet.
 - From the command line: `rolo_editor --project "My Game" --export-android
   Exports --android-package com.yourname.mygame`. With `--android-key
   my-key.jks` the `.apk` is signed with your key and the `.aab` is made too; the key's password is read from

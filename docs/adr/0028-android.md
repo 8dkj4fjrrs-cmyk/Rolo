@@ -357,6 +357,32 @@ file's; it is not debuggable; the no-key export is a debug build signed
 otherwise; in the emulator, version code 8 installs over 7, and going
 back to 7 or installing the debug-signed copy over it is refused.
 
+## Step 4, part 1: gamepads and rumble (2026-11-15)
+
+- **Events kept, then read.** Android reports controllers as events to
+  the app's Java side; the game asks once a frame. `RoloGamepads.java`
+  (in `RoloActivity`'s `dispatchKeyEvent` / `dispatchGenericMotionEvent`)
+  keeps each of up to four gamepads' buttons and axes, and
+  `Gamepads_android.cpp` fetches them all with one call a frame. Android
+  has one layout for the controllers it knows, so there is no table of
+  models. A button pressed and released between two frames is remembered
+  until read once (the emulator's ten frames a second showed the need).
+- Only events whose source is a gamepad or joystick are taken; keyboards,
+  remote controls and Android's Back go on to Axmol as before. A
+  controller's direction buttons are now its d-pad, no longer arrow keys.
+- A gamepad gets its number when first used and gives it up when Android
+  reports the device gone. In the background everything counts as let go.
+- **Rumble** asks Android to shake the controller (`InputDevice`'s
+  vibrators; both motors separately on Android 12 and newer). The phone's
+  own vibration would need a permission, and the app still asks for none.
+
+Tested in the emulator (GitHub, Android 14) with Android's injected
+gamepad events: the first button press announces "Gamepad 1 plugged in",
+the on-screen controls disappear and the hints show controller pictures,
+the left stick moves the hero, Start opens the pause menu, d-pad and A
+choose Quit. Not tested: any real controller; several at once; unplugging;
+rumble (the injected gamepad has no motors).
+
 ## Alternatives considered
 
 - **One click with nothing to install** (Defold's way): Rolo would pack

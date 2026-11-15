@@ -16,11 +16,11 @@ add_library(rolo_runtime STATIC
 add_library(rolo::runtime ALIAS rolo_runtime)
 
 # Gamepads: through GLFW, or in a web browser the browser's own Gamepad API.
-# (Android: none yet, ADR 0028.)
+# On Android the app's Java side keeps them (RoloGamepads.java, ADR 0028).
 if(EMSCRIPTEN)
     target_sources(rolo_runtime PRIVATE src/Gamepads_web.cpp)
 elseif(ANDROID)
-    target_sources(rolo_runtime PRIVATE src/Gamepads_none.cpp)
+    target_sources(rolo_runtime PRIVATE src/Gamepads_android.cpp)
 else()
     target_sources(rolo_runtime PRIVATE src/Gamepads.cpp)
 endif()
@@ -41,6 +41,8 @@ elseif(APPLE)
     target_sources(rolo_runtime PRIVATE src/Rumble_apple.mm)
     set_source_files_properties(src/Rumble_apple.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(rolo_runtime PRIVATE "-framework GameController" "-weak_framework CoreHaptics")
+elseif(ANDROID)
+    target_sources(rolo_runtime PRIVATE src/Rumble_android.cpp)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(rolo_runtime PRIVATE src/Rumble_linux.cpp)
 else()

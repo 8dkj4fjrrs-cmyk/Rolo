@@ -128,7 +128,9 @@ In order:
      editor, and the bundle checked with Google's bundletool and played
      from it in an emulator. **Open until a maker with a Play account has
      done it**: the upload itself and what the pre-launch report says.
-   - Step 4: polish (gamepads, notches, performance).
+   - Step 4: polish. ~~Gamepads and rumble~~ **done** (tried in the
+     emulator; rumble untried). Still to do: notches and rounded corners,
+     a graphics context lost in the background, keyboards, performance.
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).
 
