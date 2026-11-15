@@ -427,6 +427,14 @@ TEST_CASE("Android: a new key's details are checked first", "[android][export]")
     CHECK(newKeyProblem(key, "Me").find("never replaced") != std::string::npos);
 }
 
+TEST_CASE("Android: package names Google Play would refuse, or that are nobody's", "[android][export]")
+{
+    CHECK(playPackageProblem("com.studio.game").empty());
+    CHECK(playPackageProblem("io.itch.ada.platformer").empty());
+    CHECK(playPackageProblem("com.example.game").find("com.example") != std::string::npos);
+    CHECK(playPackageProblem("com.yourname.game").find("yourname") != std::string::npos);
+}
+
 TEST_CASE("Android: Gradle's known failures are explained", "[android][export]")
 {
     CHECK(explainGradleFailure({"> Task :app:compileDebugJavaWithJavac", "BUILD FAILED in 3s"}).empty());
@@ -475,15 +483,33 @@ TEST_CASE("Android: the whole export, with a stand-in for Google's tools", "[and
     CHECK(saidAny((s.root / "sdk").string()));
     CHECK(s.read(tried.project.folder / "README.txt").find("com.example.mygame") != std::string::npos);
 
-    // With an upload key: the file for Google Play too.
+    CHECK(tried.storeIcon.empty());   // the project has no icon of its own
+
+    // With an upload key: the file for Google Play too. Not with a package
+    // name that is nobody's: Google Play keeps it for ever.
     s.file("keys/upload.jks", "key");
     AndroidSigning key;
     key.keystore = s.root / "keys/upload.jks";
     key.password = "secret1";
+    const AndroidExportResult nobodys = exportAndroidGame(s.options, key, say);
+    CHECK_FALSE(nobodys.ok);
+    CHECK(nobodys.message.find("com.example") != std::string::npos);
+    s.options.android.package = "com.studio.mygame";
+    // ...and with an icon of the project's, the store's 512 x 512 one is made as well.
+    {
+        std::vector<std::uint8_t> pixels(64 * 64 * 4, 255);
+        REQUIRE(writePngFile(s.root / "project/icon.png", pixels.data(), 64, 64, 4));
+        s.options.android.icon = "icon.png";
+    }
     const AndroidExportResult published = exportAndroidGame(s.options, key, say);
     INFO(published.message);
     REQUIRE(published.ok);
     CHECK(s.read(published.aab) == "signed with upload\n");
+    REQUIRE(published.storeIcon == published.project.folder / "Google Play icon (512).png");
+    const auto storeIcon = decodeImageFile(published.storeIcon);
+    REQUIRE(storeIcon);
+    CHECK(storeIcon->width == 512);
+    CHECK(storeIcon->height == 512);
     CHECK(published.message.find("for Google Play") != std::string::npos);
     CHECK(s.read(published.project.folder / "README.txt").find("Upload this file in the Play Console") != std::string::npos);
     // The password is nowhere in the export.

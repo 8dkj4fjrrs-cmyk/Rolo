@@ -148,6 +148,39 @@ jobs:
           grep -q "Rolo's Test" signature.txt
           unzip -l rolo-exported-game.aab | grep -E "base/lib/|base/assets/game.pack|base/manifest"
 
+      # Google Play does not hand players the .aab: it makes the apps for
+      # their phones out of it, with Google's "bundletool". The same tool
+      # here: is the bundle well-formed, what does it say of itself, and
+      # the app made from it is played in the emulator below.
+      - name: Check the bundle with Google's bundletool, as Google Play would read it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download 1.18.3 -R google/bundletool --pattern 'bundletool-all-1.18.3.jar' --output bundletool.jar
+          echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  bundletool.jar" | sha256sum --check
+          echo "bundletool $(java -jar bundletool.jar version)"
+          java -jar bundletool.jar validate --bundle rolo-exported-game.aab | head -40
+          java -jar bundletool.jar dump manifest --bundle rolo-exported-game.aab | tee bundle-manifest.xml
+          grep -q 'package="dev.roloengine.platformer"' bundle-manifest.xml
+          grep -q 'android:versionCode="7"' bundle-manifest.xml
+          grep -q 'android:targetSdkVersion="36"' bundle-manifest.xml
+          grep -q 'android:allowBackup="true"' bundle-manifest.xml
+          if grep -q "uses-permission" bundle-manifest.xml; then echo "::error::The app asks for a permission"; exit 1; fi
+          if grep -q 'android:debuggable="true"' bundle-manifest.xml; then echo "::error::The bundle is debuggable"; exit 1; fi
+          test -f "android-export/Platformer Starter Android/README.txt"
+          # The key's password goes to bundletool in a file, not on the command line.
+          printf '%s' "a-test-password" > "$RUNNER_TEMP/key-password.txt"
+          java -jar bundletool.jar build-apks --bundle rolo-exported-game.aab --output phones.apks \
+            --ks "$RUNNER_TEMP/upload.jks" --ks-key-alias upload --ks-pass "file:$RUNNER_TEMP/key-password.txt"
+          echo "Download sizes Google Play would report (bytes, smallest and largest phone):"
+          java -jar bundletool.jar get-size total --apks phones.apks
+          java -jar bundletool.jar build-apks --bundle rolo-exported-game.aab --output universal.apks --mode universal \
+            --ks "$RUNNER_TEMP/upload.jks" --ks-key-alias upload --ks-pass "file:$RUNNER_TEMP/key-password.txt"
+          rm "$RUNNER_TEMP/key-password.txt"
+          unzip -o -q universal.apks universal.apk
+          mv universal.apk rolo-game-from-bundle.apk
+          ls -la rolo-game-from-bundle.apk
+
       # The wrong password must stop the export, and say so in plain words.
       - name: Check that a wrong password is refused clearly
         env:
@@ -185,6 +218,9 @@ jobs:
           script: |
             python3 tools/android/check_android_game.py rolo-exported-game.apk --package dev.roloengine.platformer --screenshot android-first-scene.png --log android-log-1.txt --expect "Unpacking the game" --expect "Set aside" --expect "Back in front" --expect-ended --play "200,200>330,200;-112,112;back;shot:android-pause-menu.png;back;home;wait:2;return;wait:2;shot:android-after-return.png;50%,-79;200,200>200,60;200,200>200,60;shot:android-quit-chosen.png;-112,112"
             python3 tools/android/check_android_game.py rolo-exported-game.apk --package dev.roloengine.platformer --keep-installed --screenshot android-second-start.png --log android-log-2.txt --reject "Unpacking the game" --expect "Playing the game inside this app"
+            adb uninstall dev.roloengine.platformer
+            python3 tools/android/check_android_game.py rolo-game-from-bundle.apk --package dev.roloengine.platformer --screenshot android-from-bundle.png --log android-log-3.txt --expect "Unpacking the game" --expect-ended --play "200,200>330,200;-112,112;back;back;50%,-79;200,200>200,60;200,200>200,60;-112,112"
+            sh tools/android/check_android_backup.sh rolo-exported-game.apk dev.roloengine.platformer
 
       - uses: actions/upload-artifact@v4
         if: always()

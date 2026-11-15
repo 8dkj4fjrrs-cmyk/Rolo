@@ -5,6 +5,20 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Publishing on Google Play** ([guide](docs/google-play.md), ADR 0028
+  step 3; **Help › Publishing on Google Play**): from the developer
+  account to the release, checked against Google's rules of November
+  2026. Nobody has uploaded a Rolo game yet; the guide says what is and
+  is not tested.
+  - **Saved games are now in Android's backup** (only the `saves`
+    folder): they come back on a new phone or after reinstalling.
+  - Exporting with the file for Google Play also writes
+    `Google Play icon (512).png` for the store's page, raises the
+    project's version code for the next export, and refuses package
+    names that start with `com.example` or still say `yourname`.
+  - The Android workflow checks the `.aab` with Google's bundletool
+    (used only on GitHub's machines; not part of Rolo or of games),
+    plays the app made from it, and checks the backup.
 - **Exporting for Android** (experimental; [guide](docs/exporting.md#for-android),
   [ADR 0028](docs/adr/0028-android.md)): **Export Game… › Android** makes
   an `.apk` to try on a phone or emulator and, with your upload key, a

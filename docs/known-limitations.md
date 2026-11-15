@@ -81,10 +81,13 @@ Please report what you find.
   and a signed `.aab` for Google Play), built by Google's tools from
   Android Studio. On GitHub's machines (Linux) an export from the command
   line is built and played in an emulator (Android 14: touch, Back,
-  pausing, quitting). Not yet done by anyone: running on a **real
-  phone**, exporting on a **Mac or Windows**, exporting from the editor's
-  window with real tools (its dialogs were tried with stand-ins), and
-  uploading to Google Play. No gamepads or keyboards there, no care for
+  pausing, quitting), and the file for Google Play is checked with
+  Google's bundletool and played from it. Not yet done by anyone: running
+  on a **real phone**, exporting on a **Mac or Windows**, exporting from
+  the editor's window with real tools (its dialogs were tried with
+  stand-ins), and **uploading to Google Play**: the
+  [publishing guide](google-play.md) is written from Google's help pages,
+  not from an upload, and no pre-launch report has been seen. No gamepads or keyboards there, no care for
   notches, no adaptive icon, sound and speed unjudged, and a graphics
   context lost in the background is not handled.
 - **Web games** ([exporting](exporting.md#for-the-web)): no rumble, and

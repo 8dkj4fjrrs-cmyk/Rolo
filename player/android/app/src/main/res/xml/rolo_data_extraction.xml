@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What Android copies of the app's files (Android 12 and newer): to the
+     player's own Google account as a backup, and straight to their new
+     phone when they move. Only the saved games, the folder "saves" in the
+     app's own folder; the unpacked game beside it comes with the app again. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="saves" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="saves" />
+    </device-transfer>
+</data-extraction-rules>
