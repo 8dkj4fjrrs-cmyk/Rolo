@@ -291,10 +291,12 @@ TEST_CASE("Android: an export writes the Gradle project with the game inside", "
 
     // A folder given relative to where the editor runs is made a full path
     // (Gradle is started somewhere else).
-    {
+    // (Where the temporary folder is on another drive than the tests run
+    // on, as on Windows build machines, there is no such relative path.)
+    if (const fs::path fromHere = fs::relative(s.root / "exports", fs::current_path()); !fromHere.empty() && fromHere.is_relative()) {
         AndroidExportOptions relative = s.options;
         relative.gameName = "Relative";
-        relative.output = fs::relative(s.root / "exports", fs::current_path());
+        relative.output = fromHere;
         const AndroidProject there = writeAndroidProject(relative);
         REQUIRE(there.ok);
         CHECK(there.gradleProject.is_absolute());
