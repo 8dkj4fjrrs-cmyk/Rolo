@@ -15,11 +15,13 @@
 // packed file (a game pack) and is unpacked into the app's own folder.
 
 #include "rolo/core/Engine.hpp"   // Status
+#include "rolo/gameplay/Input.hpp"   // Key
 
 #include <filesystem>
 #include <functional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace rolo::android {
 
@@ -52,6 +54,18 @@ struct SafeInsets {
     int top = 0;
 };
 SafeInsets safeInsets();
+
+/// A keyboard's key going down or up (Chromebooks, tablets, a keyboard
+/// plugged into a phone).
+struct KeyChange {
+    Key key = Key::Unknown;
+    bool down = false;
+};
+/// The keys pressed and let go since the last call, in order (RoloKeys.java
+/// collects them). Keys Rolo has no name for are left out.
+std::vector<KeyChange> takeKeys();
+/// Rolo's key for one of Android's key codes (AKEYCODE_...), or Key::Unknown.
+Key keyFromAndroid(int androidKeyCode);
 
 /// Shows a message with an OK button over the app. For problems at
 /// start-up: a player has no log to look at.

@@ -45,6 +45,14 @@ public class RoloActivity extends AxmolActivity implements InputManager.InputDev
             return;
         }
         mRunsTheGame = true;
+        // For Rolo's own tests only (started with "--ez rolo.loseContext
+        // true"): let Android throw the graphics context away whenever the
+        // game goes to the background, as it may on any phone when memory
+        // is short, so that coming back from that can be tried at will.
+        if (getIntent() != null && getIntent().getBooleanExtra("rolo.loseContext", false)
+                && getGLSurfaceView() != null) {
+            getGLSurfaceView().setPreserveEGLContextOnPause(false);
+        }
         // To hear when a game controller is unplugged (RoloGamepads).
         final InputManager devices = (InputManager) getSystemService(Context.INPUT_SERVICE);
         if (devices != null) {
@@ -74,11 +82,11 @@ public class RoloActivity extends AxmolActivity implements InputManager.InputDev
     }
 
     // Game controllers: their buttons and sticks go to RoloGamepads, where
-    // the game reads them. Everything else goes on to Axmol as before
-    // (touches, Android's Back, a keyboard's keys).
+    // the game reads them; a keyboard's keys go to RoloKeys. Everything
+    // else goes on to Axmol as before (touches, Android's Back).
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        return RoloGamepads.onKey(event) || super.dispatchKeyEvent(event);
+        return RoloGamepads.onKey(event) || RoloKeys.onKey(event) || super.dispatchKeyEvent(event);
     }
 
     @Override
@@ -103,6 +111,7 @@ public class RoloActivity extends AxmolActivity implements InputManager.InputDev
         // In the background Android no longer tells the app that buttons
         // were let go, so none may stay "held".
         RoloGamepads.releaseAll();
+        RoloKeys.releaseAll();
     }
 
     @Override

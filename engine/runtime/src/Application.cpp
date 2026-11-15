@@ -519,6 +519,13 @@ bool Application::Impl::startWindow()
 #endif
 #ifdef __ANDROID__
         screenChanged();   // later changes come through AndroidHost
+        // Android may take the graphics context away from an app in the
+        // background (its pictures in the graphics card's memory are gone).
+        // Axmol then makes everything again from the copies it keeps; this
+        // only says so, for makers reading a phone's log and for the tests.
+        ax::Director::getInstance()->getEventDispatcher()->addCustomEventListener(EVENT_RENDERER_RECREATED, [this](ax::EventCustom*) {
+            log().info(kCategory, "Graphics: the context was lost in the background; pictures were made again.");
+        });
 #else
         fitScreen();
         director->getEventDispatcher()->addCustomEventListener(ax::RenderViewImpl::EVENT_WINDOW_RESIZED,
@@ -1128,6 +1135,16 @@ void Application::Impl::onFrame(float deltaSeconds)
             gamepads = std::make_unique<GamepadReader>(log());
         }
         gamepads->read(*gameInput);   // before the game's update reads them
+#ifdef __ANDROID__
+        // A keyboard's keys (RoloKeys.java collects them; Axmol passes on only a few).
+        for (const android::KeyChange& change : android::takeKeys()) {
+            if (change.down) {
+                gameInput->press(change.key);
+            } else {
+                gameInput->release(change.key);
+            }
+        }
+#endif
         updateTouchControls();
     }
     if (frameCallback) {

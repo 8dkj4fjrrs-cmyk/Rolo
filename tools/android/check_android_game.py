@@ -52,6 +52,7 @@ class Check:
         self.package = package
         self.log_file = log_file
         self.pictures_in_output = pictures_in_output
+        self.start_extras = []   # more arguments for "am start"
 
     # --- the log -------------------------------------------------------------------------------
     def log(self):
@@ -112,7 +113,7 @@ class Check:
         only just booted sometimes loses the request, or covers the app with
         a "not responding" note about one of its own programs."""
         for attempt in range(1, 5):
-            print(adb("shell", "am", "start", "-W", "-n", self.package + "/" + ACTIVITY, check=False).strip())
+            print(adb("shell", "am", "start", "-W", "-n", self.package + "/" + ACTIVITY, *self.start_extras, check=False).strip())
             until = time.time() + 45
             while time.time() < until:
                 if self.log():
@@ -196,6 +197,9 @@ class Check:
             adb("shell", "input", "keyevent", "3")
         elif step == "return":
             adb("shell", "am", "start", "-n", self.package + "/" + ACTIVITY)
+        elif step.startswith("key:"):
+            # A keyboard's key, pressed and let go (e.g. key:SPACE, key:ESCAPE).
+            adb("shell", "input", "keyboard", "keyevent", "KEYCODE_" + step[4:])
         elif step.startswith("pad:"):
             # A gamepad's button, pressed and let go (e.g. pad:BUTTON_A, pad:DPAD_DOWN).
             adb("shell", "input", "gamepad", "keyevent", step[4:])
@@ -232,11 +236,16 @@ def main():
     parser.add_argument("--reject", action="append", default=[], help="text the game's log must not contain")
     parser.add_argument("--expect-ended", action="store_true", help="playing must end the game and the app")
     parser.add_argument("--log", help="save Android's whole log here")
+    parser.add_argument("--lose-context", action="store_true",
+                        help="have Android take the graphics context away whenever the game is in the background")
     parser.add_argument("--pictures-in-output", action="store_true",
                         help="also print each screenshot as text (base64), to read it out of a build log")
     args = parser.parse_args()
 
     check = Check(args.package, args.log, args.pictures_in_output)
+    if args.lose_context:
+        # RoloActivity's switch for tests: the graphics context is thrown away in the background.
+        check.start_extras = ["--ez", "rolo.loseContext", "true"]
     adb("wait-for-device")
     if not args.keep_installed:
         adb("uninstall", args.package, check=False)   # a clean start: nothing unpacked yet
