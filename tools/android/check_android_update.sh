@@ -24,11 +24,13 @@ if adb install -r "$FIRST" > downgrade-out.txt 2>&1; then
     echo "An older version was installed over a newer one."; exit 1
 fi
 grep -o "INSTALL_FAILED[A-Z_]*" downgrade-out.txt | head -1
-# ...and so is the same game signed with another key.
+grep -q "INSTALL_FAILED_VERSION_DOWNGRADE" downgrade-out.txt || { cat downgrade-out.txt; exit 1; }
+# ...and so is the same game signed with another key, even a newer version of it.
 if adb install -r "$OTHER" > other-out.txt 2>&1; then
     echo "An app signed with another key was installed over the game."; exit 1
 fi
 grep -o "INSTALL_FAILED[A-Z_]*" other-out.txt | head -1
+grep -q "INSTALL_FAILED_UPDATE_INCOMPATIBLE" other-out.txt || { cat other-out.txt; exit 1; }
 [ "$(version)" = "$AFTER" ] || { echo "The installed game changed."; exit 1; }
 adb uninstall "$PACKAGE" > /dev/null
 echo "Update check passed."
