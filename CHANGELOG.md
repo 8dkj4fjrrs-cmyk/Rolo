@@ -5,6 +5,12 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Faster, everywhere**: setting something to the value it already has
+  (a script hiding an already hidden menu every frame, as the Platformer
+  Starter's pause menu did) no longer counts as a change. Before, it made
+  Rolo build the whole drawn scene again every frame.
+- **Android**: the app writes a `Speed:` line to the log (frames a
+  second, slowest frame, Rolo's own work per frame).
 - **Keyboards on Android**: all of Rolo's keys reach the game (Axmol
   passed on only Enter and the arrows).
 - **Fixed on Android**: when Android took the graphics context from a

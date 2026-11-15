@@ -130,7 +130,9 @@ In order:
      done it**: the upload itself and what the pre-launch report says.
    - Step 4: polish. ~~Gamepads and rumble~~ **done** (tried in the
      emulator; rumble untried). ~~Camera notches~~, ~~keyboards~~ and ~~a graphics context lost in
-     the background~~ **done**. Still to do: performance.
+     the background~~ **done**. ~~Performance~~: done as far as an
+     emulator allows (a speed line in the log; a scene no longer redrawn
+     every frame for nothing); a real phone has still to say how fast it is.
 7. **A "Coming from Roblox" guide**, and script properties in the
    Inspector (Roblox's Attributes).
 

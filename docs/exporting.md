@@ -262,6 +262,11 @@ editor raises the project's version code by one for the next export.
   when one is used, the on-screen controls step aside and button
   pictures follow the controller. Rumble shakes the controller if it can
   (untried on a real one); the phone itself is not shaken.
+- **How fast it runs**: a phone shows no frame counter, but its log
+  does. After the first seconds of play, and when the game ends, the app
+  writes a line starting with `Speed:` to Android's log (in Android
+  Studio: **Logcat**, filter `Rolo`): frames a second, the slowest
+  frame, and how much of each frame was Rolo's own work.
 - **Keyboards** (a Chromebook's, a tablet's, one plugged into a phone)
   work as on a computer: the same keys reach your game's actions.
 - Luau scripts and Rolo's own components run there; C++ game modules do
