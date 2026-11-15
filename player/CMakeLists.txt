@@ -18,6 +18,15 @@ if(ANDROID)
     # only what is used from a static library would leave them out:
     # "whole archive" takes all of it.
     target_link_libraries(rolo_player PRIVATE -Wl,--whole-archive cpp_android_spec -Wl,--no-whole-archive)
+    # A copy without debugging information (a tenth of the size), per kind of
+    # build and processor, where the Gradle project finds it for Rolo's
+    # Android runtime (player/android/app/build.gradle, roloAndroidRuntime).
+    string(TOLOWER "${CMAKE_BUILD_TYPE}" _rolo_build_kind)
+    set(_rolo_lib_dir "${_AX_ANDROID_PROJECT_DIR}/build/rolo-libs/${_rolo_build_kind}/${ANDROID_ABI}")
+    add_custom_command(TARGET rolo_player POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_rolo_lib_dir}"
+        COMMAND "${CMAKE_STRIP}" --strip-unneeded -o "${_rolo_lib_dir}/librolo_player.so" "$<TARGET_FILE:rolo_player>"
+        VERBATIM)
 else()
     add_executable(rolo_player runtime/main.cpp)
 endif()

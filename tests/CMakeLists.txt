@@ -33,6 +33,7 @@ add_executable(rolo_tests
     editor/test_commands.cpp
     editor/test_resources.cpp
     editor/test_export.cpp
+    editor/test_android_export.cpp
     scene/test_scene.cpp
     scene/test_legacy_names.cpp
     scene/test_scene_file.cpp

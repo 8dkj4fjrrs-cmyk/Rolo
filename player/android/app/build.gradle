@@ -1,35 +1,63 @@
 // The app: Rolo's player for Android, with one game inside (ADR 0028).
 //
-// What Gradle does here:
-//   1. runs CMake (with the Android NDK) on Rolo's sources to build the
-//      player as a library, librolo_player.so, for each kind of processor;
-//   2. compiles the Java side: Axmol's classes that make the screen and pass
-//      touches and frames to the library, and Rolo's activity;
-//   3. packs both into an .apk with the app's "assets": Axmol's shaders, the
-//      game (one game pack) and the license texts.
+// This file serves two kinds of folder:
 //
-// Build it from player/android, saying which game goes in:
-//   gradle :app:assembleDebug -ProloGamePack=/path/to/game.pack
-// Other settings, all optional:
-//   -ProloAbis=arm64-v8a:x86_64      processors to build for (phones: arm64-v8a;
-//                                    emulators on a PC: x86_64)
-//   -ProloAppName="My Game"          the name under the icon
-//   -ProloPackage=com.you.yourgame   the app's identity on a device and in Google Play
-//   -ProloOrientation=sensorPortrait an upright game (default: sensorLandscape)
+// 1. Rolo's sources (player/android). Gradle runs CMake with the Android NDK
+//    on Rolo's sources to build the player as a library, librolo_player.so,
+//    for each kind of processor, and from that:
+//      gradle :app:roloAndroidRuntime
+//          makes Rolo's "Android runtime" in app/build/android-runtime: this
+//          same Gradle project with the player already built into it. It is
+//          what Rolo's download carries and what the editor exports games from.
+//      gradle :app:assembleDebug -ProloGamePack=/path/to/game.pack
+//          builds an app straight from the sources, with that game inside.
+//
+// 2. A game exported by the editor (Export Game > Android): a copy of the
+//    Android runtime with the game added. The player is there already
+//    (app/src/main/jniLibs), so nothing is compiled but Java, and neither the
+//    NDK nor CMake is needed: only the Android SDK and Java, both of which
+//    come with Android Studio. The game's name, package and version are in
+//    rolo-game.json beside settings.gradle, written by the editor.
+//
+// Settings, each optional, as -Pname=value or from rolo-game.json:
+//   roloPackage      the app's identity on a device and in Google Play (com.you.yourgame)
+//   roloVersionCode  a whole number, higher with every upload to Google Play
+//   roloVersionName  the version players see
+//   roloOrientation  sensorLandscape (default) or sensorPortrait
+//   roloAbis         (sources only) processors to build for: arm64-v8a:x86_64
 
 apply plugin: 'com.android.application'
 
-def roloRoot = file('../../..')                       // Rolo's sources
-def axmolJava = new File(roloRoot, 'external/axmol/core/platform/android/java/src')
-def roloSetting = { String name, String fallback -> (project.findProperty(name) ?: fallback).toString() }
+// An exported game or the Android runtime: the player is already built.
+def roloPrebuilt = file('src/main/jniLibs').isDirectory()
+
+def roloGame = [:]
+def roloGameFile = rootProject.file('rolo-game.json')
+if (roloGameFile.isFile()) {
+    roloGame = new groovy.json.JsonSlurper().parse(roloGameFile, 'UTF-8')
+}
+def roloSetting = { String name, String fallback ->
+    def value = project.findProperty(name)
+    if (value == null) {
+        value = roloGame[name]
+    }
+    return (value == null ? fallback : value).toString()
+}
+
+// Signing for Google Play: the maker's "upload key". The editor hands its
+// place and password to this build through the environment, for this one
+// run; they are never written into the project.
+def roloKeystore = System.getenv('ROLO_ANDROID_KEYSTORE')
 
 android {
     // Where the app's own Java classes live (not the app's identity: that is applicationId).
     namespace = 'dev.roloengine.player'
-    // The versions of Android's tools this is built with. Google Play asks
+    // The version of Android's tools this is built with. Google Play asks
     // new apps to target a recent Android (36 is Android 16).
     compileSdk = 36
-    ndkVersion = '27.3.13750724'
+    if (!roloPrebuilt) {
+        ndkVersion = '27.3.13750724'
+    }
 
     defaultConfig {
         applicationId roloSetting('roloPackage', 'dev.roloengine.player')
@@ -38,35 +66,35 @@ android {
         versionCode roloSetting('roloVersionCode', '1').toInteger()
         versionName roloSetting('roloVersionName', '1.0')
         manifestPlaceholders = [
-            roloAppName    : roloSetting('roloAppName', 'Rolo Player'),
             roloOrientation: roloSetting('roloOrientation', 'sensorLandscape'),
         ]
 
-        externalNativeBuild {
-            cmake {
-                targets 'rolo_player'
-                arguments = [
-                    // One library, with the C++ standard library inside it.
-                    '-DANDROID_STL=c++_static',
-                    // Memory pages of 16 KB (new phones; Google Play requires it).
-                    '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON',
-                    // Host tools (git, PowerShell, the shader compiler) are
-                    // looked for on this computer, not among Android's files.
-                    '-DCMAKE_FIND_ROOT_PATH=',
-                    // Games on phones are scripts and data; the example C++ game modules stay out.
-                    '-DROLO_BUILD_SAMPLE_GAME=OFF',
-                    // Where Axmol puts its compiled shaders: <here>/build/runtime/axslc.
-                    "-D_AX_ANDROID_PROJECT_DIR=${projectDir.toString().replace('\\', '/')}".toString(),
-                ]
-                // "char" is signed on every other system Rolo runs on; on
-                // ARM it would not be unless asked for.
-                cFlags '-fsigned-char'
-                cppFlags '-fsigned-char'
+        if (!roloPrebuilt) {
+            externalNativeBuild {
+                cmake {
+                    targets 'rolo_player'
+                    arguments = [
+                        // One library, with the C++ standard library inside it.
+                        '-DANDROID_STL=c++_static',
+                        // Memory pages of 16 KB (new phones; Google Play requires it).
+                        '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON',
+                        // Host tools (git, PowerShell, the shader compiler) are
+                        // looked for on this computer, not among Android's files.
+                        '-DCMAKE_FIND_ROOT_PATH=',
+                        // Games on phones are scripts and data; the example C++ game modules stay out.
+                        '-DROLO_BUILD_SAMPLE_GAME=OFF',
+                        // Where Axmol puts its compiled shaders: <here>/build/runtime/axslc.
+                        "-D_AX_ANDROID_PROJECT_DIR=${projectDir.toString().replace('\\', '/')}".toString(),
+                    ]
+                    // "char" is signed on every other system Rolo runs on; on
+                    // ARM it would not be unless asked for.
+                    cFlags '-fsigned-char'
+                    cppFlags '-fsigned-char'
+                }
             }
-        }
-
-        ndk {
-            abiFilters = roloSetting('roloAbis', 'arm64-v8a').split(':').collect { it as String }
+            ndk {
+                abiFilters = roloSetting('roloAbis', 'arm64-v8a:x86_64').split(':').collect { it as String }
+            }
         }
     }
 
@@ -74,16 +102,32 @@ android {
         manifest.srcFile 'src/main/AndroidManifest.xml'
         res.srcDir 'src/main/res'
         // Rolo's activity; Rolo's stand-ins for the classes Axmol's Java
-        // mentions but Rolo leaves out (see src/axmol_compat/README.md); and
-        // Axmol's own Java, copied in by the stage task below.
-        java.srcDirs = ['src/main/java', 'src/axmol_compat/java', 'build/axmol-java']
-        assets.srcDir 'build/assets'
+        // mentions but Rolo leaves out (src/axmol_compat/README.md); and
+        // Axmol's own Java: in the runtime a copy (src/axmol), from the
+        // sources copied in by the stage task below.
+        java.srcDirs = ['src/main/java', 'src/axmol_compat/java', roloPrebuilt ? 'src/axmol/java' : 'build/axmol-java']
+        if (!roloPrebuilt) {
+            assets.srcDirs = ['build/assets']
+        }
     }
 
-    externalNativeBuild {
-        cmake {
-            version = '3.31.5'
-            path '../../../CMakeLists.txt'
+    if (!roloPrebuilt) {
+        externalNativeBuild {
+            cmake {
+                version = '3.31.5'
+                path '../../../CMakeLists.txt'
+            }
+        }
+    }
+
+    signingConfigs {
+        if (roloKeystore) {
+            release {
+                storeFile file(roloKeystore)
+                storePassword System.getenv('ROLO_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ROLO_ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ROLO_ANDROID_KEYSTORE_PASSWORD')
+            }
         }
     }
 
@@ -91,6 +135,9 @@ android {
         release {
             // Not shrunk or renamed: the library finds Java classes by name.
             minifyEnabled false
+            if (roloKeystore) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
@@ -99,57 +146,116 @@ android {
     aaptOptions {
         noCompress 'pack', 'ogg', 'mp3', 'wav'
     }
-}
 
-// Before the Java is compiled and the assets are packed, for each kind of
-// build (debug, release): copy in what comes from outside this folder.
-// It runs after the C++ build, which downloads Axmol the first time and
-// compiles the shaders.
-androidComponents {
-    onVariants(selector().all(), { variant ->
-        def variantName = variant.name.capitalize()
-        def stage = tasks.register("stage${variantName}RoloFiles") {
-            dependsOn("externalNativeBuild${variantName}")
-            doLast {
-                def gamePack = project.findProperty('roloGamePack')
-                if (gamePack == null || !file(gamePack).isFile()) {
-                    throw new GradleException(
-                        "Say which game goes into the app: -ProloGamePack=/path/to/game.pack " +
-                        "(a game pack; docs/building.md, \"For Android\")." +
-                        (gamePack == null ? "" : " There is no file ${file(gamePack)}."))
-                }
-                if (!axmolJava.isDirectory()) {
-                    throw new GradleException("Axmol's Java sources were not found in ${axmolJava}.")
-                }
-                // Axmol's Java side, without its video player (which needs
-                // Google's media libraries; Rolo has no video) and without
-                // the two helper libraries that are not MIT-licensed.
-                delete "${projectDir}/build/axmol-java"
-                copy {
-                    from axmolJava
-                    into "${projectDir}/build/axmol-java"
-                    include 'dev/axmol/lib/**/*.java'
-                    exclude 'dev/axmol/lib/AxmolMediaEngine.java'
-                    exclude 'dev/axmol/lib/MediaCodecVideoRenderer.java'
-                }
-                // The app's assets.
-                delete "${projectDir}/build/assets"
-                copy {
-                    from "${projectDir}/build/runtime/axslc"
-                    into "${projectDir}/build/assets/axslc"
-                }
-                copy {
-                    from file(gamePack)
-                    into "${projectDir}/build/assets"
-                    rename { 'game.pack' }
-                }
-                copy {
-                    from new File(roloRoot, 'licenses')
-                    into "${projectDir}/build/assets/licenses"
-                }
+    if (roloPrebuilt) {
+        // The player comes without debugging information already; there is
+        // nothing to strip, and no NDK here to strip it with.
+        packaging {
+            jniLibs {
+                keepDebugSymbols.add('**/*.so')
             }
         }
-        tasks.matching { it.name == "compile${variantName}JavaWithJavac" || it.name == "merge${variantName}Assets" }
-            .configureEach { dependsOn(stage) }
-    })
+    }
+}
+
+if (!roloPrebuilt) {
+    def roloRoot = file('../../..')                       // Rolo's sources
+    def axmolJava = new File(roloRoot, 'external/axmol/core/platform/android/java/src')
+
+    // Axmol's Java side, without its video player (which needs Google's media
+    // libraries; Rolo has no video) and without the helper libraries Rolo
+    // has stand-ins for.
+    def copyAxmolJava = { String target ->
+        if (!axmolJava.isDirectory()) {
+            throw new GradleException("Axmol's Java sources were not found in ${axmolJava}.")
+        }
+        delete target
+        copy {
+            from axmolJava
+            into target
+            include 'dev/axmol/lib/**/*.java'
+            exclude 'dev/axmol/lib/AxmolMediaEngine.java'
+            exclude 'dev/axmol/lib/MediaCodecVideoRenderer.java'
+        }
+    }
+
+    // Before the Java is compiled and the assets are packed, for each kind of
+    // build (debug, release): copy in what comes from outside this folder.
+    // It runs after the C++ build, which downloads Axmol the first time and
+    // compiles the shaders.
+    androidComponents {
+        onVariants(selector().all(), { variant ->
+            def variantName = variant.name.capitalize()
+            def stage = tasks.register("stage${variantName}RoloFiles") {
+                dependsOn("externalNativeBuild${variantName}")
+                doLast {
+                    copyAxmolJava("${projectDir}/build/axmol-java")
+                    delete "${projectDir}/build/assets"
+                    copy {
+                        from "${projectDir}/build/runtime/axslc"
+                        into "${projectDir}/build/assets/axslc"
+                    }
+                    copy {
+                        from new File(roloRoot, 'licenses')
+                        into "${projectDir}/build/assets/licenses"
+                    }
+                    // The game. (Making the Android runtime needs none: the editor adds it.)
+                    def gamePack = project.findProperty('roloGamePack')
+                    if (gamePack != null && file(gamePack).isFile()) {
+                        copy {
+                            from file(gamePack)
+                            into "${projectDir}/build/assets"
+                            rename { 'game.pack' }
+                        }
+                    } else if (!gradle.startParameter.taskNames.any { it.contains('roloAndroidRuntime') }) {
+                        throw new GradleException(
+                            "Say which game goes into the app: -ProloGamePack=/path/to/game.pack " +
+                            "(a game pack; docs/building.md, \"For Android\")." +
+                            (gamePack == null ? "" : " There is no file ${file(gamePack)}."))
+                    }
+                }
+            }
+            tasks.matching { it.name == "compile${variantName}JavaWithJavac" || it.name == "merge${variantName}Assets" }
+                .configureEach { dependsOn(stage) }
+        })
+    }
+
+    // Rolo's Android runtime: this Gradle project with the player built in,
+    // optimised and without debugging information (CMake leaves such a copy
+    // of each library in build/rolo-libs; player/CMakeLists.txt).
+    tasks.register('roloAndroidRuntime') {
+        dependsOn('externalNativeBuildRelease')
+        doLast {
+            def out = "${projectDir}/build/android-runtime"
+            def libs = ['release', 'relwithdebinfo', 'minsizerel'].collect { file("build/rolo-libs/${it}") }.find { it.isDirectory() }
+            if (libs == null) {
+                throw new GradleException("The player's libraries were not found in ${projectDir}/build/rolo-libs.")
+            }
+            delete out
+            copy {
+                from rootProject.projectDir
+                into out
+                include 'settings.gradle', 'build.gradle', 'gradle.properties', 'gradle/**'
+            }
+            copy {
+                from projectDir
+                into "${out}/app"
+                include 'build.gradle', 'src/**'
+            }
+            copyAxmolJava("${out}/app/src/axmol/java")
+            copy {
+                from libs
+                into "${out}/app/src/main/jniLibs"
+                include '*/librolo_player.so'
+            }
+            copy {
+                from "${projectDir}/build/runtime/axslc"
+                into "${out}/app/src/main/assets/axslc"
+            }
+            if (!file("${out}/app/src/main/jniLibs").isDirectory() || !file("${out}/app/src/main/assets/axslc").isDirectory()) {
+                throw new GradleException("The Android runtime is incomplete: no libraries or no shaders were copied.")
+            }
+            println "Rolo's Android runtime is in ${out}"
+        }
+    }
 }

@@ -53,6 +53,7 @@ TEST_CASE("An installed copy keeps its files beside the editor", "[editor][resou
     CHECK(r.licenses == f.path / "Rolo/licenses");
     CHECK(r.player == f.path / "Rolo/runtime/rolo_player");
     CHECK(r.webPlayer == f.path / "Rolo/web-runtime");
+    CHECK(r.androidRuntime == f.path / "Rolo/android-runtime");
     const auto w = findRoloResources(f.path / "Rolo/rolo_editor.exe", HostOs::Windows, "/src", "");
     CHECK(w.player == f.path / "Rolo/runtime/rolo_player.exe");
 }
@@ -79,6 +80,7 @@ TEST_CASE("A build folder uses the source tree and the player built beside the e
     CHECK(r.docs == f.path / "src/docs");
     CHECK(r.player == f.path / "build/bin/rolo_player/rolo_player");
     CHECK(r.webPlayer == f.path / "src/build/web/bin/rolo_player");   // where a web build puts it
+    CHECK(r.androidRuntime == f.path / "src/player/android/app/build/android-runtime");   // and the Android one
 }
 
 TEST_CASE("Templates and examples are listed in order and copied into new projects", "[editor][resources]")

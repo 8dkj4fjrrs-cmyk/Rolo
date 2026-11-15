@@ -12,6 +12,7 @@
 # never depend on the editor.
 
 add_library(rolo_editor_core STATIC
+    model/AndroidExport.cpp
     model/CommandLine.cpp
     model/Commands.cpp
     model/ConsoleLog.cpp
@@ -28,10 +29,11 @@ target_link_libraries(rolo_editor_core PUBLIC rolo::core rolo::scene rolo::asset
 rolo_set_warnings(rolo_editor_core)
 # Only RoloResources.cpp reads JSON (template.json); nlohmann/json needs
 # char8_t in C++20 mode (see engine/scene/CMakeLists.txt).
+# (These two use the JSON library, which needs char8_t; Axmol's settings switch it off elsewhere.)
 if(MSVC)
-    set_source_files_properties(model/RoloResources.cpp PROPERTIES COMPILE_OPTIONS /Zc:char8_t)
+    set_source_files_properties(model/RoloResources.cpp model/AndroidExport.cpp PROPERTIES COMPILE_OPTIONS /Zc:char8_t)
 else()
-    set_source_files_properties(model/RoloResources.cpp PROPERTIES COMPILE_OPTIONS -fchar8_t)
+    set_source_files_properties(model/RoloResources.cpp model/AndroidExport.cpp PROPERTIES COMPILE_OPTIONS -fchar8_t)
 endif()
 
 if(NOT TARGET rolo_runtime)

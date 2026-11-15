@@ -42,7 +42,38 @@ EditorParseResult parseEditorCommandLine(std::span<const std::string_view> args)
                 return result;
             }
             (arg == "--project" ? opt.projectPath : opt.newProjectPath) = std::string(value);
-        } else if (arg == "--template" || arg == "--export" || arg == "--export-web") {
+        } else if (arg == "--android-package" || arg == "--android-version-name" || arg == "--android-sdk"
+                   || arg == "--android-java" || arg == "--android-key" || arg == "--android-key-alias"
+                   || arg == "--new-android-key" || arg == "--android-key-owner") {
+            if (!nextValue(value)) {
+                return result;
+            }
+            if (value.empty()) {
+                result.error = std::string(arg) + " needs a value.";
+                return result;
+            }
+            std::string& into = arg == "--android-package"        ? opt.androidPackage
+                                : arg == "--android-version-name" ? opt.androidVersionName
+                                : arg == "--android-sdk"          ? opt.androidSdk
+                                : arg == "--android-java"         ? opt.androidJava
+                                : arg == "--android-key"          ? opt.androidKey
+                                : arg == "--android-key-alias"    ? opt.androidKeyAlias
+                                : arg == "--new-android-key"      ? opt.newAndroidKey
+                                                                  : opt.androidKeyOwner;
+            into = std::string(value);
+        } else if (arg == "--android-version-code") {
+            if (!nextValue(value)) {
+                return result;
+            }
+            int code = 0;
+            const char* end = value.data() + value.size();
+            const auto [ptr, ec] = std::from_chars(value.data(), end, code);
+            if (ec != std::errc{} || ptr != end || code < 1) {
+                result.error = "--android-version-code must be a whole number of at least 1, got '" + std::string(value) + "'.";
+                return result;
+            }
+            opt.androidVersionCode = code;
+        } else if (arg == "--template" || arg == "--export" || arg == "--export-web" || arg == "--export-android") {
             if (!nextValue(value)) {
                 return result;
             }
@@ -51,11 +82,12 @@ EditorParseResult parseEditorCommandLine(std::span<const std::string_view> args)
                 return result;
             }
             if (arg != "--template" && !opt.exportPath.empty()) {
-                result.error = "Give --export or --export-web once: one game is exported at a time.";
+                result.error = "Give --export, --export-web or --export-android once: one game is exported at a time.";
                 return result;
             }
             (arg == "--template" ? opt.templateId : opt.exportPath) = std::string(value);
             opt.exportWeb = opt.exportWeb || arg == "--export-web";
+            opt.exportAndroid = opt.exportAndroid || arg == "--export-android";
         } else if (arg == "--config-dir") {
             if (!nextValue(value)) {
                 return result;
@@ -100,8 +132,21 @@ EditorParseResult parseEditorCommandLine(std::span<const std::string_view> args)
         result.error = "--template goes with --new-project FOLDER.";
     }
     if (!opt.exportPath.empty() && opt.projectPath.empty()) {
-        result.error = opt.exportWeb ? "--export-web needs the project to export: --project FOLDER --export-web OUTPUT."
-                                     : "--export needs the project to export: --project FOLDER --export OUTPUT.";
+        result.error = opt.exportWeb       ? "--export-web needs the project to export: --project FOLDER --export-web OUTPUT."
+                       : opt.exportAndroid ? "--export-android needs the project to export: --project FOLDER --export-android OUTPUT."
+                                           : "--export needs the project to export: --project FOLDER --export OUTPUT.";
+    }
+    const bool androidOptions = !opt.androidPackage.empty() || opt.androidVersionCode != 0 || !opt.androidVersionName.empty()
+                                || !opt.androidKey.empty();
+    if (androidOptions && !opt.exportAndroid) {
+        result.error = "--android-package, --android-version-code, --android-version-name and --android-key go with "
+                       "--export-android OUTPUT.";
+    }
+    if (!opt.newAndroidKey.empty() && opt.androidKeyOwner.empty()) {
+        result.error = "--new-android-key needs --android-key-owner NAME: your name or your studio's, kept in the key.";
+    }
+    if (opt.newAndroidKey.empty() && !opt.androidKeyOwner.empty()) {
+        result.error = "--android-key-owner goes with --new-android-key FILE.";
     }
     return result;
 }
@@ -118,6 +163,20 @@ std::string editorHelpText()
            "  --template NAME     With --new-project: start from a template, e.g. topdown\n"
            "  --export OUTPUT     With --project: export the game into OUTPUT and quit\n"
            "  --export-web OUTPUT With --project: export the game for web browsers into OUTPUT and quit\n"
+           "  --export-android OUTPUT  With --project: export the game for Android into OUTPUT and quit\n"
+           "                      (needs Android Studio installed; docs/exporting.md, \"For Android\")\n"
+           "      --android-package NAME       the app's package name, instead of the project's\n"
+           "      --android-version-code N     its version code (a whole number), instead of the project's\n"
+           "      --android-version-name TEXT  the version players see, instead of the project's\n"
+           "      --android-sdk DIR            the Android SDK, if not where Android Studio puts it\n"
+           "      --android-java DIR           the Java to use, if not Android Studio's own\n"
+           "      --android-key FILE           your upload key: also make the .aab for Google Play. Its\n"
+           "                                   password is read from the environment variable\n"
+           "                                   ROLO_ANDROID_KEYSTORE_PASSWORD\n"
+           "      --android-key-alias NAME     the key's name inside the file (default: upload)\n"
+           "  --new-android-key FILE  Make a new upload key for Google Play in FILE and quit\n"
+           "      --android-key-owner NAME     whose key it is (required); the password is read from\n"
+           "                                   ROLO_ANDROID_KEYSTORE_PASSWORD\n"
            "  --no-project        Start without opening the last project\n"
            "  --reset-layout      Start with the default panel layout\n"
            "  --play              Start playing the scene at once (tests)\n"

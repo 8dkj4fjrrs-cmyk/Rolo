@@ -85,6 +85,19 @@ else()
     message(STATUS "Package: WITHOUT the web runtime (none at ${ROLO_WEB_RUNTIME_DIR}); it will not export for the web")
 endif()
 
+# The Android runtime, for exporting games for Android: a Gradle project with
+# the player built in. It is built separately, with the Android NDK
+# (docs/building.md, "For Android"), and taken from where that build puts it.
+# A package made without it cannot export for Android (the editor says so).
+set(ROLO_ANDROID_RUNTIME_DIR "${PROJECT_SOURCE_DIR}/player/android/app/build/android-runtime" CACHE PATH
+    "The built Android runtime (a Gradle project with the player's libraries) to put in the package")
+if(EXISTS "${ROLO_ANDROID_RUNTIME_DIR}/app/src/main/jniLibs")
+    install(DIRECTORY "${ROLO_ANDROID_RUNTIME_DIR}/" DESTINATION "${_resources}/android-runtime" ${_component})
+    message(STATUS "Package: with the Android runtime from ${ROLO_ANDROID_RUNTIME_DIR}")
+else()
+    message(STATUS "Package: WITHOUT the Android runtime (none at ${ROLO_ANDROID_RUNTIME_DIR}); it will not export for Android")
+endif()
+
 # macOS: sign the apps "ad hoc", after everything is inside them. Apple
 # silicon Macs call a downloaded app with no valid signature "damaged" and
 # refuse to open it. An ad-hoc signature is valid without an Apple developer

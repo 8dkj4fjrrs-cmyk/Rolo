@@ -33,6 +33,25 @@ struct EditorOptions {
     /// With exportPath: export for the web (--export-web) instead of for this computer.
     bool exportWeb = false;
 
+    /// With exportPath: export for Android (--export-android). See docs/exporting.md.
+    bool exportAndroid = false;
+    /// For this Android export, instead of what the project has (not saved).
+    std::string androidPackage;
+    int androidVersionCode = 0;        // 0: the project's
+    std::string androidVersionName;
+    /// Where Google's tools are, if not where Android Studio puts them.
+    std::string androidSdk;
+    std::string androidJava;
+    /// The upload key for Google Play: with it, the export makes the .aab too.
+    /// Its password is read from the environment variable
+    /// ROLO_ANDROID_KEYSTORE_PASSWORD (never from the command line, where
+    /// other programs and the shell's history could see it).
+    std::string androidKey;
+    std::string androidKeyAlias = "upload";
+    /// Make a new upload key file (--new-android-key FILE --android-key-owner NAME) and quit.
+    std::string newAndroidKey;
+    std::string androidKeyOwner;
+
     /// Ignore the saved panel layout and start with the default one.
     bool resetLayout = false;
     /// Start playing the opened scene straight away (used by tests).

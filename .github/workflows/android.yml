@@ -1,25 +1,33 @@
-# Android (experimental): builds Rolo's player as an Android app with one
-# game inside (the Platformer Starter) and plays it in an Android emulator.
-# ADR 0028, step 1. Separate from CI (ci.yml) on purpose: Android cannot be
-# built where Rolo is developed, so this workflow is where it is built and
-# tried at all, and an emulator on a build machine is slower and less
-# steady than the other tests. A failure here does not make CI fail.
+# Android (experimental): builds Rolo's Android runtime, has the editor export
+# a game for Android with it (the Platformer Starter), and plays the exported
+# app in an Android emulator. ADR 0028, steps 1 and 2. Separate from CI
+# (ci.yml) on purpose: Android cannot be built where Rolo is developed, so
+# this workflow is where it is built and tried at all, and an emulator on a
+# build machine is slower and less steady than the other tests. A failure
+# here does not make CI fail.
 #
 # It runs when something Android-specific changes, on any branch whose name
 # starts with "android", and by hand (Actions > Android > Run workflow).
 #
-#   1. rolo_pack (a small tool, built for the build machine) packs the game.
-#   2. Gradle builds the app: the player for phones (arm64-v8a) and for the
-#      emulator (x86_64), Axmol's Java side, the shaders, the game pack.
-#   3. The app's libraries are checked for 16 KB pages (Google Play asks for it).
+#   1. Gradle builds Rolo's Android runtime from the sources: the player for
+#      phones (arm64-v8a) and for the emulator (x86_64), optimised, in a
+#      Gradle project of its own (what Rolo's download carries).
+#   2. The editor is built, makes an upload key, and exports the game for
+#      Android from the command line, as a maker's computer would: Java runs
+#      Gradle's starter, which fetches Gradle and Google's build plugin and
+#      builds the .apk and the signed .aab. Only the Android SDK and Java
+#      are used: no NDK, no CMake.
+#   3. The results are checked: the app's name, package and version, its
+#      libraries' 16 KB pages (Google Play asks for it), the .aab's signature;
+#      and a wrong password must be refused in plain words.
 #   4. An emulator starts the app; tools/android/check_android_game.py waits
 #      for the first scene, takes screenshots, touches the on-screen
 #      controls, presses Back, sends the app to the background and brings it
 #      back, and quits the game from its pause menu. A second start checks
 #      that the game is not unpacked again.
 #
-# The app, the screenshots and Android's log are kept as "android-check"
-# (on the run's page, under Artifacts).
+# The export (.apk, .aab), the screenshots and Android's log are kept as
+# "android-check" (on the run's page, under Artifacts).
 name: Android (experimental)
 
 on:
@@ -34,6 +42,10 @@ on:
       - 'tools/android/**'
       - 'tools/pack/**'
       - 'player/CMakeLists.txt'
+      - 'editor/model/AndroidExport.*'
+      - 'editor/model/Process.*'
+      - 'editor/application/Exporting.*'
+      - 'editor/application/main.cpp'
       - 'player/runtime/main.cpp'
       - 'engine/runtime/src/Android.cpp'
       - 'engine/runtime/src/Application.cpp'
@@ -55,8 +67,13 @@ jobs:
           path: external
           key: external-${{ runner.os }}-${{ hashFiles('cmake/RoloAxmol.cmake', 'cmake/axmol-patches/**') }}
 
-      - name: Install Ninja
-        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Install what the editor's build needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config xvfb \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxxf86vm-dev \
+            libgl1-mesa-dev libglu1-mesa-dev libgl1-mesa-dri libfontconfig1-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libwayland-dev libxkbcommon-dev
 
       # Gradle (Android's build tool) runs on Java. The Android SDK and NDK
       # are on GitHub's machines already; Gradle fetches what is missing.
@@ -65,35 +82,54 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # The Gradle version of player/android/gradle/wrapper/gradle-wrapper.properties.
+      # The Gradle version of player/android/gradle/wrapper/gradle-wrapper.properties,
+      # for building the runtime from the sources. (This action also checks
+      # that gradle-wrapper.jar in the repository is Gradle's own, unchanged.)
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.7.1'
 
-      - name: Pack the game
-        run: |
-          cmake --preset core
-          cmake --build --preset core --target rolo_pack
-          build/core/bin/rolo_pack templates/platformer/project game.pack
-
-      - name: Build the app
+      - name: Build Rolo's Android runtime
         working-directory: player/android
         run: |
-          gradle :app:assembleDebug --stacktrace \
-            -ProloGamePack="$GITHUB_WORKSPACE/game.pack" \
-            -ProloAbis=x86_64:arm64-v8a \
-            -ProloAppName="Platformer Starter"
-          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/rolo-player-debug.apk"
-          ls -la "$GITHUB_WORKSPACE/rolo-player-debug.apk"
+          gradle :app:roloAndroidRuntime --stacktrace
+          find app/build/android-runtime -maxdepth 4 | sort | head -60
+          du -sh app/build/android-runtime app/build/android-runtime/app/src/main/jniLibs/*
+
+      - name: Build the editor
+        run: |
+          cmake --preset dev
+          cmake --build --preset dev --target rolo_editor
+
+      # As a maker would, but from the command line. The password travels
+      # in an environment variable, never as an argument.
+      - name: Make an upload key and export the game for Android
+        env:
+          ROLO_ANDROID_KEYSTORE_PASSWORD: a-test-password
+        run: |
+          build/dev/bin/rolo_editor/rolo_editor --new-android-key "$RUNNER_TEMP/upload.jks" --android-key-owner "Rolo's Test, Ltd"
+          build/dev/bin/rolo_editor/rolo_editor --project templates/platformer/project \
+            --export-android android-export --android-package dev.roloengine.platformer \
+            --android-version-code 7 --android-version-name 1.2 --android-key "$RUNNER_TEMP/upload.jks"
+          ls -la "android-export/Platformer Starter Android"
+          cat "android-export/Platformer Starter Android/README.txt"
+          cp "android-export/Platformer Starter Android/Platformer Starter.apk" rolo-exported-game.apk
+          cp "android-export/Platformer Starter Android/Platformer Starter.aab" rolo-exported-game.aab
 
       # What is inside, and: every part of each library that is loaded into
       # memory must be laid out for 16 KB pages (0x4000), or new phones
       # refuse it and Google Play rejects the app.
-      - name: Check the app's contents and 16 KB pages
+      - name: Check the exported app and the file for Google Play
         run: |
-          unzip -l rolo-player-debug.apk | grep -E "lib/|assets/game.pack|classes"
-          echo "Shaders: $(unzip -l rolo-player-debug.apk | grep -c assets/axslc/), license texts: $(unzip -l rolo-player-debug.apk | grep -c assets/licenses/)"
-          mkdir apk && unzip -q rolo-player-debug.apk -d apk
+          BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BUILD_TOOLS/aapt2" dump badging rolo-exported-game.apk | grep -E "^package|application-label:|sdkVersion|native-code" | tee badging.txt
+          grep -q "name='dev.roloengine.platformer'" badging.txt
+          grep -q "versionCode='7'" badging.txt
+          grep -q "versionName='1.2'" badging.txt
+          grep -q "application-label:'Platformer Starter'" badging.txt
+          unzip -l rolo-exported-game.apk | grep -E "lib/|assets/game.pack|classes"
+          echo "Shaders: $(unzip -l rolo-exported-game.apk | grep -c assets/axslc/), license texts: $(unzip -l rolo-exported-game.apk | grep -c assets/licenses/)"
+          mkdir apk && unzip -q rolo-exported-game.apk -d apk
           test -f apk/assets/game.pack
           test -f apk/assets/licenses/rolo.txt
           for abi in arm64-v8a x86_64; do
@@ -105,6 +141,25 @@ jobs:
             python3 -c "import sys; sizes = [int(line.split()[-1], 16) for line in open('load.txt')]; sys.exit(0 if sizes and min(sizes) >= 16384 else 1)" \
               || { echo "::error::$lib is not laid out for 16 KB pages"; exit 1; }
           done
+          # The bundle: signed with the key made above, and holding the same things.
+          jarsigner -verify -verbose -certs rolo-exported-game.aab > signature.txt || { cat signature.txt; exit 1; }
+          grep -E "jar verified|CN=" signature.txt | sort -u | head -5
+          grep -q "jar verified" signature.txt
+          grep -q "Rolo's Test" signature.txt
+          unzip -l rolo-exported-game.aab | grep -E "base/lib/|base/assets/game.pack|base/manifest"
+
+      # The wrong password must stop the export, and say so in plain words.
+      - name: Check that a wrong password is refused clearly
+        env:
+          ROLO_ANDROID_KEYSTORE_PASSWORD: not-the-password
+        run: |
+          if build/dev/bin/rolo_editor/rolo_editor --project templates/platformer/project \
+               --export-android wrong-password-export --android-package dev.roloengine.platformer \
+               --android-key "$RUNNER_TEMP/upload.jks" > wrong-password.txt 2>&1; then
+            echo "::error::An export with the wrong key password succeeded"; exit 1
+          fi
+          tail -5 wrong-password.txt
+          grep -q "the password is wrong" wrong-password.txt || { cat wrong-password.txt; exit 1; }
 
       # Emulators need the machine's virtualisation (KVM), which GitHub's
       # Linux machines allow once this rule is in place.
@@ -128,14 +183,15 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            python3 tools/android/check_android_game.py rolo-player-debug.apk --screenshot android-first-scene.png --log android-log-1.txt --expect "Unpacking the game" --expect "Set aside" --expect "Back in front" --expect-ended --play "200,200>330,200;-112,112;back;shot:android-pause-menu.png;back;home;wait:2;return;wait:2;shot:android-after-return.png;50%,-79;200,200>200,60;200,200>200,60;shot:android-quit-chosen.png;-112,112"
-            python3 tools/android/check_android_game.py rolo-player-debug.apk --keep-installed --screenshot android-second-start.png --log android-log-2.txt --reject "Unpacking the game" --expect "Playing the game inside this app"
+            python3 tools/android/check_android_game.py rolo-exported-game.apk --package dev.roloengine.platformer --screenshot android-first-scene.png --log android-log-1.txt --expect "Unpacking the game" --expect "Set aside" --expect "Back in front" --expect-ended --play "200,200>330,200;-112,112;back;shot:android-pause-menu.png;back;home;wait:2;return;wait:2;shot:android-after-return.png;50%,-79;200,200>200,60;200,200>200,60;shot:android-quit-chosen.png;-112,112"
+            python3 tools/android/check_android_game.py rolo-exported-game.apk --package dev.roloengine.platformer --keep-installed --screenshot android-second-start.png --log android-log-2.txt --reject "Unpacking the game" --expect "Playing the game inside this app"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: android-check
           path: |
-            rolo-player-debug.apk
+            rolo-exported-game.apk
+            rolo-exported-game.aab
             android-*.png
             android-log-*.txt

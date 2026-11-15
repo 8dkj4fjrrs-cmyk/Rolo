@@ -120,3 +120,40 @@ TEST_CASE("Editor command line: templates and exporting", "[editor][cli]")
     CHECK(parse({"--export", "/tmp/out"}).error.find("--project") != std::string::npos);
     CHECK_FALSE(parse({"--project", "Game", "--export", ""}).ok());
 }
+
+TEST_CASE("Editor command line: exporting for Android", "[editor][cli][android]")
+{
+    const auto parse = [](std::initializer_list<std::string_view> args) {
+        const std::vector<std::string_view> list(args);
+        return parseEditorCommandLine(list);
+    };
+    const auto exported = parse({"--project", "P", "--export-android", "OUT", "--android-package", "com.me.game",
+                                 "--android-version-code", "12", "--android-version-name", "1.5", "--android-sdk", "SDK",
+                                 "--android-java", "JDK", "--android-key", "upload.jks", "--android-key-alias", "mine"});
+    REQUIRE(exported.ok());
+    CHECK(exported.options.exportAndroid);
+    CHECK_FALSE(exported.options.exportWeb);
+    CHECK(exported.options.exportPath == "OUT");
+    CHECK(exported.options.androidPackage == "com.me.game");
+    CHECK(exported.options.androidVersionCode == 12);
+    CHECK(exported.options.androidVersionName == "1.5");
+    CHECK(exported.options.androidSdk == "SDK");
+    CHECK(exported.options.androidJava == "JDK");
+    CHECK(exported.options.androidKey == "upload.jks");
+    CHECK(exported.options.androidKeyAlias == "mine");
+    CHECK(parse({"--project", "P", "--export-android", "OUT"}).options.androidKeyAlias == "upload");
+
+    CHECK(parse({"--export-android", "OUT"}).error.find("--project") != std::string::npos);
+    CHECK(parse({"--project", "P", "--export", "A", "--export-android", "B"}).error.find("once") != std::string::npos);
+    CHECK(parse({"--project", "P", "--export-android", "OUT", "--android-version-code", "0"}).error.find("at least 1")
+          != std::string::npos);
+    CHECK(parse({"--project", "P", "--android-package", "com.me.game"}).error.find("--export-android") != std::string::npos);
+
+    const auto key = parse({"--new-android-key", "upload.jks", "--android-key-owner", "Ada"});
+    REQUIRE(key.ok());
+    CHECK(key.options.newAndroidKey == "upload.jks");
+    CHECK(key.options.androidKeyOwner == "Ada");
+    CHECK(parse({"--new-android-key", "upload.jks"}).error.find("--android-key-owner") != std::string::npos);
+    CHECK(parse({"--android-key-owner", "Ada"}).error.find("--new-android-key") != std::string::npos);
+    CHECK(editorHelpText().find("--export-android") != std::string::npos);
+}
