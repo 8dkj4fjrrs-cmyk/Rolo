@@ -153,6 +153,11 @@ void openMenuAt(ui::Context& ctx, ui::Rect anchor, std::vector<ui::MenuItem> ite
 void showFolderPicker(ui::Context& ctx, const std::string& title, const std::filesystem::path& start,
                       std::function<void(const std::filesystem::path&)> onChosen, bool projectsOnly = false);
 
+/// A dialog for choosing a file by browsing: folders, and the files whose
+/// names end in one of `extensions` (with the dot, small letters: ".png").
+void showFilePicker(ui::Context& ctx, const std::string& title, const std::filesystem::path& start,
+                    std::vector<std::string> extensions, std::function<void(const std::filesystem::path&)> onChosen);
+
 /// Changes an animation set (.lanim) and saves it as one undoable step.
 /// With `merge`, consecutive changes with the same label join into one step
 /// until the next endEdit() (e.g. while typing a number). False if nothing

@@ -1289,6 +1289,11 @@ void EditorApp::showExportDialog()
         showMessage("Export Game", "Open or create a project first: a game is exported from its project.");
         return;
     }
+    if (m_androidJob) {
+        showMessage("Export Game", "The game is still being exported for Android (the Console shows its progress). "
+                                   "Wait for it to finish before exporting again.");
+        return;
+    }
     if (m_game) {
         stopPlaying();
     }
@@ -1299,7 +1304,7 @@ void EditorApp::showExportDialog()
         .setWrap(true);
     body.emplace<ui::Label>("Export for", ui::Label::Style::Dim);
     auto& target = body.emplace<ui::ChoiceField>(
-        std::vector<std::string>{std::string(system) + " (this computer)", "Web browsers"});
+        std::vector<std::string>{std::string(system) + " (this computer)", "Web browsers", "Android (phones and tablets)"});
     auto& about = body.emplace<ui::Label>("", ui::Label::Style::Faint);
     about.setWrap(true);
     body.emplace<ui::Label>("Game name", ui::Label::Style::Dim);
@@ -1316,15 +1321,20 @@ void EditorApp::showExportDialog()
     hint.setWrap(true);
     const auto updateHint = [&hint, &name, &folder, &target, &about] {
         const bool web = target.selected() == 1;
+        const bool android = target.selected() == 2;
         const std::string file = exportFileName(name.text());
-        const std::string made = web ? file + " Web" : currentOs() == HostOs::MacOS ? file + ".app" : file;
+        const std::string made = web ? file + " Web" : android ? file + " Android" : currentOs() == HostOs::MacOS ? file + ".app" : file;
         hint.setText("Creates " + (std::filesystem::path(folder.text()) / made).string()
                      + ", replacing an earlier export of the same game.");
         about.setText(web ? "A folder to put on a web host (itch.io, GitHub Pages...): players open a page, with "
                             "nothing to install. Luau scripts and Rolo's own components run there; C++ game "
                             "modules do not."
-                          : "A program for this kind of computer. To make one for another system, export on "
-                            "that system.");
+                      : android ? "An Android app: an .apk to try on a phone or an emulator, and the file Google "
+                                  "Play wants. It is built by Google's tools, so Android Studio must be installed "
+                                  "(free); the next step asks for the app's details. Luau scripts and Rolo's own "
+                                  "components run there; C++ game modules do not."
+                                : "A program for this kind of computer. To make one for another system, export on "
+                                  "that system.");
     };
     updateHint();
     name.setOnChange([updateHint](const std::string&) { updateHint(); });
@@ -1346,11 +1356,21 @@ void EditorApp::showExportDialog()
     dialog->addButton("Cancel");
     ui::Button& ok = dialog->addButton(m_document->isDirty() ? "Save and Export" : "Export",
                                        ui::Button::Style::Primary);
+    const auto updateButton = [this, &ok, &target] {
+        const bool android = target.selected() == 2;   // Android has a second step
+        ok.setText(m_document->isDirty() ? (android ? "Save and Continue" : "Save and Export") : android ? "Continue" : "Export");
+    };
     // Each kind of export needs its runtime; say so before the user tries.
     const auto checkRuntime = [this, &error, &ok, &target] {
         std::error_code ec;
         std::string problem;
-        if (target.selected() == 1) {
+        if (target.selected() == 2) {
+            if (!isAndroidRuntime(m_resources.androidRuntime)) {
+                problem = "Rolo's Android runtime was not found in " + m_resources.androidRuntime.string()
+                          + ". It comes with Rolo's download; when working from source, build it first "
+                            "(docs/building.md, \"For Android\").";
+            }
+        } else if (target.selected() == 1) {
             if (!std::filesystem::exists(m_resources.webPlayer / "rolo_player.wasm", ec)) {
                 problem = "Rolo's web runtime was not found in " + m_resources.webPlayer.string()
                           + ". It comes with Rolo's download; when working from source, build it first "
@@ -1365,9 +1385,10 @@ void EditorApp::showExportDialog()
         ok.setEnabled(problem.empty());
     };
     checkRuntime();
-    target.setOnChoose([updateHint, checkRuntime](int) {
+    target.setOnChoose([updateHint, checkRuntime, updateButton](int) {
         updateHint();
         checkRuntime();
+        updateButton();
     });
     ui::Dialog& d = ui::showDialog(*m_ui, std::move(dialog));
     ok.setOnClick([this, &d, &name, &folder, &error, &target] {
@@ -1378,7 +1399,17 @@ void EditorApp::showExportDialog()
         const std::string gameName = name.text();
         const std::filesystem::path into = folder.text();
         const ExportTarget to = target.selected() == 1 ? ExportTarget::Web : ExportTarget::Desktop;
+        const bool android = target.selected() == 2;
         m_ui->closeOverlay(&d);
+        if (android) {
+            // Android needs more to be said (package name, version, key): its own dialog.
+            if (m_document->isDirty()) {
+                saveScene([this, gameName, into] { showAndroidExportDialog(gameName, into); });
+            } else {
+                showAndroidExportDialog(gameName, into);
+            }
+            return;
+        }
         if (m_document->isDirty()) {
             saveScene([this, gameName, into, to] { exportNow(gameName, into, to); });
         } else {
@@ -2005,6 +2036,7 @@ void EditorApp::syncProjectSettings()
 void EditorApp::updateUi(UiFrame& frame)
 {
     syncProjectSettings();
+    updateAndroidExport();
     if (m_quitRequested) {
         frame.requestQuit();
     }

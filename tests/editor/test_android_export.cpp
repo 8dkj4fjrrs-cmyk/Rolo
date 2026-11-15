@@ -289,6 +289,18 @@ TEST_CASE("Android: an export writes the Gradle project with the game inside", "
     CHECK(made.notes[0].find("Rolo's icon") != std::string::npos);
     CHECK(made.notes[1].find("com.example") != std::string::npos);
 
+    // A folder given relative to where the editor runs is made a full path
+    // (Gradle is started somewhere else).
+    {
+        AndroidExportOptions relative = s.options;
+        relative.gameName = "Relative";
+        relative.output = fs::relative(s.root / "exports", fs::current_path());
+        const AndroidProject there = writeAndroidProject(relative);
+        REQUIRE(there.ok);
+        CHECK(there.gradleProject.is_absolute());
+        CHECK(fs::exists(there.gradleProject / "settings.gradle"));
+    }
+
     // Exporting again replaces the earlier export...
     s.file("exports/Tom  Jerrys Game Android/left-over.txt", "old");
     REQUIRE(writeAndroidProject(s.options).ok);

@@ -203,6 +203,36 @@ AndroidRun exportProjectForAndroid(const AndroidExportOptions& options, const An
     return run;
 }
 
+AndroidExportJob::AndroidExportJob(AndroidExportOptions options, AndroidSigning signing)
+{
+    m_worker = std::thread([this, options = std::move(options), signing = std::move(signing)] {
+        m_result = exportAndroidGame(
+            options, signing,
+            [this](std::string_view line) {
+                const std::lock_guard<std::mutex> lock(m_mutex);
+                m_lines.emplace_back(line);
+            },
+            &m_cancel);
+        m_finished = true;
+    });
+}
+
+AndroidExportJob::~AndroidExportJob()
+{
+    m_cancel = true;
+    if (m_worker.joinable()) {
+        m_worker.join();
+    }
+}
+
+std::vector<std::string> AndroidExportJob::takeLines()
+{
+    const std::lock_guard<std::mutex> lock(m_mutex);
+    std::vector<std::string> lines;
+    lines.swap(m_lines);
+    return lines;
+}
+
 #if defined(__APPLE__)
 namespace {
 // Signs an app bundle ad hoc with the codesign tool every Mac has. False,

@@ -505,7 +505,9 @@ AndroidProject writeAndroidProject(const AndroidExportOptions& o)
     }
 
     const std::string name = exportFileName(o.gameName);
-    result.folder = o.output / (name + " Android");
+    // (A full path: Gradle is started inside the project folder, where a
+    // path relative to the editor's folder would point somewhere else.)
+    result.folder = fs::absolute(o.output, ec) / (name + " Android");
     result.gradleProject = result.folder / "project";
     if (isThere(result.folder)) {
         if (!isThere(result.folder / kMarker)) {

@@ -10,8 +10,12 @@
 #include "rolo/core/Log.hpp"
 #include "rolo/scene/Component.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <filesystem>
+#include <memory>
+#include <mutex>
+#include <thread>
 #include <string>
 #include <vector>
 
@@ -80,6 +84,36 @@ struct AndroidRun {
 /// steps, with the building on a worker thread (EditorApp).
 AndroidRun exportProjectForAndroid(const AndroidExportOptions& options, const AndroidSigning& signing,
                                    const AndroidToolsReport& tools, const ComponentRegistry& registry, const Logger& log);
+
+/// An Android export going on in the background, so that the editor's
+/// window stays alive for the minutes Google's tools take. The work
+/// (exportAndroidGame) runs on a thread of its own; the window asks every
+/// frame what it has said and whether it is done. Destroying it cancels the
+/// export and waits for it.
+class AndroidExportJob {
+public:
+    AndroidExportJob(AndroidExportOptions options, AndroidSigning signing);
+    ~AndroidExportJob();
+    AndroidExportJob(const AndroidExportJob&) = delete;
+    AndroidExportJob& operator=(const AndroidExportJob&) = delete;
+
+    /// The lines said since the last call (progress, Gradle's output).
+    std::vector<std::string> takeLines();
+    bool finished() const noexcept { return m_finished.load(); }
+    /// Asks the export to stop; it finishes (as cancelled) shortly after.
+    void cancel() noexcept { m_cancel = true; }
+    bool cancelling() const noexcept { return m_cancel.load(); }
+    /// What came of it. Only once finished() is true.
+    const AndroidExportResult& result() const noexcept { return m_result; }
+
+private:
+    std::atomic<bool> m_cancel{false};
+    std::atomic<bool> m_finished{false};
+    std::mutex m_mutex;                 // guards m_lines
+    std::vector<std::string> m_lines;
+    AndroidExportResult m_result;       // written by the worker before m_finished is set
+    std::thread m_worker;
+};
 
 /// Says in the log what a C++ game module's components will not do on
 /// Android (as on the web). Returns how many kinds there are.

@@ -201,10 +201,30 @@ Rect TextField::clearButtonRect() const
     return Rect{b.right() - 24.0f, b.y, 22.0f, b.height};
 }
 
+std::string TextField::shownText() const
+{
+    return m_secret ? std::string(utf8::length(m_state.text()), '*') : m_state.text();
+}
+
+std::size_t TextField::shownIndex(std::size_t textIndex) const
+{
+    // A secret shows one '*' per character, so a place in the text is as
+    // many stars along as there are characters before it.
+    return m_secret ? utf8::length(std::string_view(m_state.text()).substr(0, textIndex)) : textIndex;
+}
+
 std::size_t TextField::indexAt(Context& ctx, float x)
 {
     const Theme& t = ctx.theme();
-    return ctx.atlas().hitTest(t.font, t.fontSize, m_state.text(), x - textArea().x + m_scrollX);
+    const std::size_t shown = ctx.atlas().hitTest(t.font, t.fontSize, shownText(), x - textArea().x + m_scrollX);
+    if (!m_secret) {
+        return shown;
+    }
+    std::size_t index = 0;   // back from stars to the text: that many characters in
+    for (std::size_t i = 0; i < shown && index < m_state.text().size(); ++i) {
+        index = utf8::next(m_state.text(), index);
+    }
+    return index;
 }
 
 void TextField::changed(Context& ctx)
@@ -223,14 +243,15 @@ void TextField::changed(Context& ctx)
 void TextField::keepCaretVisible(Context& ctx)
 {
     const Theme& t = ctx.theme();
-    const float caretX = ctx.atlas().measure(t.font, t.fontSize, std::string_view(m_state.text()).substr(0, m_state.caret()));
+    const std::string shown = shownText();
+    const float caretX = ctx.atlas().measure(t.font, t.fontSize, std::string_view(shown).substr(0, shownIndex(m_state.caret())));
     const float width = textArea().width;
     if (caretX - m_scrollX > width - 2.0f) {
         m_scrollX = caretX - width + 2.0f;
     } else if (caretX - m_scrollX < 0.0f) {
         m_scrollX = caretX;
     }
-    const float textWidth = ctx.atlas().measure(t.font, t.fontSize, m_state.text());
+    const float textWidth = ctx.atlas().measure(t.font, t.fontSize, shown);
     m_scrollX = std::clamp(m_scrollX, 0.0f, std::max(0.0f, textWidth - width + 2.0f));
 }
 
@@ -252,15 +273,15 @@ void TextField::paint(Context& ctx, DrawList& draw)
     const FontMetrics fm = ctx.atlas().metrics(t.font, t.fontSize);
     const float textY = b.y + std::round((b.height - fm.lineHeight) * 0.5f);
     const float originX = area.x - m_scrollX;
-    const std::string& text = m_state.text();
+    const std::string text = shownText();
 
     draw.pushClip(area.inset(Insets{-1.0f, 2.0f, -1.0f, 2.0f}));
     if (text.empty() && !m_placeholder.empty()) {
         draw.text(t.font, t.fontSize, {area.x, textY}, t.textFaint, m_placeholder);
     } else {
         if (focused && m_state.hasSelection()) {
-            const float x0 = ctx.atlas().measure(t.font, t.fontSize, std::string_view(text).substr(0, m_state.selectionStart()));
-            const float x1 = ctx.atlas().measure(t.font, t.fontSize, std::string_view(text).substr(0, m_state.selectionEnd()));
+            const float x0 = ctx.atlas().measure(t.font, t.fontSize, std::string_view(text).substr(0, shownIndex(m_state.selectionStart())));
+            const float x1 = ctx.atlas().measure(t.font, t.fontSize, std::string_view(text).substr(0, shownIndex(m_state.selectionEnd())));
             draw.fillRect(Rect{originX + x0, textY, x1 - x0, fm.lineHeight}, t.textSelection);
         }
         draw.text(t.font, t.fontSize, {originX, textY}, isEnabled() ? t.text : t.textFaint, text);
@@ -269,7 +290,7 @@ void TextField::paint(Context& ctx, DrawList& draw)
     if (focused) {
         const bool on = std::fmod(ctx.time() - m_caretTime, 1.0) < 0.6;
         if (on) {
-            const float caretX = ctx.atlas().measure(t.font, t.fontSize, std::string_view(text).substr(0, m_state.caret()));
+            const float caretX = ctx.atlas().measure(t.font, t.fontSize, std::string_view(text).substr(0, shownIndex(m_state.caret())));
             draw.fillRect(Rect{std::round(originX + caretX), textY, 1.5f, fm.lineHeight}, t.accent);
         }
     }
@@ -416,6 +437,9 @@ bool TextField::onKeyDown(Context& ctx, const KeyEvent& event)
     case Key::X:
         if (!primary) {
             return false;
+        }
+        if (m_secret) {
+            break;   // a password is never put on the clipboard
         }
         if (m_state.hasSelection() && platform.setClipboard) {
             platform.setClipboard(m_state.selectedText());

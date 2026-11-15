@@ -45,6 +45,7 @@ add_executable(rolo_editor
     application/main.cpp
     application/EditorApp.cpp
     application/Exporting.cpp
+    application/AndroidExportUi.cpp
     panels/AssetsPanel.cpp
     panels/ConsolePanel.cpp
     panels/FolderPicker.cpp
@@ -59,6 +60,8 @@ add_executable(rolo_editor
 # The runtime gives the editor Rolo's own headers only — never Axmol's —
 # so editor code cannot reach into the backend by accident.
 target_link_libraries(rolo_editor PRIVATE rolo_editor_core rolo::runtime rolo::audio)
+find_package(Threads REQUIRED)   # an Android export is built on a worker thread
+target_link_libraries(rolo_editor PRIVATE Threads::Threads)
 rolo_set_warnings(rolo_editor)
 rolo_link_game_modules(rolo_editor)   # behaviours for the Inspector and play mode
 # Where a build of the editor (not an installed copy) finds templates,
