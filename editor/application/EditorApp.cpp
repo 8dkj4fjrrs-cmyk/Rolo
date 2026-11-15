@@ -1637,6 +1637,7 @@ void EditorApp::buildMenus(ui::Widget& root)
     menuBar.addMenu({"Help", {menuItem("Welcome…", "", [this] { showWelcome(); }),
                               menuItem("Getting Started Guide", "", [this] { showGuide("getting-started.md"); }),
                               menuItem("Exporting Games", "", [this] { showGuide("exporting.md"); }),
+                              menuItem("Publishing on Google Play", "", [this] { showGuide("google-play.md"); }),
                               menuItem("Scripting Guide (Luau)", "", [this] { showGuide("scripting.md"); }),
                               ui::MenuItem::divider(),
                               menuItem("About Rolo Engine…", "", [this] { showAbout(); })}});

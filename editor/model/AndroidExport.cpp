@@ -114,9 +114,12 @@ std::string androidReadme(const AndroidExportOptions& o, const std::string& name
         text += name + ".aab\n"
                 "    The game for Google Play (an Android App Bundle), signed with your upload key.\n"
                 "    Upload this file in the Play Console. Every upload needs a higher version code\n"
-                "    than the last (" + std::to_string(o.android.versionCode) + " this time): raise it in the export dialog.\n"
+                "    than the last (" + std::to_string(o.android.versionCode) + " this time). The editor raises it by\n"
+                "    itself after each export like this one; on the command line, give --android-version-code.\n"
                 "    Keep your key file and its password safe, and keep a copy somewhere else: without\n"
-                "    them you cannot update the game.\n\n";
+                "    them you cannot update the game.\n"
+                "    Rolo's guide from account to release is docs/google-play.md (in the editor: Help >\n"
+                "    Publishing on Google Play).\n\n";
     } else {
         text += "No .aab (the file Google Play wants) was made: that needs your upload key. Choose\n"
                 "\"Also make the file for Google Play\" in the export dialog.\n\n";
@@ -703,6 +706,19 @@ Status createAndroidKey(const fs::path& javaHome, HostOs os, const AndroidSignin
     return Status::success();
 }
 
+std::string playPackageProblem(const std::string& package)
+{
+    if (package.rfind("com.example.", 0) == 0 || package == "com.example") {
+        return "Google Play does not accept package names that start with com.example. Choose your own (your name, "
+               "or a web address you own backwards, then the game): it stays the game's for ever.";
+    }
+    if (contains(package, "yourname")) {
+        return "The package name still has \"yourname\" in it (" + package + "). Put your own name there before making "
+               "the file for Google Play: once a game is uploaded, its package name can never change.";
+    }
+    return {};
+}
+
 std::string explainGradleFailure(const std::vector<std::string>& output)
 {
     const auto said = [&](std::string_view part) {
@@ -760,6 +776,10 @@ AndroidExportResult exportAndroidGame(const AndroidExportOptions& options, const
         }
         if (signing.password.empty()) {
             result.message = "Give the key file's password (it is not stored anywhere, so it is asked for at every export).";
+            return result;
+        }
+        if (const std::string problem = playPackageProblem(options.android.package); !problem.empty()) {
+            result.message = "The game was not exported. " + problem;
             return result;
         }
     }
@@ -827,6 +847,21 @@ AndroidExportResult exportAndroidGame(const AndroidExportOptions& options, const
             result.message = "Gradle finished, but the file for Google Play was not where it should be ("
                              + (outputs / "bundle" / "release" / "app-release.aab").string() + "): " + ec.message();
             return result;
+        }
+    }
+    // For the store listing: the project's icon at 512 x 512, as Google Play asks for it.
+    if (!options.android.icon.empty()) {
+        if (const auto icon = decodeImageFile(options.project / options.android.icon)) {
+            const DecodedImage large = resizedIcon(*icon, 512);
+            const fs::path file = result.project.folder / "Google Play icon (512).png";
+            if (writePngFile(file, large.rgba.data(), 512, 512, 4)) {
+                result.storeIcon = file;
+                std::error_code ec;
+                if (fs::file_size(file, ec) > 1024u * 1024u) {
+                    say("Note: " + file.filename().string() + " is larger than the 1024 KB Google Play allows for "
+                        "the store's icon. A simpler picture (fewer colours, less detail) makes a smaller file.");
+                }
+            }
         }
     }
     static_cast<void>(writeTextFileAtomically(result.project.folder / "README.txt",

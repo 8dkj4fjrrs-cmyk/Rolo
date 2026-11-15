@@ -314,6 +314,10 @@ void EditorApp::showAndroidExportDialog(const std::string& gameName, const std::
                 error.setText("Type the upload key's password.");
                 return;
             }
+            if (const std::string problem = playPackageProblem(android.package); !problem.empty()) {
+                error.setText(problem);
+                return;
+            }
         }
         // Remembered for the next export: the app's details in the project
         // (one undoable step), the key file's place in the editor's preferences.
@@ -409,15 +413,34 @@ void EditorApp::updateAndroidExport()
         return;
     }
     log().info("export", result.message);
+    // Google Play wants a higher version code with every upload: after
+    // making a file for it, the project's is raised for the next one.
+    std::string nextCode;
+    if (!result.aab.empty() && m_project && m_project->settings().android.versionCode < 2100000000) {
+        AndroidSettings next = m_project->settings().android;
+        const int exported = next.versionCode;
+        next.versionCode = exported + 1;
+        endEdit();
+        if (execute(std::make_unique<SetAndroidSettings>(next))) {
+            nextCode = "This file has version code " + std::to_string(exported) + ". The next export will have "
+                       + std::to_string(next.versionCode) + ", as Google Play wants a higher one with every upload.";
+            log().info("export", nextCode);
+        }
+        endEdit();
+    }
     auto dialog = std::make_unique<ui::Dialog>("Game Exported for Android", 520.0f);
     ui::Column& body = dialog->body();
     body.emplace<ui::Label>(result.message).setWrap(true);
+    if (!nextCode.empty()) {
+        body.emplace<ui::Label>(nextCode, ui::Label::Style::Dim).setWrap(true);
+    }
     body.emplace<ui::Label>("To try it: start an emulator in Android Studio (More Actions > Virtual Device Manager) and "
                             "drag " + result.apk.filename().string() + " onto it; or copy the file to a phone and open "
                             "it there."
                                 + (result.aab.empty()
                                        ? std::string()
-                                       : " For Google Play, upload " + result.aab.filename().string() + " in the Play Console.")
+                                       : " For Google Play, upload " + result.aab.filename().string()
+                                             + " in the Play Console (Help > Publishing on Google Play).")
                                 + " README.txt in the folder says more.",
                             ui::Label::Style::Dim)
         .setWrap(true);

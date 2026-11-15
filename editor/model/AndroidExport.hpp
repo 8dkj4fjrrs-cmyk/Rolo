@@ -173,6 +173,11 @@ std::string newKeyProblem(const AndroidSigning& key, const std::string& owner);
 Status createAndroidKey(const std::filesystem::path& javaHome, HostOs os, const AndroidSigning& key,
                         const std::string& owner);
 
+/// Why a package name will not do for Google Play (which keeps it for
+/// ever), or empty: names starting with com.example are refused there, and
+/// Rolo's own suggestion, com.yourname..., is nobody's name.
+std::string playPackageProblem(const std::string& package);
+
 /// If Gradle failed for a reason Rolo knows, says so in plain words, with
 /// what to do. Empty if the output shows nothing known.
 std::string explainGradleFailure(const std::vector<std::string>& output);
@@ -184,6 +189,9 @@ struct AndroidExportResult {
     AndroidProject project;
     std::filesystem::path apk;        // "<folder>/<Game>.apk"
     std::filesystem::path aab;        // "<folder>/<Game>.aab", if a key was given
+    /// "<folder>/Google Play icon (512).png": the icon in the size Google
+    /// Play's store listing asks for, if the project has an icon of its own.
+    std::filesystem::path storeIcon;
 };
 
 /// The whole export: writes the project, builds it with Gradle (this takes
