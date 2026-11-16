@@ -97,7 +97,9 @@ Please report what you find.
   Rolo games do yet). Camera notches are
   kept clear of controls and pinned scores (tried with the emulator's
   notch; rounded corners are not measured, and with Fill the Screen off
-  a notch is only avoided where the bars already cover it). No adaptive icon, sound unjudged. Speed on a real phone is unknown: the
+  a notch is only avoided where the bars already cover it). If Android makes the app's
+  screen anew while it runs (it does when the system's look is changed),
+  the game starts over. No adaptive icon, sound unjudged. Speed on a real phone is unknown: the
   emulator draws without a graphics chip, so only Rolo's own share of a
   frame could be measured there. A graphics
   context lost in the background is recovered from (tried by making the

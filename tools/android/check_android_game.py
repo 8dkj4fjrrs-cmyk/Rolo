@@ -263,6 +263,21 @@ def main():
     check.wait_for("Showing scene", 240, "the first scene")
     check.wait_for("Screen: ", 60, "the screen's size")
     time.sleep(5.0)   # some frames of play
+    if not check.running() and not check.crashed():
+        # An emulator that has only just booted is still settling (it applies
+        # its own settings late), and Android then makes every app's screen
+        # anew; Rolo's app ends when its screen is closed. Not a crash: once
+        # more, now that the emulator has settled.
+        print("The app was closed by Android without crashing (the emulator was still settling). Starting it once more.")
+        time.sleep(5.0)
+        shown = sum(1 for line in check.log() if "Showing scene" in line)
+        adb("shell", "am", "start", "-W", "-n", args.package + "/" + ACTIVITY, *check.start_extras, check=False)
+        until = time.time() + 240
+        while sum(1 for line in check.log() if "Showing scene" in line) <= shown:
+            if time.time() > until:
+                check.fail("the app did not show its first scene when started a second time")
+            time.sleep(1.0)
+        time.sleep(5.0)
     if not check.running():
         check.fail("the app is not running any more")
     print("The game is running. Its screen: %dx%d pixels, showing %dx%d points of the world." % check.screen())
