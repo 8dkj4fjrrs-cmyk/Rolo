@@ -1074,3 +1074,187 @@ TEST_CASE("Spawning says plainly what is wrong, and stops a script that never st
     CHECK(p.hasProblem("the most a game may make"));
     CHECK(p.hasProblem("Destroy the ones that are no longer needed"));
 }
+
+TEST_CASE("Scripts reach an object's parent and what is inside it", "[gameplay][script][tree]")
+{
+    ScriptProject p;
+    const AssetId looker = p.write("scripts/looker.lua", R"(
+        function start(self)
+            local car = self.object
+            print("parent of the car: " .. tostring(car:parent()))
+            local names = {}
+            for i, child in ipairs(car:children()) do names[i] = child:name() end
+            print("children: " .. table.concat(names, ", "))
+            local wheel = car:child("Back Wheel")
+            print("wheel's parent is the car: " .. tostring(wheel:parent() == car))
+            print("child finds only what is directly inside: " .. tostring(car:child("Nut")))
+            print("find looks deeper: " .. tostring(car:find("Nut")) .. ", inside " .. car:find("Nut"):parent():name())
+            print("nobody of that name: " .. tostring(car:find("Sail")))
+            -- A copy has its own children.
+            local copy = car:clone()
+            print("the copy's nut is another: " .. tostring(copy:find("Nut") ~= car:find("Nut")))
+        end
+    )");
+    Scene scene;
+    const EntityId car = addScripted(scene, "Car", looker);
+    scene.create("Front Wheel", car);
+    const EntityId back = scene.create("Back Wheel", car)->id();
+    scene.create("Nut", back);
+    scene.create("Nut");   // another Nut, outside the car: not the car's
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 1);
+    REQUIRE(p.printed.size() == 7);
+    CHECK(p.printed[0] == "scripts/looker.lua: parent of the car: nil");
+    CHECK(p.printed[1] == "scripts/looker.lua: children: Front Wheel, Back Wheel");
+    CHECK(p.printed[2] == "scripts/looker.lua: wheel's parent is the car: true");
+    CHECK(p.printed[3] == "scripts/looker.lua: child finds only what is directly inside: nil");
+    CHECK(p.printed[4] == "scripts/looker.lua: find looks deeper: object \"Nut\", inside Back Wheel");
+    CHECK(p.printed[5] == "scripts/looker.lua: nobody of that name: nil");
+    CHECK(p.printed[6] == "scripts/looker.lua: the copy's nut is another: true");
+    CHECK(p.problems.empty());
+}
+
+// --- Waiting: task.wait, task.spawn, task.delay ----------------------------------------------------------
+
+TEST_CASE("start(self) may wait: a script written from top to bottom", "[gameplay][script][task]")
+{
+    ScriptProject p;
+    const AssetId door = p.write("scripts/door.lua", R"(
+        function start(self)
+            print("closed at " .. string.format("%.2f", game.time()))
+            local waited = task.wait(0.5)
+            print("open after " .. string.format("%.2f", waited))
+            self.open = true
+            for i = 1, 3 do
+                task.wait()            -- until the next frame
+                self.steps = (self.steps or 0) + 1
+            end
+            print("steps " .. self.steps)
+        end
+        function update(self, dt)
+            -- update goes on every frame while start waits.
+            self.frames = (self.frames or 0) + 1
+            if self.open and not self.told then
+                self.told = true
+                print("update saw the door open in frame " .. self.frames)
+            end
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Door", door);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 20);
+    REQUIRE(p.printed.size() == 1);   // still waiting: a third of a second has passed
+    frames(game, 20);
+    REQUIRE(p.printed.size() == 4);
+    CHECK(p.printed[0] == "scripts/door.lua: closed at 0.02");
+    CHECK_THAT(p.printed[1], ContainsSubstring("open after 0.5"));
+    CHECK_THAT(p.printed[2], ContainsSubstring("update saw the door open in frame 3"));
+    CHECK(p.printed[3] == "scripts/door.lua: steps 3");
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("task.spawn begins code of its own, task.delay begins it later; each object's tasks are its own",
+          "[gameplay][script][task]")
+{
+    ScriptProject p;
+    const AssetId blinker = p.write("scripts/blinker.lua", R"(
+        properties = { every = 0.1 }
+        function start(self)
+            self.blinks = 0
+            task.spawn(function(name)
+                while true do                      -- a loop for ever is fine in a task that waits
+                    task.wait(self.every)
+                    self.blinks += 1
+                end
+            end, self.object:name())
+            task.delay(0.25, function(a, b) print(self.object:name() .. " delayed " .. a .. b .. " at blinks " .. self.blinks) end, "x", "y")
+            print(self.object:name() .. " start went on past spawn")
+        end
+        function update(self, dt)
+            if game.time() > 0.99 and not self.told then
+                self.told = true
+                print(self.object:name() .. " blinked " .. self.blinks)
+            end
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Fast", blinker);
+    const EntityId slow = addScripted(scene, "Slow", blinker);
+    scene.setProperty(slow, "rolo.Script", "values", std::string(R"({"every":0.3})"));
+    const EntityId doomed = addScripted(scene, "Doomed", blinker);
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 6);
+    game.destroy(doomed);   // its tasks go with it
+    frames(game, 60);
+    const auto has = [&](const std::string& part) {
+        return std::any_of(p.printed.begin(), p.printed.end(),
+                           [&](const std::string& line) { return line.find(part) != std::string::npos; });
+    };
+    CHECK(has("Fast start went on past spawn"));
+    CHECK(has("Fast delayed xy at blinks 2"));
+    CHECK(has("Slow delayed xy at blinks 0"));
+    CHECK(has("Fast blinked 9"));
+    CHECK(has("Slow blinked 3"));
+    CHECK_FALSE(has("Doomed delayed"));
+    CHECK_FALSE(has("Doomed blinked"));
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("Waiting where it cannot be done, and errors in tasks, are said plainly", "[gameplay][script][task]")
+{
+    ScriptProject p;
+    const AssetId waitsInUpdate = p.write("scripts/waits.lua", R"(
+        function update(self, dt)
+            task.wait(1)
+        end
+    )");
+    const AssetId failsLater = p.write("scripts/later.lua", R"(
+        function start(self)
+            task.wait(0.1)
+            local nothing = nil
+            print(nothing.name)
+        end
+        function update(self, dt) self.frames = (self.frames or 0) + 1; self.object:setPosition(self.frames, 0) end
+    )");
+    const AssetId atTop = p.write("scripts/top.lua", R"(
+        local ok, why = pcall(task.spawn, function() end)
+        print("at the top of a file: " .. tostring(ok) .. " " .. tostring(why))
+        function start(self)
+            local co = coroutine.create(function() task.wait(1) end)
+            local ok2, why2 = coroutine.resume(co)
+            print("in a coroutine of its own: " .. tostring(ok2) .. " " .. tostring(why2))
+        end
+    )");
+    const AssetId flood = p.write("scripts/flood.lua", R"(
+        function update(self, dt)
+            for i = 1, 600 do task.spawn(function() task.wait(100) end) end
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Waits", waitsInUpdate);
+    const EntityId later = addScripted(scene, "Later", failsLater);
+    addScripted(scene, "Top", atTop);
+    addScripted(scene, "Flood", flood);
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 30);
+    CHECK(p.hasProblem("task.wait can only be used in start(self)"));
+    CHECK(p.hasProblem("Script on 'Waits' failed in"));
+    // The error after the wait names the line, and switches that script off.
+    CHECK(p.hasProblem("in a task (code that waited): scripts/later.lua:5:"));
+    CHECK(p.hasProblem("called from: scripts/later.lua:5"));
+    const float stoppedAt = positionOf(game, later).x;
+    frames(game, 10);
+    CHECK(positionOf(game, later).x == stoppedAt);
+    REQUIRE(p.printed.size() == 2);
+    CHECK_THAT(p.printed[0], ContainsSubstring("at the top of a file: false") && ContainsSubstring("tasks belong to an object"));
+    CHECK_THAT(p.printed[1], ContainsSubstring("in a coroutine of its own: false") && ContainsSubstring("task.wait can only be used"));
+    CHECK(p.hasProblem("1000 tasks waiting"));
+}

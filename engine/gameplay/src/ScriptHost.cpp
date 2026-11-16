@@ -62,6 +62,25 @@ void pushFileEnvironment(lua_State* L)
     lua_setsafeenv(L, -1, 1);
 }
 
+// An error message with the lines of Luau's traceback that are inside
+// scripts ("called from: scripts/coin.lua:12 function update").
+std::string withScriptLines(const char* message, const char* traceback)
+{
+    std::istringstream lines(traceback != nullptr ? traceback : "");
+    std::string result = message != nullptr ? message : "unknown error";
+    std::string line;
+    bool any = false;
+    while (std::getline(lines, line)) {
+        if (line.find(".lua:") == std::string::npos) {
+            continue; // "stack traceback:", "[C]: in ...", ...
+        }
+        const std::size_t start = line.find_first_not_of(" \t");
+        result += (any ? "\n  " : "\n  called from: ") + line.substr(start == std::string::npos ? 0 : start);
+        any = true;
+    }
+    return result;
+}
+
 // The message handler of every call: adds where the error happened. Lua's
 // traceback also lists Rolo's own C functions ("[C]: in ?"); only the
 // lines inside scripts help the person who wrote them, so the rest is dropped.
@@ -75,18 +94,7 @@ int addTraceback(lua_State* L)
         message = lua_pushfstring(L, "(the error is a %s, not a message)", luaL_typename(L, 1));
     }
     luaL_traceback(L, L, nullptr, 1);
-    std::istringstream lines(lua_tostring(L, -1));
-    std::string result = message;
-    std::string line;
-    bool any = false;
-    while (std::getline(lines, line)) {
-        if (line.find(".lua:") == std::string::npos) {
-            continue; // "stack traceback:", "[C]: in ...", ...
-        }
-        const std::size_t start = line.find_first_not_of(" \t");
-        result += (any ? "\n  " : "\n  called from: ") + line.substr(start == std::string::npos ? 0 : start);
-        any = true;
-    }
+    const std::string result = withScriptLines(message, lua_tostring(L, -1));
     lua_pushstring(L, result.c_str());
     return 1;
 }
@@ -299,6 +307,45 @@ bool ScriptHost::callRanTooLong()
 }
 #endif
 
+bool ScriptHost::enterCall()
+{
+    const bool outermost = !m_inCall.load(std::memory_order_relaxed);
+    if (outermost) {
+        m_timedOut.store(false, std::memory_order_relaxed);
+        m_callNumber.fetch_add(1, std::memory_order_relaxed);
+        m_inCall.store(true, std::memory_order_relaxed);
+#if !ROLO_SCRIPT_WATCHDOG_THREAD
+        m_interrupts = 0;
+        m_callStarted = std::chrono::steady_clock::now();
+#endif
+    }
+    return outermost;
+}
+
+void ScriptHost::leaveCall(bool outermost)
+{
+    if (outermost) {
+        m_inCall.store(false, std::memory_order_relaxed);
+#if ROLO_SCRIPT_WATCHDOG_THREAD
+        lua_callbacks(m_L)->interrupt = nullptr;
+#endif
+    }
+}
+
+std::string ScriptHost::errorFrom(lua_State* L, int status)
+{
+    std::string error;
+    if (status == LUA_ERRMEM) {
+        error = "the scripts used more than " + std::to_string(kMemoryLimit / (1024u * 1024u)) +
+                " MB of memory, the most a game's scripts may use";
+    } else {
+        const char* message = lua_tostring(L, -1);
+        error = message != nullptr ? message : "unknown error";
+    }
+    lua_pop(L, 1);
+    return error;
+}
+
 std::optional<std::string> ScriptHost::call(int arguments, const std::string& file)
 {
     // Stack: function, arguments. Put the message handler below the function.
@@ -310,38 +357,161 @@ std::optional<std::string> ScriptHost::call(int arguments, const std::string& fi
 
     const std::string* const previousFile = m_currentFile;   // (a pointer: no text copied per call)
     m_currentFile = &file;
-    const bool outermost = !m_inCall.load(std::memory_order_relaxed);
-    if (outermost) {
-        m_timedOut.store(false, std::memory_order_relaxed);
-        m_callNumber.fetch_add(1, std::memory_order_relaxed);
-        m_inCall.store(true, std::memory_order_relaxed);
-#if !ROLO_SCRIPT_WATCHDOG_THREAD
-        m_interrupts = 0;
-        m_callStarted = std::chrono::steady_clock::now();
-#endif
-    }
+    const bool outermost = enterCall();
     const int status = lua_pcall(m_L, arguments, 0, handler);
-    if (outermost) {
-        m_inCall.store(false, std::memory_order_relaxed);
-#if ROLO_SCRIPT_WATCHDOG_THREAD
-        lua_callbacks(m_L)->interrupt = nullptr;
-#endif
-    }
+    leaveCall(outermost);
     m_currentFile = previousFile;
 
     std::optional<std::string> error;
     if (status != LUA_OK) {
-        if (status == LUA_ERRMEM) {
-            error = "the scripts used more than " + std::to_string(kMemoryLimit / (1024u * 1024u)) +
-                    " MB of memory, the most a game's scripts may use";
-        } else {
-            const char* message = lua_tostring(m_L, -1);
-            error = message != nullptr ? message : "unknown error";
-        }
-        lua_pop(m_L, 1);
+        error = errorFrom(m_L, status);
     }
     lua_remove(m_L, handler);
     return error;
+}
+
+// --- Tasks: code that waits (task.wait, task.spawn, task.delay) -------------------------------------------
+//
+// A script's start(self), and any function given to task.spawn or
+// task.delay, runs as a Luau coroutine: code that can stop in the middle
+// (at task.wait) and be let go on later. Each belongs to the object whose
+// script made it, and goes on, when its time has come, just before that
+// object's update. So a waiting task costs nothing while it waits, stops
+// with its object, and never runs for an object that is switched off.
+
+std::optional<std::string> ScriptHost::resumeTask(Script& script, int thread)
+{
+    const auto find = [&script, thread] {
+        return std::find_if(script.m_tasks.begin(), script.m_tasks.end(),
+                            [thread](const Script::Task& t) { return t.thread == thread; });
+    };
+    auto found = find();
+    if (found == script.m_tasks.end()) {
+        return std::nullopt;
+    }
+    const Script::Task task = *found;   // (a copy: the list may grow while the task runs)
+    const File& file = fileFor(script.script);
+    const double now = m_game.time();
+
+    lua_getref(m_L, thread);
+    lua_State* const T = lua_tothread(m_L, -1);
+    lua_pop(m_L, 1);   // (the registry still holds it)
+    int arguments = task.arguments;
+    if (task.started) {
+        lua_pushnumber(T, now - task.since);   // what task.wait gives back: how long it waited
+        arguments = 1;
+    }
+
+    const std::string* const previousFile = m_currentFile;
+    Script* const previousScript = m_currentScript;
+    lua_State* const previousTask = m_runningTask;
+    const double previousWake = m_pendingWake;
+    m_currentFile = &file.path;
+    m_currentScript = &script;
+    m_runningTask = T;
+    m_pendingWake = -1.0;
+    const bool outermost = enterCall();
+    const int status = lua_resume(T, m_L, arguments);
+    leaveCall(outermost);
+    const double wake = m_pendingWake;
+    m_currentFile = previousFile;
+    m_currentScript = previousScript;
+    m_runningTask = previousTask;
+    m_pendingWake = previousWake;
+
+    found = find();   // (again: tasks begun meanwhile may have moved it)
+    if (status == LUA_YIELD) {
+        lua_settop(T, 0);
+        if (found != script.m_tasks.end()) {
+            found->started = true;
+            found->arguments = 0;
+            found->since = now;
+            found->wake = wake >= 0.0 ? wake : now;   // (a plain coroutine.yield: goes on next frame)
+        }
+        return std::nullopt;
+    }
+    std::optional<std::string> error;
+    if (status != LUA_OK) {
+        if (status == LUA_ERRMEM) {
+            error = errorFrom(T, status);
+        } else {
+            // The message, and where in the script it happened (as for
+            // calls). The task's own stack still shows where it stopped.
+            luaL_traceback(m_L, T, nullptr, 0);
+            error = withScriptLines(lua_tostring(T, -1), lua_tostring(m_L, -1));
+            lua_pop(m_L, 1);
+            lua_pop(T, 1);
+        }
+    }
+    if (found != script.m_tasks.end()) {
+        script.m_tasks.erase(found);
+    }
+    lua_unref(m_L, thread);
+    return error;
+}
+
+std::optional<std::string> ScriptHost::runTasks(Script& script)
+{
+    const double now = m_game.time();
+    for (std::size_t i = 0; i < script.m_tasks.size();) {
+        const Script::Task& task = script.m_tasks[i];
+        // Its time has come, and not in the frame it began to wait in
+        // (task.wait() with nothing means "until the next frame").
+        if (task.wake <= now && task.since < now) {
+            const int thread = task.thread;
+            if (auto error = resumeTask(script, thread)) {
+                return error;
+            }
+            if (i < script.m_tasks.size() && script.m_tasks[i].thread == thread) {
+                ++i;   // it waits again; else it ended and the next took its place
+            }
+        } else {
+            ++i;
+        }
+    }
+    return std::nullopt;
+}
+
+int ScriptHost::taskWait(lua_State* L, double seconds)
+{
+    if (L != m_runningTask || m_runningTask == nullptr) {
+        luaL_error(L, "task.wait can only be used in start(self), or in a function begun with task.spawn or "
+                      "task.delay. update and collide must finish within their frame: count the time there "
+                      "(self.timer = self.timer - dt), or begin a task");
+    }
+    m_pendingWake = m_game.time() + std::max(0.0, seconds);
+    return lua_yield(L, 0);
+}
+
+void ScriptHost::taskStart(lua_State* L, int first, double delaySeconds)
+{
+    luaL_checktype(L, first, LUA_TFUNCTION);
+    Script* const script = m_currentScript;
+    if (script == nullptr) {
+        luaL_error(L, "tasks belong to an object: begin them in start, update or collide, not at the top of the file");
+    }
+    if (script->m_tasks.size() >= kMostTasks) {
+        luaL_error(L, "this object's script has %d tasks waiting, the most it may have. Is one begun every frame?",
+                   static_cast<int>(kMostTasks));
+    }
+    const int arguments = lua_gettop(L) - first;
+    lua_State* const T = lua_newthread(L);
+    const int thread = lua_ref(L, -1);
+    lua_pop(L, 1);
+    lua_xmove(L, T, arguments + 1);   // the function and its arguments
+    const double now = m_game.time();
+    Script::Task task;
+    task.thread = thread;
+    task.arguments = arguments;
+    task.since = now;
+    task.wake = now + std::max(0.0, delaySeconds);
+    script->m_tasks.push_back(task);
+    if (delaySeconds <= 0.0) {
+        // task.spawn: it begins at once, and runs to its first wait.
+        if (const auto error = resumeTask(*script, thread)) {
+            luaL_error(L, "%s", error->c_str());
+        }
+    }
 }
 
 ScriptHost::File& ScriptHost::fileFor(AssetId script)
@@ -471,16 +641,52 @@ std::optional<std::string> ScriptHost::call(Script& script, EntityId object, Hoo
         pushObjectForScripts(m_L, other);
         arguments = 2;
     }
-    return call(arguments, file.path);
+    Script* const previousScript = m_currentScript;
+    m_currentScript = &script;
+    auto error = call(arguments, file.path);
+    m_currentScript = previousScript;
+    return error;
 }
 
 std::optional<std::string> ScriptHost::start(Script& script, EntityId object)
 {
-    return call(script, object, Hook::Start, std::nullopt);
+    // start(self) runs as a task, so that it may wait (task.wait): a script
+    // can be written from top to bottom, "wait two seconds, then open the
+    // door", as people who come from Roblox are used to.
+    File& file = fileFor(script.script);
+    if (file.environment == kNoRef) {
+        return file.error;
+    }
+    ensureSelf(script, object, file);
+    lua_rawgeti(m_L, LUA_REGISTRYINDEX, file.environment);
+    lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_hookNames[static_cast<std::size_t>(Hook::Start)]);
+    lua_rawget(m_L, -2);
+    lua_remove(m_L, -2);   // the environment
+    if (!lua_isfunction(m_L, -1)) {
+        lua_pop(m_L, 1);
+        return std::nullopt;   // the script has no start: nothing to do
+    }
+    lua_rawgeti(m_L, LUA_REGISTRYINDEX, script.m_self);
+    lua_State* const T = lua_newthread(m_L);
+    const int thread = lua_ref(m_L, -1);
+    lua_pop(m_L, 1);
+    lua_xmove(m_L, T, 2);   // start, self
+    Script::Task task;
+    task.thread = thread;
+    task.arguments = 1;
+    task.since = task.wake = m_game.time();
+    script.m_tasks.push_back(task);
+    return resumeTask(script, thread);
 }
 
 std::optional<std::string> ScriptHost::update(Script& script, EntityId object, float dt)
 {
+    // What was waiting goes on first, then this frame's update.
+    if (!script.m_tasks.empty()) {
+        if (auto error = runTasks(script)) {
+            return "in a task (code that waited): " + *error;
+        }
+    }
     return call(script, object, Hook::Update, dt);
 }
 
@@ -594,6 +800,9 @@ Script::~Script()
 {
     if (const auto host = m_host.lock()) {
         host->release(m_self);
+        for (const Task& task : m_tasks) {
+            host->release(task.thread);   // what was waiting never goes on
+        }
     }
 }
 

@@ -49,13 +49,13 @@ Instance or put children inside a Part.
 
 ## Scripts: the same language, a different shape
 
-In Roblox a script starts at the top, runs down, connects functions to
-events, and often loops with `task.wait()`. In Rolo a script **defines
-functions with fixed names**, and Rolo calls them:
+In Roblox a script starts at the top, runs down, and connects functions
+to events. In Rolo a script **defines functions with fixed names**, and
+Rolo calls them:
 
 | | |
 |---|---|
-| `start(self)` | once, when the object enters the game |
+| `start(self)` | once, when the object enters the game; it may wait (`task.wait`) |
 | `update(self, dt)` | every frame; `dt` is the seconds since the last one |
 | `collide(self, other)` | when the object starts touching another (physics) |
 
@@ -85,31 +85,32 @@ Script. There is no ServerScriptService or StarterPlayerScripts: where a
 script file lies in the project does not matter, only which object uses
 it.
 
-### Three habits to drop
+### What carries over, and two habits to drop
 
-1. **`task.wait()` and `while true do` loops.** There is no `wait` in
-   Rolo. A loop that never ends freezes the game until Rolo stops the
-   script (after ten seconds). Count time in `update` instead:
+**Waiting works as you know it.** `start(self)` runs from top to bottom
+and may wait, and `task.spawn` and `task.delay` begin code of their own:
 
-   ```lua
-   -- Roblox                          -- Rolo
-   while true do                      function start(self)
-       task.wait(2)                       self.timer = 2
-       fire()                         end
-   end
-                                      function update(self, dt)
-                                          self.timer -= dt
-                                          if self.timer <= 0 then
-                                              self.timer = 2
-                                              fire()
-                                          end
-                                      end
-   ```
+```lua
+-- Roblox                          -- Rolo
+while true do                      function start(self)
+    task.wait(2)                       while true do
+    fire()                                 task.wait(2)
+end                                        fire(self)
+                                       end
+                                   end
+```
 
-2. **`:Connect`.** There are no events to connect to. Ask in `update`
+Only `update` and `collide` cannot wait (they must finish within their
+frame); from there, begin a task with `task.spawn`. A loop that never
+waits still freezes the game until Rolo stops the script, after ten
+seconds.
+
+The two habits to drop:
+
+1. **`:Connect`.** There are no events to connect to. Ask in `update`
    ("was the key pressed this frame?", "am I touching the player?"), or
    use `collide`.
-3. **`Instance.new`.** Nothing is built from nothing in a script. Make
+2. **`Instance.new`.** Nothing is built from nothing in a script. Make
    the thing once in the editor, switch it off, and copy it when you need
    one: `game.spawn("Bullet", x, y)`. That is `:Clone()` with the parent
    and the place set for you; `obj:clone()` is the plain copy.
@@ -145,7 +146,10 @@ objects: `local x, y = obj:position()`.
 | `template:Clone()`, then `.Parent = workspace` | `game.spawn("Bullet", x, y)`: a copy of the object called Bullet, placed and switched on. `obj:clone()` for an exact copy |
 | `Instance.new("Part")` | not available: copy something you made in the editor |
 | setting attributes on the clone | `game.spawn("Bullet", x, y, { speed = 400 })` gives the copy its own properties |
-| `part.Parent`, `:GetChildren()` | not available to scripts yet; find things by name |
+| `part.Parent`, `:GetChildren()` | `obj:parent()`, `obj:children()` |
+| `part:FindFirstChild("Wheel")` | `obj:child("Wheel")`; anywhere inside (`FindFirstChild(name, true)`): `obj:find("Wheel")` |
+| `part.Parent = other` | not available: an object stays where it is in the tree |
+| `task.wait(2)`, `task.spawn(f)`, `task.delay(2, f)` | the same, in `start` and in tasks |
 | `textLabel.Text = "Score: 3"` | `obj:setText("Score: 3")` on an object with a Text |
 | a ModuleScript and `require(script.Parent.Maths)` | any script file and `require("maths")` |
 | Attributes (`:GetAttribute("Speed")`) | **properties**: the script lists them (`properties = { speed = 90 }`), the Inspector shows a field for each on every object with the script, and the script reads `self.speed` ([scripting guide](scripting.md#properties-settings-in-the-inspector)) |
@@ -260,8 +264,8 @@ So you do not go looking:
 - **3D.**
 - **Building objects from nothing** (`Instance.new`): copy one made in
   the editor instead (`game.spawn`). Copies are not kept in saved games.
-- **`task.wait`, `task.spawn`, `task.delay`, events and `:Connect`.**
-  (Luau's `coroutine` library is there if you want to build your own.)
+- **Events and `:Connect`**, `event:Wait()`, `task.cancel` and
+  `task.defer`. (`task.wait`, `task.spawn` and `task.delay` are there.)
 - **GUI buttons and layouts**, **tweens**, **particles**, **lighting**.
 - **A marketplace** of models and scripts, and **Team Create**. A Rolo
   project is a folder of plain files, which works well with Git.

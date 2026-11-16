@@ -48,7 +48,7 @@ each object that has a **Script** component pointing at the file:
 
 | Function | When |
 |---|---|
-| `start(self)` | once, in the first frame the object is in the game |
+| `start(self)` | once, in the first frame the object is in the game. It may [wait](#waiting) |
 | `update(self, dt)` | every frame after that; `dt` is the time since the last frame, in seconds (about 1/60) |
 | `collide(self, other)` | physics: when the object starts touching `other` (see [Physics](#physics)) |
 
@@ -69,6 +69,52 @@ in it (`self.speed`, `self.health`). `self.object` is the object itself.
 
 **One script per object.** To share code between scripts, put it in a
 module (see `require` below).
+
+### Waiting
+
+`start(self)` may stop and go on later, with `task.wait`:
+
+```lua
+function start(self)
+    task.wait(2)                    -- two seconds
+    self.object:play("open")
+    local lamp = game.find("Lamp")
+    while true do                   -- a loop for ever is fine, as long as it waits
+        task.wait(0.5)
+        lamp:setActive(not lamp:isActive())   -- the lamp blinks
+    end
+end
+```
+
+`update` goes on running every frame meanwhile.
+
+| | |
+|---|---|
+| `task.wait(seconds)` | stops here until that much game time has passed. `task.wait()` waits until the next frame. Gives back how long it waited |
+| `task.spawn(f, ...)` | begins the function `f` now, as code of its own that may wait (a "task"). Extra values are handed to `f` |
+| `task.delay(seconds, f, ...)` | begins `f` after that much game time |
+
+```lua
+function collide(self, other)
+    -- collide cannot wait itself, but it can begin something that does:
+    task.spawn(function()
+        self.speed = 600                 -- faster...
+        task.wait(3)
+        self.speed = 280                 -- ...for three seconds
+    end)
+end
+```
+
+Good to know:
+- **`update` and `collide` cannot wait**: they must finish within their
+  frame. `task.wait` there is an error. Count the time (`self.timer =
+  self.timer - dt`), or begin a task as above.
+- A task belongs to the object whose script began it: it is dropped when
+  the object is destroyed, and rests while the object is switched off.
+  (So an object cannot switch itself off, wait, and switch itself on
+  again: nothing of it runs while it is off. Let another object do it.)
+- A loop that never waits is still stopped after ten seconds.
+- (The names are Roblox's, and mean the same.)
 
 ### Properties: settings in the Inspector
 
@@ -219,6 +265,10 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `obj:scale()`, `obj:setScale(x, y)` | size; `setScale(2)` doubles both ways |
 | `obj:isActive()`, `obj:setActive(true/false)` | switches it (and its children) on or off |
 | `obj:destroy()` | removes it at the end of the frame. An object that was in the scene stays gone, also in saved games |
+| `obj:parent()` | the object it is inside, or `nil` at the top of the scene |
+| `obj:children()` | a list of the objects directly inside it, in the Hierarchy's order |
+| `obj:child("Wheel")` | the object of that name directly inside it, or `nil` |
+| `obj:find("Nut")` | the first object of that name anywhere inside it (inside its children too), or `nil` |
 | `obj:clone()` | makes a copy of it, with everything inside it, beside it: same place, same name, on or off as it is. Returns the copy; its script starts in the next frame, with its own `self` |
 | `obj:play("walk_left")` | plays a clip of its Animator. Calling it every frame is fine. `obj:play(clip, true)` starts the clip again |
 | `obj:stopAnimation()` | stops on the clip's first frame |
@@ -443,8 +493,8 @@ bitwise operators (`&`, `|`, `<<`; use `bit32.band` and friends) and
 `3` and `3.0` are the same, and print as `3`.
 
 What is not here, if you come from **Roblox**: Roblox's own objects
-(`workspace`, `Instance.new`, `task.wait`, `:Connect`; `:Clone()` is
-`obj:clone()` or `game.spawn`). Rolo's are `game`,
+(`workspace`, `Instance.new`, `:Connect`). `task.wait`, `task.spawn` and
+`task.delay` are here, and `:Clone()` is `obj:clone()` or `game.spawn`. Rolo's are `game`,
 `input`, `audio` and each script's `self.object` (above).
 
 Learning more:

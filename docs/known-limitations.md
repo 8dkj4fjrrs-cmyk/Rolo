@@ -119,6 +119,10 @@ Please report what you find.
     boxes only: no colours, points, objects or files yet;
   - edits are picked up when Play is pressed again, not while playing;
   - no debugger: use `print`, which writes to the Console.
+  - waiting (`task.wait`) works in `start` and in tasks, not in `update`
+    or `collide`; a task cannot be stopped from outside, and there are no
+    events to wait for;
+  - an object cannot be moved to another parent from a script;
   - scripts make objects by copying one that is in the scene
     (`game.spawn`, `obj:clone()`); they cannot build one from nothing or
     add components, the copies are not kept in saved games, and there are

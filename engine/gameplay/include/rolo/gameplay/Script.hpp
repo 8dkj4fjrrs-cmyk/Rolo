@@ -67,6 +67,16 @@ struct Script : BehaviourBase<Script> {
     friend class ScriptHost;
     std::weak_ptr<ScriptHost> m_host; // the Lua state holding `self`
     int m_self = -2;                  // `self` in that state's registry (-2: none yet)
+    // Code of this script that is waiting (task.wait) or yet to begin
+    // (task.delay): each a Luau coroutine, kept until it has finished.
+    struct Task {
+        int thread = -2;        // the coroutine, in the state's registry
+        double wake = 0.0;      // the game time it goes on at
+        double since = 0.0;     // the game time it began to wait
+        int arguments = 0;      // for one that has not begun: how many arguments wait on its stack
+        bool started = false;
+    };
+    std::vector<Task> m_tasks;
 };
 
 /// Checks a script's code without running it: nothing if it is valid Lua,

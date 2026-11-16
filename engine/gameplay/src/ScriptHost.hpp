@@ -105,6 +105,17 @@ class ScriptHost {
     void require(lua_State* L, std::string_view name);
     /// The project path of the file whose code is running (for print()).
     const std::string& currentFile() const noexcept { return *m_currentFile; }
+    /// task.wait(seconds), called by the code running in `L`: stops it here
+    /// until that much game time has passed. Returns what the Lua function
+    /// must return. A Lua error if `L` is not a task (update and collide
+    /// must finish within their frame).
+    int taskWait(lua_State* L, double seconds);
+    /// task.spawn and task.delay: the function at `first` on L's stack, and
+    /// the arguments after it, become a task of the script that is running,
+    /// begun now (delay 0) or after `delaySeconds` of game time.
+    void taskStart(lua_State* L, int first, double delaySeconds);
+    /// The most tasks one object's script may have waiting.
+    static constexpr std::size_t kMostTasks = 1000;
     /// Game functions that are not public (the host is the Game's friend).
     void setActive(EntityId object, bool active);
     EntityId player() const;
@@ -129,6 +140,21 @@ class ScriptHost {
     std::optional<std::string> call(Script& script, EntityId object, Hook hook,
                                     std::optional<float> dt, EntityId other = {});
     void ensureSelf(Script& script, EntityId object, const File& file);
+    // The start and end of a run of script code (a call, or a task going
+    // on): the time limit counts from the outermost one.
+    bool enterCall();
+    void leaveCall(bool outermost);
+    // Lets the task of `script` whose coroutine is `thread` run until it
+    // waits again or ends. Nothing, or its error.
+    std::optional<std::string> resumeTask(Script& script, int thread);
+    // Lets every task of `script` whose time has come go on.
+    std::optional<std::string> runTasks(Script& script);
+    // What an error status of a call or a task means, as a message (popped from `L`).
+    std::string errorFrom(lua_State* L, int status);
+
+    Script* m_currentScript = nullptr;   // whose code is running (for task.spawn)
+    lua_State* m_runningTask = nullptr;  // the task that is running, if one is
+    double m_pendingWake = -1.0;         // set by task.wait: when the running task goes on
 
     static void* allocate(void* ud, void* block, std::size_t oldSize, std::size_t newSize) noexcept;
 #if ROLO_SCRIPT_WATCHDOG_THREAD

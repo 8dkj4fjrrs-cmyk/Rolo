@@ -5,6 +5,12 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Scripts can wait** ([ADR 0031](docs/adr/0031-waiting-in-scripts.md)):
+  `task.wait(seconds)` in `start(self)`, and `task.spawn` / `task.delay`
+  to begin code of its own that may wait, with Roblox's names and
+  meanings. `update` and `collide` still finish within their frame.
+- **Scripts reach the tree**: `obj:parent()`, `obj:children()`,
+  `obj:child("Name")` and `obj:find("Name")`.
 - **Scripts can make objects while the game runs**
   ([ADR 0030](docs/adr/0030-making-objects-while-playing.md)):
   `game.spawn("Bullet", x, y)` copies an object of the scene (keep it

@@ -26,6 +26,7 @@
 #include "lua.h"
 #include "lualib.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cmath>
@@ -250,6 +251,63 @@ int objectDestroy(lua_State* L)
 {
     gameOf(L).destroy(objectEntity(L, 1).id());
     return 0;
+}
+
+// --- The tree: an object's parent and what is inside it ---------------------------------------------------
+
+// obj:parent(): the object it is inside, or nil at the top of the scene.
+int objectParent(lua_State* L)
+{
+    pushObjectForScripts(L, objectEntity(L, 1).parent());
+    return 1;
+}
+
+// obj:children(): the objects directly inside it, in the Hierarchy's order.
+int objectChildren(lua_State* L)
+{
+    const EntityId id = objectEntity(L, 1).id();
+    const std::vector<EntityId>& children = gameOf(L).scene().childrenOf(id);
+    lua_createtable(L, static_cast<int>(children.size()), 0);
+    lua_Integer i = 1;
+    for (const EntityId child : children) {
+        pushObjectForScripts(L, child);
+        lua_rawseti(L, -2, i++);
+    }
+    return 1;
+}
+
+// The first object called `name` inside `parent`: directly inside it, or
+// (deep) anywhere inside, looking through each child before the next.
+EntityId findInside(const Scene& scene, EntityId parent, std::string_view name, bool deep)
+{
+    for (const EntityId child : scene.childrenOf(parent)) {
+        const Entity* entity = scene.find(child);
+        if (entity != nullptr && entity->name() == name) {
+            return child;
+        }
+        if (deep) {
+            if (const EntityId found = findInside(scene, child, name, true); !found.isNull()) {
+                return found;
+            }
+        }
+    }
+    return {};
+}
+
+// obj:child("Name"): the object of that name directly inside it, or nil.
+int objectChild(lua_State* L)
+{
+    const EntityId id = objectEntity(L, 1).id();
+    pushObjectForScripts(L, findInside(gameOf(L).scene(), id, checkText(L, 2), false));
+    return 1;
+}
+
+// obj:find("Name"): the first object of that name anywhere inside it, or nil.
+int objectFind(lua_State* L)
+{
+    const EntityId id = objectEntity(L, 1).id();
+    pushObjectForScripts(L, findInside(gameOf(L).scene(), id, checkText(L, 2), true));
+    return 1;
 }
 
 // Makes the copy, or stops the script with the reason.
@@ -1240,6 +1298,34 @@ void pushObjectForScripts(lua_State* L, EntityId id)
     handle->id = id.value();
 }
 
+// --- task.* : code that waits ------------------------------------------------------------------------------
+// The names are Roblox's, on purpose: people who come from there type them
+// without thinking. (ScriptHost has how they work.)
+
+// task.wait(seconds): stops here until that much game time has passed (with
+// nothing: until the next frame). Gives back how long it really waited.
+int taskWait(lua_State* L)
+{
+    const double seconds = lua_isnoneornil(L, 1) ? 0.0 : static_cast<double>(checkFloat(L, 1));
+    return ScriptHost::of(L).taskWait(L, seconds);
+}
+
+// task.spawn(f, ...): begins f(...) now, as code of its own that may wait.
+int taskSpawn(lua_State* L)
+{
+    ScriptHost::of(L).taskStart(L, 1, 0.0);
+    return 0;
+}
+
+// task.delay(seconds, f, ...): begins f(...) after that much game time.
+int taskDelay(lua_State* L)
+{
+    const double seconds = static_cast<double>(checkFloat(L, 1));
+    // Never "now": something delayed by 0 begins in the next frame.
+    ScriptHost::of(L).taskStart(L, 2, std::max(seconds, 1.0e-9));
+    return 0;
+}
+
 void openScriptApi(ScriptHost& host)
 {
     lua_State* L = host.state();
@@ -1260,6 +1346,10 @@ void openScriptApi(ScriptHost& host)
         {"setActive", guarded<objectSetActive>},
         {"destroy", guarded<objectDestroy>},
         {"clone", guarded<objectClone>},
+        {"parent", guarded<objectParent>},
+        {"children", guarded<objectChildren>},
+        {"child", guarded<objectChild>},
+        {"find", guarded<objectFind>},
         {"play", guarded<objectPlay>},
         {"stopAnimation", guarded<objectStopAnimation>},
         {"clip", guarded<objectClip>},
@@ -1359,6 +1449,16 @@ void openScriptApi(ScriptHost& host)
     lua_newtable(L);
     setFunctions(L, audioFunctions);
     lua_setglobal(L, "audio");
+
+    static const luaL_Reg taskFunctions[] = {
+        {"wait", guarded<taskWait>},
+        {"spawn", guarded<taskSpawn>},
+        {"delay", guarded<taskDelay>},
+        {nullptr, nullptr},
+    };
+    lua_newtable(L);
+    setFunctions(L, taskFunctions);
+    lua_setglobal(L, "task");
 
     lua_pushcfunction(L, guarded<scriptPrint>, "print");
     lua_setglobal(L, "print");

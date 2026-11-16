@@ -40,7 +40,9 @@ and AI assistants.
   (`readScriptProperties`), never by running a script; an object's own values are the Script
   component's `values` text (`rolo/scene/Values.hpp`), changed only through `SetProperty`.
   Objects made while playing (ADR 0030) are copies (`Game::clone`; `game.spawn`, `obj:clone()`), never
-  built from nothing; they are not in saved games, and `Game::kMostObjects` stops a runaway script. `engine/gameplay` has no
+  built from nothing; they are not in saved games, and `Game::kMostObjects` stops a runaway script.
+  Waiting (ADR 0031): `start(self)` and functions begun with `task.spawn` / `task.delay` are Luau
+  coroutines owned by their Script (`ScriptHost::resumeTask`); `update` and `collide` stay plain calls. `engine/gameplay` has no
   backend; the runtime and editor translate their input into `rolo::Input`. A game always plays a
   copy of the scene (`Game::start`), never the scene being edited.
 - Sound: games ask for it through `rolo::SoundPlayer` (`engine/gameplay`, `Sound.hpp`), never a

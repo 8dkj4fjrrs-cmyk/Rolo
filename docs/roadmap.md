@@ -139,9 +139,12 @@ In order:
    ([ADR 0029](adr/0029-script-properties.md)): a script lists its
    properties, each object can have its own values. ~~Making objects
    from scripts~~ **Done** ([ADR 0030](adr/0030-making-objects-while-playing.md)):
-   `game.spawn` and `obj:clone()` copy an object of the scene. Next for
-   scripts, from what that guide had to leave out: reaching an object's
-   parent and children, waiting (`task.wait`).
+   `game.spawn` and `obj:clone()` copy an object of the scene. ~~An
+   object's parent and children~~ **done** (`obj:parent()`,
+   `children()`, `child()`, `find()`). ~~Waiting~~ **done**
+   ([ADR 0031](adr/0031-waiting-in-scripts.md)): `task.wait`,
+   `task.spawn`, `task.delay`, and a `start` that may wait. Next for
+   scripts: events (`:Connect`), prefabs, more kinds of property.
 
 Alongside: the editor polish below. Later: 3D.
 
