@@ -109,10 +109,10 @@ it.
 2. **`:Connect`.** There are no events to connect to. Ask in `update`
    ("was the key pressed this frame?", "am I touching the player?"), or
    use `collide`.
-3. **`Instance.new` and `:Clone()`.** Scripts cannot make new objects
-   yet. Put the objects in the scene beforehand, switched off, and switch
-   one on when you need it (`obj:setActive(true)`). The
-   [stress test](../examples/stress/README.md)'s bullets work this way.
+3. **`Instance.new`.** Nothing is built from nothing in a script. Make
+   the thing once in the editor, switch it off, and copy it when you need
+   one: `game.spawn("Bullet", x, y)`. That is `:Clone()` with the parent
+   and the place set for you; `obj:clone()` is the plain copy.
 
 ### `game` is not the same `game`
 
@@ -142,6 +142,9 @@ objects: `local x, y = obj:position()`.
 | `part.Size` | `obj:setScale(2)` |
 | `part.Transparency = 1`, parenting to `nil` | `obj:setActive(false)` |
 | `part:Destroy()` | `obj:destroy()` |
+| `template:Clone()`, then `.Parent = workspace` | `game.spawn("Bullet", x, y)`: a copy of the object called Bullet, placed and switched on. `obj:clone()` for an exact copy |
+| `Instance.new("Part")` | not available: copy something you made in the editor |
+| setting attributes on the clone | `game.spawn("Bullet", x, y, { speed = 400 })` gives the copy its own properties |
 | `part.Parent`, `:GetChildren()` | not available to scripts yet; find things by name |
 | `textLabel.Text = "Score: 3"` | `obj:setText("Score: 3")` on an object with a Text |
 | a ModuleScript and `require(script.Parent.Maths)` | any script file and `require("maths")` |
@@ -255,7 +258,8 @@ So you do not go looking:
 - **Multiplayer and anything online**: no servers, no chat, no
   leaderboards, no friends.
 - **3D.**
-- **Making objects from scripts** (`Instance.new`, `:Clone()`): pool them.
+- **Building objects from nothing** (`Instance.new`): copy one made in
+  the editor instead (`game.spawn`). Copies are not kept in saved games.
 - **`task.wait`, `task.spawn`, `task.delay`, events and `:Connect`.**
   (Luau's `coroutine` library is there if you want to build your own.)
 - **GUI buttons and layouts**, **tweens**, **particles**, **lighting**.

@@ -97,8 +97,8 @@ In order:
    cost per object (now none for still objects), cheaper calls between
    scripts and Rolo, vectors in place of `x, y`; a busy scene is 3× faster.
    Tried and not kept: collector pacing (no gain over Luau's own).
-   **Still to do:** making and removing objects from scripts (spawning),
-   one script for many objects, a script profiler in the editor, native
+   **Still to do:** drawing only what changed when objects are made and
+   removed (spawning itself is done: ADR 0030), one script for many objects, a script profiler in the editor, native
    code where allowed.
 4. ~~**Web export** (WebAssembly).~~ **Done** ([ADR 0022](adr/0022-web-export.md)):
    Export Game… › Web browsers; keyboard, mouse, gamepads, saves, sound.
@@ -137,9 +137,11 @@ In order:
    ([the guide](coming-from-roblox.md)). ~~Script properties in the
    Inspector (Roblox's Attributes)~~ **Done**
    ([ADR 0029](adr/0029-script-properties.md)): a script lists its
-   properties, each object can have its own values. Next for scripts,
-   from what that guide had to leave out: making objects from scripts,
-   reaching an object's parent and children, waiting (`task.wait`).
+   properties, each object can have its own values. ~~Making objects
+   from scripts~~ **Done** ([ADR 0030](adr/0030-making-objects-while-playing.md)):
+   `game.spawn` and `obj:clone()` copy an object of the scene. Next for
+   scripts, from what that guide had to leave out: reaching an object's
+   parent and children, waiting (`task.wait`).
 
 Alongside: the editor polish below. Later: 3D.
 

@@ -5,6 +5,13 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Scripts can make objects while the game runs**
+  ([ADR 0030](docs/adr/0030-making-objects-while-playing.md)):
+  `game.spawn("Bullet", x, y)` copies an object of the scene (keep it
+  switched off as the pattern), places the copy and switches it on;
+  `game.spawn("Bullet", x, y, { speed = 400 })` gives it its own script
+  properties; `obj:clone()` makes an exact copy. Copies are not part of
+  saved games.
 - **Script properties** ([scripting guide](docs/scripting.md#properties-settings-in-the-inspector),
   [ADR 0029](docs/adr/0029-script-properties.md)): a script lists its
   settings (`properties = { speed = 90, label = "Lift", returns = true }`),

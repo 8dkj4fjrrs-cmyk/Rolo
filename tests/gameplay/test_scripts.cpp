@@ -912,3 +912,165 @@ TEST_CASE("A Script's own values are written to scene files as values, not as te
     REQUIRE(old.scene);
     CHECK(old.scene->find(withValues)->get<Script>()->values.empty());
 }
+
+// --- Making objects while playing --------------------------------------------------------------------
+
+TEST_CASE("obj:clone() makes a copy with its children; its script starts fresh in the next frame",
+          "[gameplay][script][spawn]")
+{
+    ScriptProject p;
+    const AssetId mover = p.write("scripts/mover.lua", R"(
+        properties = { speed = 60 }
+        function start(self)
+            self.started = (self.started or 0) + 1
+            print(self.object:name() .. " started " .. self.started .. " at speed " .. self.speed)
+        end
+        function update(self, dt)
+            local x, y = self.object:position()
+            self.object:setPosition(x + self.speed * dt, y)
+        end
+    )");
+    const AssetId maker = p.write("scripts/maker.lua", R"(
+        function start(self)
+            local original = game.find("Box")
+            local copy = original:clone()
+            print("copy is " .. tostring(copy) .. ", the same object: " .. tostring(copy == original))
+            copy:setPosition(0, 100)
+            -- The first one of that name is still the original.
+            print("find gives the original: " .. tostring(game.find("Box") == original))
+        end
+    )");
+    Scene scene;
+    const EntityId box = addScripted(scene, "Box", mover, {10, 5});
+    const EntityId wheel = scene.create("Wheel", box)->id();
+    addScripted(scene, "Maker", maker);
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 1);
+    REQUIRE(game.scene().size() == 5);   // Box, Wheel, Maker and the copies of Box and Wheel
+    // The copy: another object of the same name, with its own child.
+    EntityId copy;
+    game.scene().forEach([&](const Entity& e, int) {
+        if (e.name() == "Box" && e.id() != box) {
+            copy = e.id();
+        }
+    });
+    REQUIRE_FALSE(copy.isNull());
+    REQUIRE(game.scene().childrenOf(copy).size() == 1);
+    CHECK(game.scene().childrenOf(copy)[0] != wheel);
+    CHECK(game.scene().find(game.scene().childrenOf(copy)[0])->name() == "Wheel");
+
+    frames(game, 60);
+    // Both move by themselves: the copy has its own self, started once.
+    CHECK(positionOf(game, box).x == Catch::Approx(10.0f + 61.0f).margin(0.01f));
+    CHECK(positionOf(game, copy).x == Catch::Approx(60.0f).margin(0.01f));
+    CHECK(positionOf(game, copy).y == Catch::Approx(100.0f));
+    int started = 0;
+    for (const std::string& line : p.printed) {
+        started += line.find("Box started 1 at speed 60") != std::string::npos ? 1 : 0;
+    }
+    CHECK(started == 2);
+    CHECK(std::find(p.printed.begin(), p.printed.end(), "scripts/maker.lua: copy is object \"Box\", the same object: false")
+          != p.printed.end());
+    CHECK(std::find(p.printed.begin(), p.printed.end(), "scripts/maker.lua: find gives the original: true") != p.printed.end());
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("game.spawn copies a switched-off pattern, places it, switches it on and gives it its own properties",
+          "[gameplay][script][spawn]")
+{
+    ScriptProject p;
+    const AssetId bullet = p.write("scripts/bullet.lua", R"(
+        properties = { speed = 100, label = "plain" }
+        function start(self) print("bullet " .. self.label .. " " .. self.speed) end
+        function update(self, dt)
+            local x, y = self.object:position()
+            self.object:setPosition(x + self.speed * dt, y)
+            if x > 150 then self.object:destroy() end
+        end
+    )");
+    const AssetId gun = p.write("scripts/gun.lua", R"(
+        function start(self)
+            self.a = game.spawn("Bullet", 10, 20)
+            self.b = game.spawn("Bullet", vector.create(0, 40), { speed = 300, label = "fast", unknown = 1 })
+            self.c = game.spawn(self.a)                      -- an object instead of a name, where it is
+            print("made " .. self.a:name() .. ", on: " .. tostring(self.a:isActive()))
+        end
+        function update(self, dt)
+            if game.time() > 0.6 and not self.told then
+                self.told = true
+                print("b is gone: " .. tostring(not self.b:isValid()) .. ", a is here: " .. tostring(self.a:isValid()))
+            end
+        end
+    )");
+    Scene scene;
+    const EntityId pattern = addScripted(scene, "Bullet", bullet);
+    scene.setActive(pattern, false);
+    addScripted(scene, "Gun", gun);
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 45);   // 0.75 seconds
+
+    // The pattern itself never ran: it stayed switched off, where it was.
+    CHECK_FALSE(game.scene().find(pattern)->isActive());
+    CHECK(positionOf(game, pattern).x == 0.0f);
+    // a and c fly at 100; b flew at 300, passed 150 and destroyed itself.
+    CHECK(game.scene().size() == 4);   // the pattern, the gun, a and c
+    const auto has = [&](const std::string& line) {
+        return std::find(p.printed.begin(), p.printed.end(), line) != p.printed.end();
+    };
+    CHECK(has("scripts/gun.lua: made Bullet, on: true"));
+    CHECK(has("scripts/bullet.lua: bullet fast 300"));
+    CHECK(std::count(p.printed.begin(), p.printed.end(), "scripts/bullet.lua: bullet plain 100") == 2);
+    CHECK(has("scripts/gun.lua: b is gone: true, a is here: true"));
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("Spawning says plainly what is wrong, and stops a script that never stops making objects",
+          "[gameplay][script][spawn]")
+{
+    ScriptProject p;
+    const AssetId plain = p.write("scripts/plain.lua", "function update(self, dt) end");
+    const AssetId wrong = p.write("scripts/wrong.lua", R"(
+        function start(self)
+            local ok, why = pcall(game.spawn, "Nobody")
+            print(tostring(ok) .. ": " .. tostring(why))
+            ok, why = pcall(game.spawn, "Stone", 1, 2, { speed = 3 })   -- Stone has no Script
+            print(tostring(ok) .. ": " .. tostring(why))
+            ok, why = pcall(game.spawn, "Pattern", 1, 2, { speed = {} })
+            print(tostring(ok) .. ": " .. tostring(why))
+        end
+    )");
+    const AssetId flood = p.write("scripts/flood.lua", R"(
+        function update(self, dt)
+            for i = 1, 4000 do game.spawn("Stone") end
+        end
+    )");
+    Scene scene;
+    scene.create("Stone");
+    addScripted(scene, "Pattern", plain);
+    addScripted(scene, "Wrong", wrong);
+    const EntityId flooder = addScripted(scene, "Flood", flood);
+    scene.setActive(flooder, false);
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 2);
+    REQUIRE(p.printed.size() == 3);
+    CHECK_THAT(p.printed[0], ContainsSubstring("false") && ContainsSubstring("no object called \"Nobody\""));
+    CHECK_THAT(p.printed[1], ContainsSubstring("has no Script"));
+    CHECK_THAT(p.printed[2], ContainsSubstring("'speed' must be a number, a text or true / false"));
+    CHECK(game.scene().size() == 4);   // nothing was made by the three that failed
+    CHECK(p.problems.empty());
+
+    game.scene().setActive(flooder, true);
+    frames(game, 5);
+    for (const std::string& problem : p.problems) {
+        INFO(problem);
+    }
+    CHECK(game.scene().size() == Game::kMostObjects);
+    CHECK(p.hasProblem("the most a game may make"));
+    CHECK(p.hasProblem("Destroy the ones that are no longer needed"));
+}

@@ -168,6 +168,22 @@ public:
     Transform* transform(EntityId id) { return get<Transform>(id); }
     /// An object's position in the world (parents included).
     Vec2 worldPosition(EntityId id) const;
+    /// The most objects a scene may hold for clone() to go on making more:
+    /// a script that makes one every frame and never destroys any is
+    /// stopped here with a message, before the game crawls.
+    static constexpr std::size_t kMostObjects = 10000;
+    /// Makes a copy of an object and everything inside it (its children,
+    /// their components), beside the original: same parent, same place,
+    /// same name, switched on or off as the original is. The copy's
+    /// behaviours start in the next frame. Copies are not part of saved
+    /// games, and are gone when the scene changes. Returns the copy, or
+    /// nothing with `why` filled in (the object is gone, or the scene is
+    /// full).
+    EntityId clone(EntityId source, std::string* why = nullptr);
+    /// The object called `name` to make copies of (game.spawn("Bullet")).
+    /// Like find(), but remembered: making an object changes the scene, and
+    /// find() would look the name up afresh for every copy.
+    EntityId findPattern(std::string_view name);
     /// Removes an object (and its children) at the end of this frame. An
     /// object that was part of the scene stays removed for the rest of the
     /// playthrough (e.g. a collected gem), also in save games.
@@ -353,6 +369,7 @@ private:
     std::set<EntityId> m_sceneObjects;                // objects the scene started with
     std::map<EntityId, TriggerState> m_triggers;
     std::map<EntityId, std::string> m_textTemplates;  // each Text's own text, as written
+    std::unordered_map<std::string, EntityId> m_patterns;   // names spawned from, and the object each meant
     std::vector<std::string> m_pendingEvents;         // sent this frame
     std::vector<std::string> m_events;                // sent last frame: delivered now
     std::string m_prompt;                             // "[E] Talk"

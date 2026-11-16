@@ -496,3 +496,38 @@ TEST_CASE("A property cannot take the names scene files use for components", "[s
     CHECK_THROWS_AS(ComponentTypeBuilder<Bad>("test.Bad", "Bad").property("type", "Type", &Bad::type), std::logic_error);
     CHECK_THROWS_AS(ComponentTypeBuilder<Bad>("test.Bad", "Bad").property("data", "Data", &Bad::type), std::logic_error);
 }
+
+// Objects made while playing (Game::clone, game.spawn in scripts) take part in
+// physics like the ones the scene came with.
+TEST_CASE("A copy made while playing is a body of its own: it falls and lands", "[gameplay][physics][spawn]")
+{
+    Logger log;
+    Scene scene;
+    addFloor(scene);
+    // The pattern: a crate kept switched off high above the floor.
+    const EntityId pattern = addObject(scene, "Crate", {0.0f, 400.0f}, {20.0f, 20.0f}, makeBody({}));
+    scene.setActive(pattern, false);
+
+    Game game(log, nullptr);
+    game.start(scene);
+    frames(game, 30);
+    CHECK(positionOf(game, pattern).y == 400.0f);   // switched off: it does not fall
+
+    std::string why;
+    const EntityId copy = game.clone(pattern, &why);
+    REQUIRE_FALSE(copy.isNull());
+    CHECK(why.empty());
+    game.scene().setProperty(copy, "rolo.Transform", "position", Vec2{100.0f, 200.0f});
+    game.scene().setActive(copy, true);
+    frames(game, 180);
+    // The copy fell onto the floor (its middle 10 above it); the pattern stayed.
+    CHECK(positionOf(game, copy).y == Catch::Approx(10.0f).margin(0.5f));
+    CHECK(positionOf(game, copy).x == Catch::Approx(100.0f).margin(0.5f));
+    CHECK(positionOf(game, pattern).y == 400.0f);
+
+    // An object that is gone cannot be copied, and says so.
+    game.destroy(copy);
+    frames(game, 1);
+    CHECK(game.clone(copy, &why).isNull());
+    CHECK(why.find("no longer exists") != std::string::npos);
+}

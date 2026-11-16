@@ -105,6 +105,7 @@ void Game::beginScene(Scene scene, AssetId id)
     }
     m_sceneObjects.clear();
     m_textTemplates.clear();
+    m_patterns.clear();
     scene.forEach([&](const Entity& e, int) {
         m_sceneObjects.insert(e.id());
         if (const Text* text = e.get<Text>()) {
@@ -632,6 +633,60 @@ std::vector<EntityId> Game::findAllWith(std::string_view typeId) const
 Vec2 Game::worldPosition(EntityId id) const
 {
     return m_scene != nullptr ? m_scene->worldTransform(id).apply({0.0f, 0.0f}) : Vec2{};
+}
+
+EntityId Game::findPattern(std::string_view name)
+{
+    if (m_scene == nullptr) {
+        return {};
+    }
+    const std::string key(name);
+    if (const auto known = m_patterns.find(key); known != m_patterns.end()) {
+        // Still there, and still called that?
+        if (const Entity* entity = m_scene->find(known->second); entity != nullptr && entity->name() == name) {
+            return known->second;
+        }
+    }
+    const EntityId found = m_scene->findByName(name);
+    if (!found.isNull()) {
+        m_patterns[key] = found;
+    }
+    return found;
+}
+
+EntityId Game::clone(EntityId source, std::string* why)
+{
+    const auto fail = [why](std::string message) {
+        if (why != nullptr) {
+            *why = std::move(message);
+        }
+        return EntityId{};
+    };
+    const Entity* original = m_scene != nullptr ? m_scene->find(source) : nullptr;
+    if (original == nullptr) {
+        return fail("the object to copy no longer exists (it was destroyed, or the scene changed)");
+    }
+    if (m_scene->size() >= kMostObjects) {
+        return fail("there are " + std::to_string(m_scene->size()) + " objects in the scene, the most a game may make. "
+                    "Destroy the ones that are no longer needed (bullets that left the screen, say)");
+    }
+    // The scene's own way of copying (the editor's Duplicate uses it too):
+    // a snapshot of the object and what is inside it, given fresh IDs, and
+    // put back beside the original.
+    const EntitySnapshot taken = m_scene->capture(source);
+    const EntitySnapshot copy = m_scene->withNewIds(taken);
+    if (!m_scene->restore(copy, original->parent(), taken.index + 1)) {
+        return fail("the object could not be copied");
+    }
+    // A Text shows its template filled in ("Coins {coins}" as "Coins 3").
+    // The copy must keep the template, not what the original shows now.
+    for (std::size_t i = 0; i < taken.items.size() && i < copy.items.size(); ++i) {
+        if (const auto known = m_textTemplates.find(taken.items[i].id); known != m_textTemplates.end()) {
+            const std::string text = known->second;
+            m_textTemplates[copy.items[i].id] = text;
+        }
+    }
+    return copy.rootId();
 }
 
 void Game::destroy(EntityId id)

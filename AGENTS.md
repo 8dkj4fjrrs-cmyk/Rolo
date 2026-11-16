@@ -38,7 +38,9 @@ and AI assistants.
   C++ exceptions into Lua errors (`guarded`). New script functions need docs/scripting.md and tests.
   Script properties (ADR 0029): the editor learns them by reading the script's text
   (`readScriptProperties`), never by running a script; an object's own values are the Script
-  component's `values` text (`rolo/scene/Values.hpp`), changed only through `SetProperty`. `engine/gameplay` has no
+  component's `values` text (`rolo/scene/Values.hpp`), changed only through `SetProperty`.
+  Objects made while playing (ADR 0030) are copies (`Game::clone`; `game.spawn`, `obj:clone()`), never
+  built from nothing; they are not in saved games, and `Game::kMostObjects` stops a runaway script. `engine/gameplay` has no
   backend; the runtime and editor translate their input into `rolo::Input`. A game always plays a
   copy of the scene (`Game::start`), never the scene being edited.
 - Sound: games ask for it through `rolo::SoundPlayer` (`engine/gameplay`, `Sound.hpp`), never a

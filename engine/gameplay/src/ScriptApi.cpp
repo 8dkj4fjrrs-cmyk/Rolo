@@ -20,6 +20,8 @@
 #include "rolo/content/Notation.hpp"
 #include "rolo/gameplay/Components.hpp"
 #include "rolo/gameplay/Game.hpp"
+#include "rolo/gameplay/Script.hpp"
+#include "rolo/scene/Values.hpp"
 #include "rolo/scene/Components.hpp"
 #include "lua.h"
 #include "lualib.h"
@@ -30,6 +32,7 @@
 #include <cstdint>
 #include <exception>
 #include <new>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -249,6 +252,24 @@ int objectDestroy(lua_State* L)
     return 0;
 }
 
+// Makes the copy, or stops the script with the reason.
+EntityId cloneOrError(lua_State* L, EntityId source)
+{
+    std::string why;
+    const EntityId made = gameOf(L).clone(source, &why);
+    if (made.isNull()) {
+        luaL_error(L, "%s", why.c_str());
+    }
+    return made;
+}
+
+// obj:clone(): an exact copy, beside the original.
+int objectClone(lua_State* L)
+{
+    pushObjectForScripts(L, cloneOrError(L, objectEntity(L, 1).id()));
+    return 1;
+}
+
 int objectPlay(lua_State* L)
 {
     const EntityId id = objectEntity(L, 1).id();
@@ -362,6 +383,81 @@ int objectToString(lua_State* L)
 }
 
 // --- game.* ---------------------------------------------------------------------------------------------
+
+// game.spawn(what [, x, y] [, properties]): a copy of an object, switched on.
+//
+// `what` is an object or the name of one (usually one kept switched off in
+// the scene as the pattern to copy: "Bullet"). With x, y (or a vector) the
+// copy is put there, as setPosition would. `properties` gives the copy's
+// script its own values for properties the script declares:
+//     game.spawn("Bullet", x, y, { speed = 400 })
+int gameSpawn(lua_State* L)
+{
+    Game& game = gameOf(L);
+    EntityId source;
+    if (lua_type(L, 1) == LUA_TSTRING) {
+        const std::string_view name = checkText(L, 1);
+        source = game.findPattern(name);
+        if (source.isNull()) {
+            luaL_error(L, "game.spawn: there is no object called \"%s\" in this scene to copy",
+                       std::string(name).c_str());
+        }
+    } else {
+        source = objectEntity(L, 1).id();
+    }
+    // What follows: nothing, a place (two numbers or a vector), a table, or a place and a table.
+    int next = 2;
+    std::optional<Vec2> place;
+    if (lua_isvector(L, next) || lua_type(L, next) == LUA_TNUMBER) {
+        place = checkVec2(L, next);
+        next += lua_isvector(L, next) ? 1 : 2;
+    }
+    const bool withValues = !lua_isnoneornil(L, next);
+    if (withValues) {
+        luaL_checktype(L, next, LUA_TTABLE);
+    }
+    if (withValues && game.scene().find(source)->get<Script>() == nullptr) {
+        luaL_error(L, "game.spawn: properties were given, but the object has no Script to give them to");
+    }
+
+    // The copy's own values for its script's properties: what the original
+    // had, with these over them. (A name the script does not declare is
+    // simply not used: ScriptHost::ensureSelf.) Read before anything is
+    // made, so that a mistake here leaves nothing behind.
+    DataValues values;
+    if (withValues) {
+        values = parseDataValues(game.scene().find(source)->get<Script>()->values);
+        lua_pushnil(L);
+        while (lua_next(L, next) != 0) {
+            if (lua_type(L, -2) != LUA_TSTRING) {
+                luaL_error(L, "game.spawn: properties need names, like { speed = 400 }");
+            }
+            const std::string name(checkText(L, -2));
+            switch (lua_type(L, -1)) {
+            case LUA_TNUMBER: values[name] = static_cast<double>(lua_tonumber(L, -1)); break;
+            case LUA_TBOOLEAN: values[name] = lua_toboolean(L, -1) != 0; break;
+            case LUA_TSTRING: values[name] = std::string(checkText(L, -1)); break;
+            default:
+                luaL_error(L, "game.spawn: the property '%s' must be a number, a text or true / false", name.c_str());
+            }
+            lua_pop(L, 1);
+        }
+    }
+
+    const EntityId made = cloneOrError(L, source);
+    Scene& scene = game.scene();
+    if (place) {
+        if (Transform* transform = scene.edit<Transform>(made)) {
+            transform->position = *place;
+        }
+    }
+    if (withValues) {
+        scene.setProperty(made, Script::componentType().id, "values", writeDataValues(values));
+    }
+    ScriptHost::of(L).setActive(made, true);
+    pushObjectForScripts(L, made);
+    return 1;
+}
 
 int gameFind(lua_State* L)
 {
@@ -1163,6 +1259,7 @@ void openScriptApi(ScriptHost& host)
         {"isActive", guarded<objectIsActive>},
         {"setActive", guarded<objectSetActive>},
         {"destroy", guarded<objectDestroy>},
+        {"clone", guarded<objectClone>},
         {"play", guarded<objectPlay>},
         {"stopAnimation", guarded<objectStopAnimation>},
         {"clip", guarded<objectClip>},
@@ -1199,6 +1296,7 @@ void openScriptApi(ScriptHost& host)
 
     static const luaL_Reg gameFunctions[] = {
         {"find", guarded<gameFind>},
+        {"spawn", guarded<gameSpawn>},
         {"player", guarded<gamePlayer>},
         {"time", guarded<gameTime>},
         {"emit", guarded<gameEmit>},

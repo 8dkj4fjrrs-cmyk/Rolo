@@ -167,6 +167,34 @@ function update(self, dt)
 end
 ```
 
+**Shooting**: making objects while the game runs. Put one bullet in the
+scene, call it `Bullet`, give it this script, and **switch it off** (the
+tick box beside its name in the Inspector). It is the pattern; the game
+makes copies of it:
+
+```lua
+-- scripts/bullet.lua
+properties = { speed = 500 }
+
+function update(self, dt)
+    local x, y = self.object:position()
+    self.object:setPosition(x + self.speed * dt, y)
+    if x > 2000 then self.object:destroy() end   -- left the level: clear it away
+end
+```
+
+```lua
+-- in the player's script
+if input.wasPressed("fire") then
+    local x, y = self.object:position()
+    game.spawn("Bullet", x + 20, y)                      -- a copy, placed and switched on
+    -- game.spawn("Bullet", x - 20, y, { speed = -500 })   -- one flying left: its own property
+end
+```
+
+Always destroy what you make when it is no longer needed. Copies are not
+part of saved games: after loading, the scene is as you made it.
+
 The **Top-Down Starter** template's fireflies (`scripts/firefly.lua`) are a
 complete example to read and change.
 
@@ -191,6 +219,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `obj:scale()`, `obj:setScale(x, y)` | size; `setScale(2)` doubles both ways |
 | `obj:isActive()`, `obj:setActive(true/false)` | switches it (and its children) on or off |
 | `obj:destroy()` | removes it at the end of the frame. An object that was in the scene stays gone, also in saved games |
+| `obj:clone()` | makes a copy of it, with everything inside it, beside it: same place, same name, on or off as it is. Returns the copy; its script starts in the next frame, with its own `self` |
 | `obj:play("walk_left")` | plays a clip of its Animator. Calling it every frame is fine. `obj:play(clip, true)` starts the clip again |
 | `obj:stopAnimation()` | stops on the clip's first frame |
 | `obj:clip()` | the clip it plays |
@@ -209,6 +238,8 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | Function | What it does |
 |---|---|
 | `game.find("Name")` | the first object with that name, or `nil` |
+| `game.spawn("Bullet", x, y)` | makes a copy of the object with that name (or of an object: `game.spawn(obj)`), puts it at `x, y` (without them: where the original is) and **switches it on**. Returns the copy. Keep the original switched off in the scene as the pattern |
+| `game.spawn("Bullet", x, y, { speed = 400 })` | ...and gives the copy its own values for its script's [properties](#properties-settings-in-the-inspector) |
 | `game.player()` | the player (the object with the Interactor), or `nil` |
 | `game.time()` | seconds since the game started |
 | `game.get("gems")` | a game variable's value (variables are made in a `.lvars` file) |
@@ -376,9 +407,11 @@ stutter.
   makes a new string every frame.
 - **Find objects once**, in `start`, and keep them: `self.door =
   game.find("Door")`.
-- **Reuse objects**: scripts cannot make new objects yet, so keep a pool
-  switched off and switch them on (`setActive`), as the stress test's
-  bullets do.
+- **Hundreds of bullets a second? Reuse them.** `game.spawn` and
+  `destroy` are fine for a shot now and then, but each frame in which an
+  object is made or destroyed, Rolo builds what it draws again. For a
+  bullet storm, keep a pool of objects switched off and switch them on
+  and off (`setActive`), as the stress test's bullets do.
 
 In the stress test, 1000 objects doing the same sums take 1.3 ms a frame
 written with a new table per point, and 0.5 ms with locals or vectors.
@@ -410,7 +443,8 @@ bitwise operators (`&`, `|`, `<<`; use `bit32.band` and friends) and
 `3` and `3.0` are the same, and print as `3`.
 
 What is not here, if you come from **Roblox**: Roblox's own objects
-(`workspace`, `Instance.new`, `task.wait`, `:Connect`). Rolo's are `game`,
+(`workspace`, `Instance.new`, `task.wait`, `:Connect`; `:Clone()` is
+`obj:clone()` or `game.spawn`). Rolo's are `game`,
 `input`, `audio` and each script's `self.object` (above).
 
 Learning more:
