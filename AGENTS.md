@@ -42,7 +42,10 @@ and AI assistants.
   Objects made while playing (ADR 0030) are copies (`Game::clone`; `game.spawn`, `obj:clone()`), never
   built from nothing; they are not in saved games, and `Game::kMostObjects` stops a runaway script.
   Waiting (ADR 0031): `start(self)` and functions begun with `task.spawn` / `task.delay` are Luau
-  coroutines owned by their Script (`ScriptHost::resumeTask`); `update` and `collide` stay plain calls. `engine/gameplay` has no
+  coroutines owned by their Script (`ScriptHost::resumeTask`); `update` and `collide` stay plain calls.
+  Events (ADR 0032): a script's connections are kept with its Script and looked at once a frame, before
+  its update (`ScriptHost::runConnections`); a new kind of event is a `ScriptSignal` kind checked there,
+  never a callback kept by another part of the engine. `engine/gameplay` has no
   backend; the runtime and editor translate their input into `rolo::Input`. A game always plays a
   copy of the scene (`Game::start`), never the scene being edited.
 - Sound: games ask for it through `rolo::SoundPlayer` (`engine/gameplay`, `Sound.hpp`), never a

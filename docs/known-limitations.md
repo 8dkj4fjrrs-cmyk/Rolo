@@ -120,8 +120,12 @@ Please report what you find.
   - edits are picked up when Play is pressed again, not while playing;
   - no debugger: use `print`, which writes to the Console.
   - waiting (`task.wait`) works in `start` and in tasks, not in `update`
-    or `collide`; a task cannot be stopped from outside, and there are no
-    events to wait for;
+    or `collide`; a task cannot be stopped from outside;
+  - [events](scripting.md#events) to connect to and wait for are game
+    events (a name, no values), keys and actions, and collisions
+    beginning; nothing yet for an animation finishing, touching ending
+    or an object being destroyed. An object that is switched off misses
+    what happens meanwhile;
   - an object cannot be moved to another parent from a script;
   - scripts make objects by copying one that is in the scene
     (`game.spawn`, `obj:clone()`); they cannot build one from nothing or

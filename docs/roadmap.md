@@ -143,8 +143,10 @@ In order:
    object's parent and children~~ **done** (`obj:parent()`,
    `children()`, `child()`, `find()`). ~~Waiting~~ **done**
    ([ADR 0031](adr/0031-waiting-in-scripts.md)): `task.wait`,
-   `task.spawn`, `task.delay`, and a `start` that may wait. Next for
-   scripts: events (`:Connect`), prefabs, more kinds of property.
+   `task.spawn`, `task.delay`, and a `start` that may wait. ~~Events~~
+   **done** ([ADR 0032](adr/0032-events-in-scripts.md)): `connect`,
+   `once` and `wait` on game events, keys and collisions. Next for
+   scripts: prefabs, more kinds of property, more events.
 
 Alongside: the editor polish below. Later: 3D.
 

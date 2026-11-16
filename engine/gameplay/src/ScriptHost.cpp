@@ -1,5 +1,7 @@
 #include "ScriptHost.hpp"
 
+#include "PhysicsSync.hpp"
+
 #include "rolo/assets/AssetDatabase.hpp"
 #include "rolo/gameplay/Game.hpp"
 #include "rolo/gameplay/Script.hpp"
@@ -18,6 +20,8 @@
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace rolo {
 
@@ -379,7 +383,7 @@ std::optional<std::string> ScriptHost::call(int arguments, const std::string& fi
 // object's update. So a waiting task costs nothing while it waits, stops
 // with its object, and never runs for an object that is switched off.
 
-std::optional<std::string> ScriptHost::resumeTask(Script& script, int thread)
+std::optional<std::string> ScriptHost::resumeTask(Script& script, int thread, int given)
 {
     const auto find = [&script, thread] {
         return std::find_if(script.m_tasks.begin(), script.m_tasks.end(),
@@ -397,7 +401,9 @@ std::optional<std::string> ScriptHost::resumeTask(Script& script, int thread)
     lua_State* const T = lua_tothread(m_L, -1);
     lua_pop(m_L, 1);   // (the registry still holds it)
     int arguments = task.arguments;
-    if (task.started) {
+    if (given >= 0) {
+        arguments = given;   // it waited for an event: what the event brings is on its stack
+    } else if (task.started) {
         lua_pushnumber(T, now - task.since);   // what task.wait gives back: how long it waited
         arguments = 1;
     }
@@ -406,9 +412,11 @@ std::optional<std::string> ScriptHost::resumeTask(Script& script, int thread)
     Script* const previousScript = m_currentScript;
     lua_State* const previousTask = m_runningTask;
     const double previousWake = m_pendingWake;
+    const int previousThread = m_runningThread;
     m_currentFile = &file.path;
     m_currentScript = &script;
     m_runningTask = T;
+    m_runningThread = thread;
     m_pendingWake = -1.0;
     const bool outermost = enterCall();
     const int status = lua_resume(T, m_L, arguments);
@@ -417,6 +425,7 @@ std::optional<std::string> ScriptHost::resumeTask(Script& script, int thread)
     m_currentFile = previousFile;
     m_currentScript = previousScript;
     m_runningTask = previousTask;
+    m_runningThread = previousThread;
     m_pendingWake = previousWake;
 
     found = find();   // (again: tasks begun meanwhile may have moved it)
@@ -483,18 +492,13 @@ int ScriptHost::taskWait(lua_State* L, double seconds)
     return lua_yield(L, 0);
 }
 
-void ScriptHost::taskStart(lua_State* L, int first, double delaySeconds)
+std::optional<std::string> ScriptHost::beginTask(Script& script, lua_State* L, int arguments, double delaySeconds)
 {
-    luaL_checktype(L, first, LUA_TFUNCTION);
-    Script* const script = m_currentScript;
-    if (script == nullptr) {
-        luaL_error(L, "tasks belong to an object: begin them in start, update or collide, not at the top of the file");
+    if (script.m_tasks.size() >= kMostTasks) {
+        lua_pop(L, arguments + 1);
+        return "this object's script has " + std::to_string(kMostTasks) +
+               " tasks waiting, the most it may have. Is one begun every frame?";
     }
-    if (script->m_tasks.size() >= kMostTasks) {
-        luaL_error(L, "this object's script has %d tasks waiting, the most it may have. Is one begun every frame?",
-                   static_cast<int>(kMostTasks));
-    }
-    const int arguments = lua_gettop(L) - first;
     lua_State* const T = lua_newthread(L);
     const int thread = lua_ref(L, -1);
     lua_pop(L, 1);
@@ -505,13 +509,225 @@ void ScriptHost::taskStart(lua_State* L, int first, double delaySeconds)
     task.arguments = arguments;
     task.since = now;
     task.wake = now + std::max(0.0, delaySeconds);
-    script->m_tasks.push_back(task);
+    script.m_tasks.push_back(task);
     if (delaySeconds <= 0.0) {
-        // task.spawn: it begins at once, and runs to its first wait.
-        if (const auto error = resumeTask(*script, thread)) {
-            luaL_error(L, "%s", error->c_str());
+        return resumeTask(script, thread);   // it begins at once, and runs to its first wait
+    }
+    return std::nullopt;
+}
+
+void ScriptHost::taskStart(lua_State* L, int first, double delaySeconds)
+{
+    luaL_checktype(L, first, LUA_TFUNCTION);
+    Script* const script = m_currentScript;
+    if (script == nullptr) {
+        luaL_error(L, "tasks belong to an object: begin them in start, update or collide, not at the top of the file");
+    }
+    if (const auto error = beginTask(*script, L, lua_gettop(L) - first, delaySeconds)) {
+        luaL_error(L, "%s", error->c_str());
+    }
+}
+
+// --- Events: signal:connect, signal:once, signal:wait (ADR 0032) -------------------------------------------
+//
+// A script says what it listens to; the host looks, once a frame and just
+// before the object's update, whether any of it happened, and begins the
+// connected function as a task (so it may wait, as in Roblox). Looking
+// costs nothing for scripts that listen to nothing, and, like tasks, a
+// connection belongs to its object: it rests while the object is switched
+// off and is gone when the object is.
+
+namespace {
+
+// When a task that waits for an event goes on by the clock: never.
+constexpr double kNever = 1.0e300;
+
+} // namespace
+
+EntityId ScriptHost::currentObject() const
+{
+    return m_currentScript != nullptr ? m_currentScript->entity() : EntityId{};
+}
+
+Script* ScriptHost::scriptOf(EntityId owner)
+{
+    const Entity* entity = m_game.isRunning() ? std::as_const(m_game).scene().find(owner) : nullptr;
+    // (A script's connections are not drawn or saved: changing them is not
+    // a change to the scene, so the scene is not told.)
+    return entity != nullptr ? const_cast<Script*>(entity->get<Script>()) : nullptr;
+}
+
+std::uint64_t ScriptHost::connect(lua_State* L, const ScriptSignal& signal, int function, bool once)
+{
+    luaL_checktype(L, function, LUA_TFUNCTION);
+    Script* const script = m_currentScript;
+    if (script == nullptr) {
+        luaL_error(L, "an object listens to events: connect in start (or update, or a task), not at the top of the file");
+    }
+    if (script->m_connections.size() >= kMostConnections) {
+        luaL_error(L,
+                   "this object's script listens to %d events, the most it may. Is connect called every frame? "
+                   "(Connect once, in start.)",
+                   static_cast<int>(kMostConnections));
+    }
+    Script::Connection connection;
+    connection.id = ++m_lastConnection;
+    connection.signal = signal;
+    connection.once = once;
+    lua_pushvalue(L, function);
+    connection.function = lua_ref(L, -1);
+    lua_pop(L, 1);
+    script->m_connections.push_back(std::move(connection));
+    return m_lastConnection;
+}
+
+int ScriptHost::signalWait(lua_State* L, const ScriptSignal& signal)
+{
+    Script* const script = m_currentScript;
+    if (L != m_runningTask || m_runningTask == nullptr || script == nullptr) {
+        luaL_error(L, "wait can only be used in start(self), or in a function begun with task.spawn, task.delay "
+                      "or connect. update and collide must finish within their frame: use connect there");
+    }
+    if (script->m_connections.size() >= kMostConnections) {
+        luaL_error(L, "this object's script listens to %d events, the most it may",
+                   static_cast<int>(kMostConnections));
+    }
+    Script::Connection connection;
+    connection.id = ++m_lastConnection;
+    connection.signal = signal;
+    connection.once = true;
+    connection.waits = true;
+    connection.function = m_runningThread;
+    script->m_connections.push_back(std::move(connection));
+    m_pendingWake = kNever;
+    return lua_yield(L, 0);
+}
+
+void ScriptHost::disconnect(EntityId owner, std::uint64_t connection)
+{
+    Script* const script = scriptOf(owner);
+    if (script == nullptr) {
+        return;
+    }
+    auto& list = script->m_connections;
+    const auto found = std::find_if(list.begin(), list.end(),
+                                    [connection](const Script::Connection& c) { return c.id == connection; });
+    if (found != list.end() && !found->waits) {
+        lua_unref(m_L, found->function);
+        list.erase(found);
+    }
+}
+
+bool ScriptHost::isConnected(EntityId owner, std::uint64_t connection)
+{
+    const Script* const script = scriptOf(owner);
+    return script != nullptr
+           && std::any_of(script->m_connections.begin(), script->m_connections.end(),
+                          [connection](const Script::Connection& c) { return c.id == connection; });
+}
+
+std::optional<std::string> ScriptHost::runConnections(Script& script)
+{
+    // First what happened, for every connection; only then the functions:
+    // they may connect and disconnect, which changes the list.
+    struct Firing {
+        std::uint64_t connection;
+        EntityId other;   // Collided: who was touched
+    };
+    std::vector<Firing> firings;
+    const Input& input = std::as_const(m_game).input();
+    for (const Script::Connection& c : script.m_connections) {
+        const ScriptSignal& s = c.signal;
+        switch (s.kind) {
+        case ScriptSignal::GameEvent:
+            if (m_game.wasEmitted(s.name)) {
+                firings.push_back({c.id, {}});
+            }
+            break;
+        case ScriptSignal::Pressed:
+        case ScriptSignal::Released: {
+            const bool pressed = s.kind == ScriptSignal::Pressed;
+            bool happened = false;
+            if (!s.name.empty()) {
+                happened = pressed ? input.wasActionPressed(s.name) : input.wasActionReleased(s.name);
+            } else if (s.padButton >= 0) {
+                const auto button = static_cast<GamepadButton>(s.padButton);
+                happened = pressed ? input.wasPressed(button, s.pad) : input.wasReleased(button, s.pad);
+            } else if (s.mouse >= 0) {
+                const auto button = static_cast<MouseButton>(s.mouse);
+                happened = pressed ? input.wasPressed(button) : input.wasReleased(button);
+            } else {
+                for (const int k : s.keys) {
+                    const Key key = static_cast<Key>(k);
+                    happened = happened
+                               || (key != Key::Unknown && (pressed ? input.wasPressed(key) : input.wasReleased(key)));
+                }
+            }
+            if (happened) {
+                firings.push_back({c.id, {}});
+            }
+            break;
+        }
+        case ScriptSignal::Collided:
+            // What began to touch in the last physics step (the frame before).
+            for (const auto& [a, b] : m_game.m_physics->hits()) {
+                if (a.value() == s.subject) {
+                    firings.push_back({c.id, b});
+                } else if (b.value() == s.subject) {
+                    firings.push_back({c.id, a});
+                }
+            }
+            break;
+        default:
+            break;
         }
     }
+    for (const Firing& firing : firings) {
+        auto& list = script.m_connections;
+        const auto found = std::find_if(list.begin(), list.end(),
+                                        [&firing](const Script::Connection& c) { return c.id == firing.connection; });
+        if (found == list.end()) {
+            continue;   // disconnected meanwhile, or it was for once
+        }
+        const Script::Connection connection = *found;
+        if (connection.once) {
+            list.erase(found);
+        }
+        std::optional<std::string> error;
+        if (connection.waits) {
+            // A task waits here: it goes on, and wait() gives it what the event brings.
+            const int thread = connection.function;
+            const bool waiting = std::any_of(script.m_tasks.begin(), script.m_tasks.end(),
+                                             [thread](const Script::Task& t) { return t.thread == thread; });
+            if (!waiting) {
+                continue;
+            }
+            lua_getref(m_L, thread);
+            lua_State* const T = lua_tothread(m_L, -1);
+            lua_pop(m_L, 1);
+            int given = 0;
+            if (connection.signal.kind == ScriptSignal::Collided) {
+                pushObjectForScripts(T, firing.other);
+                given = 1;
+            }
+            error = resumeTask(script, thread, given);
+        } else {
+            lua_getref(m_L, connection.function);
+            int arguments = 0;
+            if (connection.signal.kind == ScriptSignal::Collided) {
+                pushObjectForScripts(m_L, firing.other);
+                arguments = 1;
+            }
+            error = beginTask(script, m_L, arguments, 0.0);
+            if (connection.once) {
+                lua_unref(m_L, connection.function);
+            }
+        }
+        if (error) {
+            return error;
+        }
+    }
+    return std::nullopt;
 }
 
 ScriptHost::File& ScriptHost::fileFor(AssetId script)
@@ -681,7 +897,13 @@ std::optional<std::string> ScriptHost::start(Script& script, EntityId object)
 
 std::optional<std::string> ScriptHost::update(Script& script, EntityId object, float dt)
 {
-    // What was waiting goes on first, then this frame's update.
+    // What happened that the script listens to, then what was waiting,
+    // then this frame's update.
+    if (!script.m_connections.empty()) {
+        if (auto error = runConnections(script)) {
+            return "in a function connected to an event: " + *error;
+        }
+    }
     if (!script.m_tasks.empty()) {
         if (auto error = runTasks(script)) {
             return "in a task (code that waited): " + *error;
@@ -802,6 +1024,11 @@ Script::~Script()
         host->release(m_self);
         for (const Task& task : m_tasks) {
             host->release(task.thread);   // what was waiting never goes on
+        }
+        for (const Connection& connection : m_connections) {
+            if (!connection.waits) {
+                host->release(connection.function);
+            }
         }
     }
 }

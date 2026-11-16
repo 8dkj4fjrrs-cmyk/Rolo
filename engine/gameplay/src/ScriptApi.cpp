@@ -38,6 +38,7 @@
 #include <string>
 #include <string_view>
 #include <typeinfo>
+#include <utility>
 
 namespace rolo {
 
@@ -46,6 +47,8 @@ namespace {
 // Objects are "tagged" userdata: Luau checks the tag with one comparison,
 // where a named type costs a text lookup on every call a script makes.
 constexpr int kObjectTag = 1;
+constexpr int kSignalTag = 2;       // an event to listen to (ScriptSignal)
+constexpr int kConnectionTag = 3;   // what connect gives back
 constexpr std::string_view kCategory = "script";
 
 // --- Helpers ---------------------------------------------------------------------------------------------
@@ -811,6 +814,145 @@ int inputQuery(lua_State* L)
 }
 
 // input.stick("left") -> x, y (dead zone applied; y up)
+// --- Events: things to listen to (ADR 0032) -----------------------------------------------------------------
+//
+//     game.event("gate_open"):connect(function() ... end)
+//     input.pressed("jump"):wait()
+//     self.object:collided():once(function(other) ... end)
+//
+// A signal says *what* to listen to; connect, once and wait (ScriptHost)
+// do the listening. The method names are Roblox's with a small first
+// letter, as all of Rolo's are.
+
+int pushSignal(lua_State* L, ScriptSignal signal)
+{
+    void* memory = lua_newuserdatataggedwithmetatable(L, sizeof(ScriptSignal), kSignalTag);
+    new (memory) ScriptSignal(std::move(signal));   // (its destructor: openScriptApi)
+    return 1;
+}
+
+const ScriptSignal& checkSignal(lua_State* L, int index)
+{
+    const auto* signal = static_cast<const ScriptSignal*>(lua_touserdatatagged(L, index, kSignalTag));
+    if (signal == nullptr) {
+        luaL_typeerror(L, index, "event");
+    }
+    return *signal;
+}
+
+// game.event("gate_open"): the game event of that name (game.emit, a
+// Trigger's emit action). It is heard in the frame after it was sent.
+int gameEvent(lua_State* L)
+{
+    const std::string_view name = checkText(L, 1);
+    if (name.empty()) {
+        luaL_argerror(L, 1, "an event's name expected, like \"gate_open\"");
+    }
+    ScriptSignal signal;
+    signal.kind = ScriptSignal::GameEvent;
+    signal.name = std::string(name);
+    return pushSignal(L, std::move(signal));
+}
+
+// input.pressed("jump") and input.released("jump"): an action, key or
+// button going down or up (named as for input.wasPressed).
+template <int Kind> int inputSignal(lua_State* L)
+{
+    ScriptSignal signal;
+    signal.kind = Kind;
+    const Input& input = std::as_const(gameOf(L)).input();
+    if (const std::string_view name = checkText(L, 1); input.hasAction(name)) {
+        signal.name = std::string(name);
+        return pushSignal(L, std::move(signal));
+    }
+    const KeySet set = checkKey(L, 1);
+    if (set.pad) {
+        signal.padButton = static_cast<int>(*set.pad);
+        signal.pad = checkPad(L, 2);
+    } else if (set.button) {
+        signal.mouse = static_cast<int>(*set.button);
+    } else {
+        signal.keys[0] = static_cast<int>(set.keys[0]);
+        signal.keys[1] = static_cast<int>(set.keys[1]);
+    }
+    return pushSignal(L, std::move(signal));
+}
+
+// obj:collided(): physics makes the object begin to touch another (what
+// collide(self, other) is told, for any object). Brings the other object.
+int objectCollided(lua_State* L)
+{
+    ScriptSignal signal;
+    signal.kind = ScriptSignal::Collided;
+    signal.subject = objectEntity(L, 1).id().value();
+    return pushSignal(L, std::move(signal));
+}
+
+struct ConnectionHandle {
+    std::uint64_t owner = 0;   // the object whose script connected
+    std::uint64_t id = 0;
+};
+
+template <bool Once> int signalConnect(lua_State* L)
+{
+    const ScriptSignal& signal = checkSignal(L, 1);
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    ScriptHost& host = ScriptHost::of(L);
+    const std::uint64_t id = host.connect(L, signal, 2, Once);
+    auto* handle = static_cast<ConnectionHandle*>(
+        lua_newuserdatataggedwithmetatable(L, sizeof(ConnectionHandle), kConnectionTag));
+    handle->owner = host.currentObject().value();
+    handle->id = id;
+    return 1;
+}
+
+int signalWait(lua_State* L)
+{
+    return ScriptHost::of(L).signalWait(L, checkSignal(L, 1));
+}
+
+int signalToString(lua_State* L)
+{
+    const ScriptSignal& signal = checkSignal(L, 1);
+    switch (signal.kind) {
+    case ScriptSignal::GameEvent: pushText(L, "event \"" + signal.name + "\""); break;
+    case ScriptSignal::Pressed: pushText(L, "event: pressed"); break;
+    case ScriptSignal::Released: pushText(L, "event: released"); break;
+    default: pushText(L, "event: collided"); break;
+    }
+    return 1;
+}
+
+const ConnectionHandle& checkConnection(lua_State* L, int index)
+{
+    const auto* handle = static_cast<const ConnectionHandle*>(lua_touserdatatagged(L, index, kConnectionTag));
+    if (handle == nullptr) {
+        luaL_typeerror(L, index, "connection");
+    }
+    return *handle;
+}
+
+int connectionDisconnect(lua_State* L)
+{
+    const ConnectionHandle& handle = checkConnection(L, 1);
+    ScriptHost::of(L).disconnect(EntityId{handle.owner}, handle.id);
+    return 0;
+}
+
+int connectionIsConnected(lua_State* L)
+{
+    const ConnectionHandle& handle = checkConnection(L, 1);
+    lua_pushboolean(L, ScriptHost::of(L).isConnected(EntityId{handle.owner}, handle.id));
+    return 1;
+}
+
+// Connect, Once, Wait, Disconnect: Roblox's spelling. Said plainly, where
+// a bare "attempt to call a nil value" would leave a newcomer guessing.
+int robloxSpelling(lua_State* L)
+{
+    luaL_error(L, "in Rolo these begin with a small letter: connect, once, wait, disconnect");
+}
+
 int inputStick(lua_State* L)
 {
     static const char* const names[] = {"left", "right", nullptr};
@@ -1370,6 +1512,7 @@ void openScriptApi(ScriptHost& host)
         {"applyForce", guarded<objectApplyForce>},
         {"isOnGround", guarded<objectIsOnGround>},
         {"contacts", guarded<objectContacts>},
+        {"collided", guarded<objectCollided>},
         {nullptr, nullptr},
     };
     lua_newtable(L);   // the objects' metatable
@@ -1384,6 +1527,44 @@ void openScriptApi(ScriptHost& host)
     lua_setfield(L, -2, "__type");   // what typeof(obj) and error messages call it
     lua_setuserdatametatable(L, kObjectTag);   // (takes it off the stack)
 
+    // Events (signals) and connections.
+    static const luaL_Reg signalMethods[] = {
+        {"connect", guarded<signalConnect<false>>},
+        {"once", guarded<signalConnect<true>>},
+        {"wait", guarded<signalWait>},
+        {"Connect", robloxSpelling},
+        {"Once", robloxSpelling},
+        {"Wait", robloxSpelling},
+        {nullptr, nullptr},
+    };
+    lua_newtable(L);
+    lua_newtable(L);
+    setFunctions(L, signalMethods);
+    lua_setfield(L, -2, "__index");
+    lua_pushcfunction(L, guarded<signalToString>, "__tostring");
+    lua_setfield(L, -2, "__tostring");
+    lua_pushliteral(L, "event");
+    lua_setfield(L, -2, "__type");
+    lua_setuserdatametatable(L, kSignalTag);
+    // A signal holds text (the event's name), which must be freed with it.
+    lua_setuserdatadtor(L, kSignalTag, [](lua_State*, void* signal) {
+        static_cast<ScriptSignal*>(signal)->~ScriptSignal();
+    });
+
+    static const luaL_Reg connectionMethods[] = {
+        {"disconnect", guarded<connectionDisconnect>},
+        {"isConnected", guarded<connectionIsConnected>},
+        {"Disconnect", robloxSpelling},
+        {nullptr, nullptr},
+    };
+    lua_newtable(L);
+    lua_newtable(L);
+    setFunctions(L, connectionMethods);
+    lua_setfield(L, -2, "__index");
+    lua_pushliteral(L, "connection");
+    lua_setfield(L, -2, "__type");
+    lua_setuserdatametatable(L, kConnectionTag);
+
     static const luaL_Reg gameFunctions[] = {
         {"find", guarded<gameFind>},
         {"spawn", guarded<gameSpawn>},
@@ -1391,6 +1572,7 @@ void openScriptApi(ScriptHost& host)
         {"time", guarded<gameTime>},
         {"emit", guarded<gameEmit>},
         {"wasEmitted", guarded<gameWasEmitted>},
+        {"event", guarded<gameEvent>},
         {"get", guarded<gameGet>},
         {"set", guarded<gameSet>},
         {"run", guarded<gameRun>},
@@ -1415,6 +1597,8 @@ void openScriptApi(ScriptHost& host)
          guarded<inputQuery<&Input::wasPressed, &Input::wasPressed, &Input::wasPressed, &Input::wasActionPressed>>},
         {"wasReleased",
          guarded<inputQuery<&Input::wasReleased, &Input::wasReleased, &Input::wasReleased, &Input::wasActionReleased>>},
+        {"pressed", guarded<inputSignal<ScriptSignal::Pressed>>},
+        {"released", guarded<inputSignal<ScriptSignal::Released>>},
         {"action", guarded<inputAction>},
         {"bindings", guarded<inputBindings>},
         {"rebind", guarded<inputRebind>},

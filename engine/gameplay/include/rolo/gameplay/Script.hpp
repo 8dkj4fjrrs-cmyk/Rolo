@@ -33,6 +33,7 @@
 #include "rolo/scene/EntityId.hpp"
 #include "rolo/scene/SceneFile.hpp" // FileIssue
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -43,6 +44,22 @@ namespace rolo {
 
 class AssetDatabase;
 class ScriptHost;
+
+/// Something a script can listen to (ADR 0032): a game event by name, a
+/// key, button or action going down or up, or an object beginning to touch
+/// another. Scripts get one from game.event, input.pressed, input.released
+/// or obj:collided. (Plain numbers, so that this header needs no others;
+/// the script host knows what they mean.)
+struct ScriptSignal {
+    enum Kind { GameEvent, Pressed, Released, Collided };
+    int kind = GameEvent;
+    std::string name;            // the game event, or the action
+    std::uint64_t subject = 0;   // Collided: the object that is touched
+    int keys[2] = {0, 0};        // Pressed, Released: keys (Key), 0 for none
+    int mouse = -1;              // ...or a mouse button (MouseButton)
+    int padButton = -1;          // ...or a gamepad button (GamepadButton)
+    int pad = -1;                // ...on this gamepad (-1: any)
+};
 
 struct Script : BehaviourBase<Script> {
     AssetId script; // a .lua script asset
@@ -77,6 +94,17 @@ struct Script : BehaviourBase<Script> {
         bool started = false;
     };
     std::vector<Task> m_tasks;
+    // What this script listens to (signal:connect, signal:once), and its
+    // tasks that wait for an event (signal:wait). Looked at once a frame,
+    // just before the object's update.
+    struct Connection {
+        std::uint64_t id = 0;   // the script host's number for it (for disconnect)
+        ScriptSignal signal;
+        int function = -2;      // the function to begin, in the state's registry; for `waits`: the task's thread (the task owns it)
+        bool once = false;      // gone after the first time
+        bool waits = false;     // a task waits here (signal:wait)
+    };
+    std::vector<Connection> m_connections;
 };
 
 /// Checks a script's code without running it: nothing if it is valid Lua,

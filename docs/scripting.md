@@ -48,7 +48,7 @@ each object that has a **Script** component pointing at the file:
 
 | Function | When |
 |---|---|
-| `start(self)` | once, in the first frame the object is in the game. It may [wait](#waiting) |
+| `start(self)` | once, in the first frame the object is in the game. It may [wait](#waiting) and [connect to events](#events) |
 | `update(self, dt)` | every frame after that; `dt` is the time since the last frame, in seconds (about 1/60) |
 | `collide(self, other)` | physics: when the object starts touching `other` (see [Physics](#physics)) |
 
@@ -115,6 +115,65 @@ Good to know:
   again: nothing of it runs while it is off. Let another object do it.)
 - A loop that never waits is still stopped after ten seconds.
 - (The names are Roblox's, and mean the same.)
+
+### Events
+
+A script can also say "when this happens, do that", and wait for
+something to happen:
+
+```lua
+function start(self)
+    game.event("gate_open"):connect(function()     -- every time the event is sent
+        self.object:play("open")
+    end)
+
+    print("Press E to begin")
+    input.pressed("e"):wait()                      -- start stops here until E goes down
+    game.emit("gate_open")
+end
+```
+
+What can be listened to:
+
+| | Happens when | Brings |
+|---|---|---|
+| `game.event("gate_open")` | that game event was sent, by `game.emit` or a Trigger. It is heard in the next frame | nothing |
+| `input.pressed("jump")`, `input.released("jump")` | an action, key or button goes down or up (the names of [`input`](#input)) | nothing |
+| `obj:collided()` | physics makes that object begin to touch another (what [`collide`](#physics) is told, but for any object) | the other object |
+
+And what to do with it:
+
+| | |
+|---|---|
+| `event:connect(f)` | begins the function `f` every time it happens. Gives back a connection |
+| `event:once(f)` | the same, but the first time only |
+| `event:wait()` | stops here until it happens (in `start` and in tasks, like `task.wait`). Gives back what the event brings |
+| `connection:disconnect()` | stops listening; `connection:isConnected()` asks whether it still does |
+
+```lua
+function start(self)
+    -- A coin that any falling crate can knock away:
+    self.object:collided():once(function(other)
+        print(other:name() .. " hit the coin")
+        self.object:destroy()
+    end)
+end
+```
+
+Good to know:
+- **Connect once, in `start`**, not in `update`: every `connect` adds
+  another listener.
+- A connected function is a task: it may `task.wait`.
+- A connection belongs to the object whose script made it. It is gone
+  when the object is destroyed, so there is nothing to tidy up, and it
+  rests while the object is switched off (what happens meanwhile is
+  missed).
+- Connected functions run just before the object's `update`. For a
+  collision that is the frame after the touch began.
+- Asking in `update` (`game.wasEmitted`, `input.wasPressed`) still works
+  and is no worse: use whichever reads better.
+- (Roblox's `Connect`, `Once`, `Wait` and `Disconnect`, with a small
+  first letter like all of Rolo's names.)
 
 ### Properties: settings in the Inspector
 
@@ -274,6 +333,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `obj:stopAnimation()` | stops on the clip's first frame |
 | `obj:clip()` | the clip it plays |
 | `obj:isAnimationPlaying()`, `obj:isAnimationFinished()` | animation state (finished: a clip that does not loop has reached its end) |
+| `obj:collided()` | the [event](#events) of physics making it begin to touch another: `obj:collided():connect(function(other) ... end)` |
 | `obj:overlapping()` | a list of the objects whose Colliders overlap its Collider |
 | `obj:isTouching(other)` | true if their Colliders overlap |
 | `obj:text()`, `obj:setText("Score: 3")` | the text of a Text component; `{variable}` and `{button:jump}` in it are filled in, as in the editor |
@@ -298,6 +358,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `game.run("startDialogue elder")` | runs an action, written as in a Trigger's action fields. For example: `startQuest find_cat`, `completeObjective find_cat search`, `add gems 1`, `emit gate_open` |
 | `game.emit("gate_open")` | sends a game event. Triggers and scripts hear it in the next frame |
 | `game.wasEmitted("gate_open")` | true if the event was sent in the previous frame |
+| `game.event("gate_open")` | that event as something to [listen to](#events): `:connect(f)`, `:once(f)`, `:wait()` |
 | `game.changeScene("woods")` | goes to another scene (by its file name) at the end of the frame |
 | `game.changeScene("woods", "From Village")` | ...with the player placed at the object of that name |
 | `game.inDialogue()` | true while a dialogue is shown |
@@ -311,6 +372,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `input.isDown("space")` | the key is held down |
 | `input.wasPressed("space")` | it went down this frame |
 | `input.wasReleased("space")` | it went up this frame |
+| `input.pressed("space")`, `input.released("space")` | going down or up as an [event](#events): `input.pressed("jump"):connect(f)`, `input.pressed("e"):wait()` |
 | `input.direction()` | where the player steers, `x, y` (up is +1): the arrow keys or W A S D (each -1, 0 or 1), or else a gamepad's d-pad or left stick (values in between too). Never longer than 1 |
 | `game.viewSize()` | how much of the world the screen shows, at camera zoom 1: `width, height` (the game's size, or more if the project [fills the screen](exporting.md#screens-of-other-shapes)) |
 | `input.pointer()` | the mouse position in the world: `x, y` (on a touch screen: the first finger) |
@@ -493,8 +555,9 @@ bitwise operators (`&`, `|`, `<<`; use `bit32.band` and friends) and
 `3` and `3.0` are the same, and print as `3`.
 
 What is not here, if you come from **Roblox**: Roblox's own objects
-(`workspace`, `Instance.new`, `:Connect`). `task.wait`, `task.spawn` and
-`task.delay` are here, and `:Clone()` is `obj:clone()` or `game.spawn`. Rolo's are `game`,
+(`workspace`, `Instance.new`). `task.wait`, `task.spawn` and
+`task.delay` are here, `:Connect` is [`:connect`](#events) on Rolo's own
+events, and `:Clone()` is `obj:clone()` or `game.spawn`. Rolo's are `game`,
 `input`, `audio` and each script's `self.object` (above).
 
 Learning more:

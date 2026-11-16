@@ -51,7 +51,7 @@ Instance or put children inside a Part.
 
 In Roblox a script starts at the top, runs down, and connects functions
 to events. In Rolo a script **defines functions with fixed names**, and
-Rolo calls them:
+Rolo calls them (`start` is where you connect to events):
 
 | | |
 |---|---|
@@ -85,7 +85,7 @@ Script. There is no ServerScriptService or StarterPlayerScripts: where a
 script file lies in the project does not matter, only which object uses
 it.
 
-### What carries over, and two habits to drop
+### What carries over, and one habit to drop
 
 **Waiting works as you know it.** `start(self)` runs from top to bottom
 and may wait, and `task.spawn` and `task.delay` begin code of their own:
@@ -105,15 +105,30 @@ frame); from there, begin a task with `task.spawn`. A loop that never
 waits still freezes the game until Rolo stops the script, after ten
 seconds.
 
-The two habits to drop:
+**So does connecting**, with a small first letter and on Rolo's own
+events ([scripting guide](scripting.md#events)):
 
-1. **`:Connect`.** There are no events to connect to. Ask in `update`
-   ("was the key pressed this frame?", "am I touching the player?"), or
-   use `collide`.
-2. **`Instance.new`.** Nothing is built from nothing in a script. Make
-   the thing once in the editor, switch it off, and copy it when you need
-   one: `game.spawn("Bullet", x, y)`. That is `:Clone()` with the parent
-   and the place set for you; `obj:clone()` is the plain copy.
+```lua
+-- Roblox                                   -- Rolo
+part.Touched:Connect(function(hit)          function start(self)
+    print(hit.Name)                             self.object:collided():connect(function(other)
+end)                                                print(other:name())
+                                                end)
+                                            end
+```
+
+There are three kinds so far: `game.event("name")` (your own, sent with
+`game.emit`), `input.pressed("jump")` / `input.released("jump")`, and
+`obj:collided()`. Each has `:connect(f)`, `:once(f)` and `:wait()`, and
+`connect` gives back a connection to `:disconnect()`. Connect inside
+`start`, not at the top of the file: a connection belongs to an object,
+and goes when the object does. For everything else, ask in `update`
+("am I touching the player?").
+
+The habit to drop: **`Instance.new`.** Nothing is built from nothing in
+a script. Make the thing once in the editor, switch it off, and copy it
+when you need one: `game.spawn("Bullet", x, y)`. That is `:Clone()` with
+the parent and the place set for you; `obj:clone()` is the plain copy.
 
 ### `game` is not the same `game`
 
@@ -150,6 +165,7 @@ objects: `local x, y = obj:position()`.
 | `part:FindFirstChild("Wheel")` | `obj:child("Wheel")`; anywhere inside (`FindFirstChild(name, true)`): `obj:find("Wheel")` |
 | `part.Parent = other` | not available: an object stays where it is in the tree |
 | `task.wait(2)`, `task.spawn(f)`, `task.delay(2, f)` | the same, in `start` and in tasks |
+| `event:Connect(f)`, `:Once(f)`, `:Wait()`, `connection:Disconnect()` | `event:connect(f)`, `:once(f)`, `:wait()`, `connection:disconnect()`, on `game.event("name")`, `input.pressed("jump")`, `input.released("jump")` and `obj:collided()` |
 | `textLabel.Text = "Score: 3"` | `obj:setText("Score: 3")` on an object with a Text |
 | a ModuleScript and `require(script.Parent.Maths)` | any script file and `require("maths")` |
 | Attributes (`:GetAttribute("Speed")`) | **properties**: the script lists them (`properties = { speed = 90 }`), the Inspector shows a field for each on every object with the script, and the script reads `self.speed` ([scripting guide](scripting.md#properties-settings-in-the-inspector)) |
@@ -166,7 +182,7 @@ takes `x, y` takes one vector as well.
 
 | Roblox | Rolo |
 |---|---|
-| `part.Touched:Connect(function(hit) ... end)` | for solid things with physics: `function collide(self, other) ... end` (a Collider on both, a Rigid Body on at least one). For areas you walk into (a coin, a checkpoint: a Collider that is not solid): `if self.object:isTouching(other) then` in `update` |
+| `part.Touched:Connect(function(hit) ... end)` | for solid things with physics: `function collide(self, other) ... end`, or `obj:collided():connect(function(other) ... end)` for any object (a Collider on both, a Rigid Body on at least one). For areas you walk into (a coin, a checkpoint: a Collider that is not solid): `if self.object:isTouching(other) then` in `update` |
 | `workspace:GetPartsInPart(part)` | `obj:overlapping()` |
 | `part.CanCollide = false` | a Collider that is not **Solid** |
 | `part.Anchored = true` | no Rigid Body, or one whose Type is **Static** |
@@ -220,7 +236,7 @@ game variable.
 
 | Roblox | Rolo |
 |---|---|
-| `UserInputService.InputBegan` | `input.wasPressed("space")` in `update` |
+| `UserInputService.InputBegan` | `input.pressed("space"):connect(f)`, or `input.wasPressed("space")` in `update` |
 | `UserInputService:IsKeyDown(Enum.KeyCode.E)` | `input.isDown("e")` |
 | `ContextActionService:BindAction("Jump", ...)` | `input.action("jump", {"space", "pad a"})`, then `input.wasPressed("jump")` |
 | `humanoid.MoveDirection` | `input.direction()` (keys, d-pad, stick or the on-screen stick) |
@@ -236,7 +252,7 @@ gamepad and a phone's screen alike, and players can remap it
 | Roblox | Rolo |
 |---|---|
 | an `IntValue` in ReplicatedStorage, leaderstats | a **game variable**: made in a `.lvars` file, read with `game.get("coins")`, changed with `game.set("coins", 5)`, shown in a Text as `{coins}` |
-| `BindableEvent:Fire()` / `.Event:Connect` | `game.emit("gate_open")`, and `game.wasEmitted("gate_open")` in the next frame |
+| `BindableEvent:Fire()` / `.Event:Connect` | `game.emit("gate_open")` and `game.event("gate_open"):connect(f)` (heard in the next frame; an event has a name but carries no values) |
 | DataStoreService | `game.save("slot1")`, `game.load("slot1")`: a file on the player's own device, with no limits and no waiting |
 | `TeleportService` to another place | `game.changeScene("woods", "From Village")` |
 
@@ -264,8 +280,10 @@ So you do not go looking:
 - **3D.**
 - **Building objects from nothing** (`Instance.new`): copy one made in
   the editor instead (`game.spawn`). Copies are not kept in saved games.
-- **Events and `:Connect`**, `event:Wait()`, `task.cancel` and
-  `task.defer`. (`task.wait`, `task.spawn` and `task.delay` are there.)
+- **Most of Roblox's events**: Rolo has three kinds to connect to (game
+  events, keys and actions, collisions). No `Changed`, no
+  `ChildAdded`, no events that carry your own values. Also no
+  `task.cancel` or `task.defer`.
 - **GUI buttons and layouts**, **tweens**, **particles**, **lighting**.
 - **A marketplace** of models and scripts, and **Team Create**. A Rolo
   project is a folder of plain files, which works well with Git.

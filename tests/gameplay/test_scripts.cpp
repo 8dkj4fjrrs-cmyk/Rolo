@@ -1258,3 +1258,244 @@ TEST_CASE("Waiting where it cannot be done, and errors in tasks, are said plainl
     CHECK_THAT(p.printed[1], ContainsSubstring("in a coroutine of its own: false") && ContainsSubstring("task.wait can only be used"));
     CHECK(p.hasProblem("1000 tasks waiting"));
 }
+
+// --- Events: connect, once, wait, disconnect (ADR 0032) --------------------------------------------------
+
+TEST_CASE("A script listens to game events: connect, once, disconnect and wait", "[gameplay][script][event]")
+{
+    ScriptProject p;
+    const AssetId gate = p.write("scripts/gate.lua", R"(
+        function start(self)
+            local opened = game.event("gate_open")
+            print(tostring(opened), typeof(opened))
+            self.every = opened:connect(function()
+                self.count = (self.count or 0) + 1
+                print("heard " .. self.count)
+                task.wait(0.05)                 -- a connected function may wait
+                print("and waited after " .. self.count)
+            end)
+            opened:once(function() print("once") end)
+            print("connected", self.every:isConnected())
+            opened:wait()                       -- start goes on when it is sent
+            print("start went on")
+            game.event("never"):wait()
+            print("not reached")
+        end
+        function update(self, dt)
+            if game.wasEmitted("stop") then
+                self.every:disconnect()
+                self.every:disconnect()         -- twice does no harm
+                print("disconnected", self.every:isConnected())
+            end
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Gate", gate);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 3);
+    REQUIRE(p.printed.size() == 2);
+    const std::string shown = "scripts/gate.lua: event \"gate_open\"\tevent";
+    CHECK(p.printed[0] == shown);
+    CHECK(p.printed[1] == "scripts/gate.lua: connected\ttrue");
+
+    game.emit("gate_open");   // heard in the next frame, in the order connected
+    frames(game, 1);
+    REQUIRE(p.printed.size() == 5);
+    CHECK(p.printed[2] == "scripts/gate.lua: heard 1");
+    CHECK(p.printed[3] == "scripts/gate.lua: once");
+    CHECK(p.printed[4] == "scripts/gate.lua: start went on");
+    frames(game, 5);
+    REQUIRE(p.printed.size() == 6);
+    CHECK(p.printed[5] == "scripts/gate.lua: and waited after 1");
+
+    game.emit("gate_open");   // again: only the lasting connection is left
+    frames(game, 8);
+    REQUIRE(p.printed.size() == 8);
+    CHECK(p.printed[6] == "scripts/gate.lua: heard 2");
+    CHECK(p.printed[7] == "scripts/gate.lua: and waited after 2");
+
+    game.emit("stop");
+    frames(game, 2);
+    game.emit("gate_open");
+    frames(game, 8);
+    REQUIRE(p.printed.size() == 9);
+    CHECK(p.printed[8] == "scripts/gate.lua: disconnected\tfalse");
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("A script listens to keys and actions, and waits for one", "[gameplay][script][event]")
+{
+    ScriptProject p;
+    const AssetId script = p.write("scripts/intro.lua", R"(
+        function start(self)
+            input.action("jump", {"space", "pad a"})
+            input.pressed("jump"):connect(function() print("jump") end)
+            input.released("jump"):connect(function() print("let go") end)
+            input.pressed("mouse left"):connect(function() print("click") end)
+            print("press E")
+            input.pressed("e"):wait()
+            print("thank you")
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Intro", script);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 3);
+    REQUIRE(p.printed.size() == 1);
+    game.input().press(Key::Space);
+    frames(game, 2);   // held down: pressed once
+    game.input().release(Key::Space);
+    frames(game, 1);
+    game.input().press(MouseButton::Left);
+    game.input().press(Key::E);
+    frames(game, 2);
+    REQUIRE(p.printed.size() == 5);
+    CHECK(p.printed[1] == "scripts/intro.lua: jump");
+    CHECK(p.printed[2] == "scripts/intro.lua: let go");
+    CHECK(p.printed[3] == "scripts/intro.lua: click");
+    CHECK(p.printed[4] == "scripts/intro.lua: thank you");
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("A script hears any object begin to touch another", "[gameplay][script][event]")
+{
+    ScriptProject p;
+    const AssetId watcher = p.write("scripts/watcher.lua", R"(
+        function start(self)
+            local crate = game.find("Crate")
+            crate:collided():connect(function(other)
+                print("crate hit " .. other:name())
+            end)
+            local other = crate:collided():wait()
+            print("waited for " .. other:name())
+        end
+    )");
+    Scene scene;
+    const auto solid = [&scene](const std::string& name, Vec2 at, Vec2 size, bool body) {
+        const EntityId id = scene.create(name)->id();
+        scene.setProperty(id, "rolo.Transform", "position", at);
+        auto collider = std::make_unique<Collider>();
+        collider->size = size;
+        scene.addComponent(id, std::move(collider));
+        if (body) {
+            scene.addComponent(id, std::make_unique<RigidBody>());
+        }
+        return id;
+    };
+    solid("Floor", {0.0f, -50.0f}, {2000.0f, 100.0f}, false);
+    solid("Crate", {0.0f, 60.0f}, {20.0f, 20.0f}, true);
+    addScripted(scene, "Watcher", watcher);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 120);
+    REQUIRE(p.printed.size() == 2);   // it landed once
+    CHECK(p.printed[0] == "scripts/watcher.lua: crate hit Floor");
+    CHECK(p.printed[1] == "scripts/watcher.lua: waited for Floor");
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("Connections belong to their object: they rest while it is off and go with it",
+          "[gameplay][script][event]")
+{
+    ScriptProject p;
+    const AssetId listener = p.write("scripts/listener.lua", R"(
+        function start(self)
+            game.event("ping"):connect(function() print(self.object:name() .. " heard ping") end)
+        end
+    )");
+    Scene scene;
+    const EntityId a = addScripted(scene, "A", listener);
+    const EntityId b = addScripted(scene, "B", listener);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 2);
+    game.emit("ping");
+    frames(game, 2);
+    REQUIRE(p.printed.size() == 2);
+
+    game.scene().setActive(a, false);   // A sleeps through the next one
+    game.destroy(b);
+    frames(game, 1);
+    game.emit("ping");
+    frames(game, 3);
+    CHECK(p.printed.size() == 2);
+
+    game.scene().setActive(a, true);
+    game.emit("ping");
+    frames(game, 2);
+    REQUIRE(p.printed.size() == 3);
+    CHECK(p.printed[2] == "scripts/listener.lua: A heard ping");
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("Mistakes with events are said plainly", "[gameplay][script][event]")
+{
+    ScriptProject p;
+    const AssetId roblox = p.write("scripts/roblox.lua", R"(
+        function start(self)
+            game.event("x"):Connect(function() end)
+        end
+    )");
+    const AssetId inUpdate = p.write("scripts/in_update.lua", R"(
+        function update(self, dt)
+            game.event("x"):wait()
+        end
+    )");
+    const AssetId everyFrame = p.write("scripts/every_frame.lua", R"(
+        function update(self, dt)
+            for i = 1, 300 do game.event("x"):connect(function() end) end
+        end
+    )");
+    const AssetId broken = p.write("scripts/broken.lua", R"(
+        function start(self)
+            game.event("boom"):connect(function()
+                local nothing = nil
+                nothing.field = 1
+            end)
+        end
+        function update(self, dt)
+            self.frames = (self.frames or 0) + 1
+            if game.wasEmitted("report") then print("frames " .. self.frames) end
+        end
+    )");
+    const AssetId misc = p.write("scripts/misc.lua", R"(
+        local ok, why = pcall(function() game.event("x"):connect(function() end) end)
+        print("at the top of a file: " .. tostring(ok) .. " " .. tostring(why))
+        function start(self)
+            print(pcall(game.event, ""))
+            print(pcall(input.pressed, "no such key"))
+            print(pcall(function() game.event("x"):connect(5) end))
+        end
+    )");
+    Scene scene;
+    addScripted(scene, "Roblox", roblox);
+    addScripted(scene, "InUpdate", inUpdate);
+    addScripted(scene, "EveryFrame", everyFrame);
+    addScripted(scene, "Broken", broken);
+    addScripted(scene, "Misc", misc);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 6);
+    CHECK(p.hasProblem("begin with a small letter: connect, once, wait, disconnect"));
+    CHECK(p.hasProblem("wait can only be used in start(self)"));
+    CHECK(p.hasProblem("listens to 1000 events"));
+    REQUIRE(p.printed.size() == 4);
+    CHECK_THAT(p.printed[0], ContainsSubstring("at the top of a file: false") && ContainsSubstring("an object listens to events"));
+    CHECK_THAT(p.printed[1], ContainsSubstring("false") && ContainsSubstring("an event's name expected"));
+    CHECK_THAT(p.printed[2], ContainsSubstring("false") && ContainsSubstring("unknown key"));
+    CHECK_THAT(p.printed[3], ContainsSubstring("false") && ContainsSubstring("function expected"));
+
+    // An error in a connected function names its line and switches that
+    // object's script off, like an error in update.
+    const std::size_t before = p.problems.size();
+    game.emit("boom");
+    frames(game, 2);
+    REQUIRE(p.problems.size() == before + 1);
+    CHECK_THAT(p.problems.back(), ContainsSubstring("in a function connected to an event")
+                                      && ContainsSubstring("scripts/broken.lua:5"));
+    game.emit("report");
+    frames(game, 2);
+    CHECK(p.printed.size() == 4);   // its update no longer runs
+}

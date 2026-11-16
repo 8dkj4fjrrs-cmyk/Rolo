@@ -5,6 +5,11 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Scripts can listen to events** ([ADR 0032](docs/adr/0032-events-in-scripts.md)):
+  `event:connect(f)`, `event:once(f)` and `event:wait()`, on
+  `game.event("name")`, `input.pressed("jump")`, `input.released("jump")`
+  and `obj:collided()`; `connect` gives back a connection to
+  `disconnect()`. Connections belong to their object and go with it.
 - **Scripts can wait** ([ADR 0031](docs/adr/0031-waiting-in-scripts.md)):
   `task.wait(seconds)` in `start(self)`, and `task.spawn` / `task.delay`
   to begin code of its own that may wait, with Roblox's names and

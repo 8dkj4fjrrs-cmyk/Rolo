@@ -59,6 +59,7 @@ namespace rolo {
 
 class Game;
 struct Script;
+struct ScriptSignal;
 
 class ScriptHost {
   public:
@@ -116,6 +117,21 @@ class ScriptHost {
     void taskStart(lua_State* L, int first, double delaySeconds);
     /// The most tasks one object's script may have waiting.
     static constexpr std::size_t kMostTasks = 1000;
+    /// signal:connect(f) and signal:once(f), called by the code running in
+    /// `L`: the function at `function` on its stack is begun (as a task, so
+    /// it may wait) whenever the signal fires, for as long as the object of
+    /// the script that is running exists. Returns the connection's number.
+    std::uint64_t connect(lua_State* L, const ScriptSignal& signal, int function, bool once);
+    /// signal:wait(): stops the task running in `L` until the signal fires.
+    int signalWait(lua_State* L, const ScriptSignal& signal);
+    /// connection:disconnect() and connection:isConnected(), by the object
+    /// whose script connected and the connection's number.
+    void disconnect(EntityId owner, std::uint64_t connection);
+    bool isConnected(EntityId owner, std::uint64_t connection);
+    /// The object whose script is running (null at the top of a file).
+    EntityId currentObject() const;
+    /// The most connections one object's script may have.
+    static constexpr std::size_t kMostConnections = 1000;
     /// Game functions that are not public (the host is the Game's friend).
     void setActive(EntityId object, bool active);
     EntityId player() const;
@@ -146,7 +162,18 @@ class ScriptHost {
     void leaveCall(bool outermost);
     // Lets the task of `script` whose coroutine is `thread` run until it
     // waits again or ends. Nothing, or its error.
-    std::optional<std::string> resumeTask(Script& script, int thread);
+    // `given`: how many values for it wait on its stack already (what
+    // signal:wait gives back); -1: none, and a task that waited for time
+    // is told how long it waited.
+    std::optional<std::string> resumeTask(Script& script, int thread, int given = -1);
+    // Makes the function on top of L's stack, below `arguments` arguments,
+    // a task of `script` that begins after `delaySeconds` (0: now, running
+    // to its first wait). Nothing, or why not (L's stack is cleared of them either way).
+    std::optional<std::string> beginTask(Script& script, lua_State* L, int arguments, double delaySeconds);
+    // Looks at what `script` listens to, and begins or lets go on what
+    // listens to something that happened.
+    std::optional<std::string> runConnections(Script& script);
+    Script* scriptOf(EntityId owner);
     // Lets every task of `script` whose time has come go on.
     std::optional<std::string> runTasks(Script& script);
     // What an error status of a call or a task means, as a message (popped from `L`).
@@ -155,6 +182,8 @@ class ScriptHost {
     Script* m_currentScript = nullptr;   // whose code is running (for task.spawn)
     lua_State* m_runningTask = nullptr;  // the task that is running, if one is
     double m_pendingWake = -1.0;         // set by task.wait: when the running task goes on
+    int m_runningThread = -2;            // the running task's coroutine, in the registry
+    std::uint64_t m_lastConnection = 0;  // connections are numbered from 1
 
     static void* allocate(void* ud, void* block, std::size_t oldSize, std::size_t newSize) noexcept;
 #if ROLO_SCRIPT_WATCHDOG_THREAD
