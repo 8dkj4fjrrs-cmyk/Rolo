@@ -1,6 +1,6 @@
 # ADR 0028: Android
 
-- **Status:** Accepted. Steps 1 (the player runs on Android) and 2 (export from the editor) are done; step 3 (Google Play) is done as far as it can be without an upload (the upload and the pre-launch report are open); step 4 is not started
+- **Status:** Accepted. Steps 1 (the player runs on Android) and 2 (export from the editor) are done; step 3 (Google Play) is done as far as it can be without an upload (the upload and the pre-launch report are open); step 4 (polish) is done as far as an emulator allows. Nothing has run on a real phone
 - **Date:** 2026-11-14
 - **Follows:** ADR 0019 (direction: desktop, web and mobile), ADR 0022 (web export), ADR 0026 (touch), ADR 0027 (screen sizes)
 
@@ -440,6 +440,41 @@ menu opens, Quit is chosen); with the switch on, Home and back loses the
 context, the log says so, and the picture afterwards shows the level and
 the labelled buttons again. Not tested: a real keyboard, a phone that
 loses the context by itself.
+
+## Step 4, part 4: performance (2026-11-16)
+
+What could be measured without a phone was measured; what a phone's
+graphics chip does with it is still unknown.
+
+- **A speed line in the log.** A maker cannot see a frame counter on a
+  phone but can read its log. After 300 frames of play, and when the game
+  ends, the app writes `Speed: N frames at F a second (slowest frame ...).
+  Rolo's own work in a frame: ... on average, ... at most`. "Own work" is
+  the time inside Rolo's frame function (scripts, physics, bringing the
+  drawn scene up to date); the rest is the graphics chip and waiting for
+  the screen.
+- **That line found a real waste, on every system.** In the emulator the
+  Platformer Starter's own work was 12 to 13 ms a frame, and 8 ms on a
+  Linux desktop (debug build): far too much for so small a scene. The
+  renderer was building the whole drawn scene again every frame, because
+  the pause menu's script says `setActive(false)` every frame and
+  `Scene::setActive` counted that as a change. Now setting an entity's
+  active state, or any property, to the value it already has changes
+  nothing (`Scene::setActive`, `Scene::setProperty`; a regression test in
+  `tests/scene`). Measured after: 0.4 ms on the desktop; in the emulator
+  0.4 ms standing still and 4 to 7 ms in the runs that open menus and
+  move, where real changes (a menu shown, a text changed) still rebuild
+  the drawing. Making those rebuilds smaller is ADR 0021's kind of work,
+  not Android's, and is left for there.
+- **No litter per frame from the new Android code**: the Java methods
+  for gamepads, keys and the notch are looked up once, and the list the
+  gamepads are read into is made once.
+- The emulator shows 17 to 22 frames a second before and after: it draws
+  without a graphics chip, and that is what its frames wait for.
+
+Not done, and why: reading the game straight from the pack (it exists
+twice on the device: a bigger change to how games are read); a real
+phone's numbers (there is none).
 
 ## Alternatives considered
 

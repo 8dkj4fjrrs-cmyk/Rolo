@@ -301,6 +301,9 @@ bool Scene::setActive(EntityId id, bool active)
     if (e == nullptr) {
         return false;
     }
+    if (e->m_active == active) {
+        return true;   // nothing changed: scripts say this every frame ("the menu is hidden"), and it must cost nothing
+    }
     e->m_active = active;
     markChanged();
     return true;
@@ -334,8 +337,15 @@ bool Scene::setProperty(EntityId id, std::string_view componentType, std::string
         return false;
     }
     Component* c = e->component(componentType);
-    if (c == nullptr || !c->set(key, value)) {
+    if (c == nullptr) {
         return false;
+    }
+    const std::optional<PropertyValue> before = c->get(key);
+    if (!c->set(key, value)) {
+        return false;
+    }
+    if (before && c->get(key) == before) {
+        return true;   // set to what it was: not a change (and nothing to draw again)
     }
     if (componentType == Transform::componentType().id) {
         markMoved();   // only where things are: the renderer can just move nodes

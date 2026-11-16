@@ -202,6 +202,21 @@ struct Application::Impl {
     ScreenInsets safeInsets;   // strips of it to keep scores and controls out of (a phone's notch)
     int insetsChecked = 0;     // frames since the notch was last asked about (Android)
     bool contextWasLost = false;   // the graphics context was made anew: images must be loaded again
+    // How fast the game runs, for the log (Android: a maker cannot see a
+    // frame counter on a phone, but can read its log). `work` is the time
+    // Rolo itself takes in a frame: the game's scripts and physics, and
+    // bringing what is drawn up to date. The rest of a frame is the
+    // graphics chip drawing, and waiting for the screen.
+    struct Speed {
+        int frames = 0;
+        double seconds = 0.0;
+        double slowest = 0.0;
+        double work = 0.0;
+        double mostWork = 0.0;
+        bool reported = false;
+    } speed;
+    void noteSpeed(double frameSeconds, double workSeconds);
+    std::string speedReport() const;
     void fitScreen();
     bool fitLogged = false;
     // The program was set aside (minimised; on a phone, another app is in
@@ -583,6 +598,7 @@ bool Application::Impl::startWindow()
 #ifdef __ANDROID__
         // The game was quit: Axmol closes the app's screen next, and
         // RoloActivity ends the app with it. (No run() is waiting to report.)
+        log().info(kCategory, speedReport());
         log().info(kCategory, "The game has ended after " + std::to_string(report.framesRendered) + " frames.");
         setInBackground(true);   // sound stops now, not when the app is gone
         g_androidGame = nullptr;
@@ -1125,8 +1141,53 @@ void Application::Impl::logDiagnostics(ax::RenderView& view)
                               + (presentation.worldDisplay == WorldDisplay::Offscreen ? "off-screen" : "full window"));
 }
 
+void Application::Impl::noteSpeed(double frameSeconds, double workSeconds)
+{
+    if (report.framesRendered <= 10) {
+        return;   // the first frames load things; they say nothing about play
+    }
+    ++speed.frames;
+    speed.seconds += frameSeconds;
+    speed.slowest = std::max(speed.slowest, frameSeconds);
+    speed.work += workSeconds;
+    speed.mostWork = std::max(speed.mostWork, workSeconds);
+}
+
+std::string Application::Impl::speedReport() const
+{
+    if (speed.frames <= 0 || speed.seconds <= 0.0) {
+        return "Speed: too few frames to tell.";
+    }
+    const auto ms = [](double seconds) {
+        char text[32];
+        std::snprintf(text, sizeof text, "%.1f", seconds * 1000.0);
+        return std::string(text);
+    };
+    char rate[32];
+    std::snprintf(rate, sizeof rate, "%.0f", static_cast<double>(speed.frames) / speed.seconds);
+    return "Speed: " + std::to_string(speed.frames) + " frames at " + rate + " a second (slowest frame "
+           + ms(speed.slowest) + " ms). Rolo's own work in a frame: " + ms(speed.work / speed.frames) + " ms on average, "
+           + ms(speed.mostWork) + " ms at most; the rest is drawing and waiting for the screen.";
+}
+
 void Application::Impl::onFrame(float deltaSeconds)
 {
+#ifdef __ANDROID__
+    // Timed from here to the end of this function, whichever way it ends.
+    struct Timed {
+        Impl& impl;
+        double frame;
+        std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+        ~Timed()
+        {
+            impl.noteSpeed(frame, std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
+            if (!impl.speed.reported && impl.speed.frames >= 300) {
+                impl.speed.reported = true;
+                impl.log().info(kCategory, impl.speedReport());
+            }
+        }
+    } timed{*this, static_cast<double>(deltaSeconds)};
+#endif
     realClock += static_cast<double>(deltaSeconds);
 #ifdef __ANDROID__
     if (contextWasLost) {

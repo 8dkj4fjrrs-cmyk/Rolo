@@ -266,3 +266,38 @@ TEST_CASE("The scene lists entities by component and by name, in tree order", "[
     CHECK(scene.find(d)->get<Shape>() == nullptr);
     CHECK(scene.find(c)->get<Shape>() != nullptr);
 }
+
+// Scripts often say the same thing every frame ("the pause menu is hidden",
+// "this text is white"). That must not count as a change, or the renderer
+// builds the whole drawn scene again every frame (found on Android, where
+// the Platformer Starter did exactly that: ADR 0028, step 4).
+TEST_CASE("Setting something to what it already is changes nothing", "[scene][performance]")
+{
+    Scene scene = seeded();
+    const EntityId id = scene.create("Menu")->id();
+    scene.addComponent(id, std::make_unique<Shape>());
+
+    REQUIRE(scene.setActive(id, false));
+    const auto revision = scene.revision();
+    const auto content = scene.contentRevision();
+    CHECK(scene.setActive(id, false));
+    CHECK(scene.revision() == revision);
+    CHECK(scene.contentRevision() == content);
+    CHECK(scene.setActive(id, true));
+    CHECK(scene.contentRevision() > content);
+
+    REQUIRE(scene.setProperty(id, "rolo.Shape", "filled", true));
+    const auto filled = scene.contentRevision();
+    CHECK(scene.setProperty(id, "rolo.Shape", "filled", true));
+    CHECK(scene.contentRevision() == filled);
+    CHECK(scene.setProperty(id, "rolo.Shape", "filled", false));
+    CHECK(scene.contentRevision() > filled);
+
+    // Moving to the same place is no move either.
+    REQUIRE(scene.setProperty(id, "rolo.Transform", "rotation", 30.0f));
+    const auto moved = scene.revision();
+    CHECK(scene.setProperty(id, "rolo.Transform", "rotation", 30.0f));
+    CHECK(scene.revision() == moved);
+    CHECK(scene.setProperty(id, "rolo.Transform", "rotation", 31.0f));
+    CHECK(scene.revision() > moved);
+}

@@ -19,6 +19,31 @@
 
 namespace rolo::android {
 
+namespace {
+// A static method of the app's Java side, looked up by name once and kept:
+// the lookup is slow, and takeKeys() is called every frame.
+struct JavaMethod {
+    jclass type = nullptr;
+    jmethodID method = nullptr;
+};
+
+JavaMethod findJavaMethod(const char* className, const char* name, const char* signature)
+{
+    JavaMethod out;
+    ax::JniMethodInfo info;
+    if (!ax::JniHelper::getStaticMethodInfo(info, className, name, signature)) {
+        if (JNIEnv* env = ax::JniHelper::getEnv(); env != nullptr && env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
+        return out;
+    }
+    out.type = static_cast<jclass>(info.env->NewGlobalRef(info.classID));   // kept for the program's life
+    out.method = info.methodID;
+    info.env->DeleteLocalRef(info.classID);
+    return out;
+}
+} // namespace
+
 std::filesystem::path filesFolder()
 {
     // Android's Context.getFilesDir(): /data/user/0/<the app's package>/files
@@ -95,15 +120,12 @@ SafeInsets safeInsets()
 {
     // RoloActivity keeps them (Android tells its Java side); one call fetches all four.
     SafeInsets out;
-    ax::JniMethodInfo method;
-    if (!ax::JniHelper::getStaticMethodInfo(method, "dev/roloengine/player/RoloActivity", "safeInsets", "()[I")) {
-        if (JNIEnv* env = ax::JniHelper::getEnv(); env != nullptr && env->ExceptionCheck()) {
-            env->ExceptionClear();
-        }
+    static const JavaMethod java = findJavaMethod("dev/roloengine/player/RoloActivity", "safeInsets", "()[I");
+    JNIEnv* env = ax::JniHelper::getEnv();
+    if (java.method == nullptr || env == nullptr) {
         return out;
     }
-    JNIEnv* env = method.env;
-    const auto list = static_cast<jintArray>(env->CallStaticObjectMethod(method.classID, method.methodID));
+    const auto list = static_cast<jintArray>(env->CallStaticObjectMethod(java.type, java.method));
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
     } else if (list != nullptr && env->GetArrayLength(list) >= 4) {
@@ -114,7 +136,6 @@ SafeInsets safeInsets()
     if (list != nullptr) {
         env->DeleteLocalRef(list);
     }
-    env->DeleteLocalRef(method.classID);
     return out;
 }
 
@@ -158,15 +179,12 @@ Key keyFromAndroid(int code)
 std::vector<KeyChange> takeKeys()
 {
     std::vector<KeyChange> out;
-    ax::JniMethodInfo method;
-    if (!ax::JniHelper::getStaticMethodInfo(method, "dev/roloengine/player/RoloKeys", "take", "()[I")) {
-        if (JNIEnv* env = ax::JniHelper::getEnv(); env != nullptr && env->ExceptionCheck()) {
-            env->ExceptionClear();
-        }
+    static const JavaMethod java = findJavaMethod("dev/roloengine/player/RoloKeys", "take", "()[I");
+    JNIEnv* env = ax::JniHelper::getEnv();
+    if (java.method == nullptr || env == nullptr) {
         return out;
     }
-    JNIEnv* env = method.env;
-    const auto list = static_cast<jintArray>(env->CallStaticObjectMethod(method.classID, method.methodID));
+    const auto list = static_cast<jintArray>(env->CallStaticObjectMethod(java.type, java.method));
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
     } else if (list != nullptr) {
@@ -182,7 +200,6 @@ std::vector<KeyChange> takeKeys()
     if (list != nullptr) {
         env->DeleteLocalRef(list);
     }
-    env->DeleteLocalRef(method.classID);
     return out;
 }
 

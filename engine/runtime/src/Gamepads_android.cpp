@@ -86,14 +86,22 @@ void GamepadReader::read(Input& input)
     // One call into Java for everything: it fills a list of numbers.
     float values[Input::kMaxGamepads * kValues] = {};
     const jsize count = static_cast<jsize>(std::size(values));
-    if (jfloatArray list = env->NewFloatArray(count)) {
+    // (The Java list is made once and kept: a new one every frame would be
+    // litter for Java's garbage collector to pick up, in the middle of play.)
+    static jfloatArray list = nullptr;
+    if (list == nullptr) {
+        if (jfloatArray made = env->NewFloatArray(count)) {
+            list = static_cast<jfloatArray>(env->NewGlobalRef(made));
+            env->DeleteLocalRef(made);
+        }
+    }
+    if (list != nullptr) {
         env->CallStaticVoidMethod(java.type, java.read, list);
         if (env->ExceptionCheck()) {
             env->ExceptionClear();
         } else {
             env->GetFloatArrayRegion(list, 0, count, values);
         }
-        env->DeleteLocalRef(list);
     }
 
     for (int pad = 0; pad < Input::kMaxGamepads; ++pad) {
