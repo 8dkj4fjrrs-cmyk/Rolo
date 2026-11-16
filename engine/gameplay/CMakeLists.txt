@@ -17,7 +17,8 @@ add_library(rolo_gameplay STATIC
     src/TouchControls.cpp
     src/PhysicsSync.cpp
     src/ScriptApi.cpp
-    src/ScriptHost.cpp)
+    src/ScriptHost.cpp
+    src/ScriptProperties.cpp)
 add_library(rolo::gameplay ALIAS rolo_gameplay)
 
 target_include_directories(rolo_gameplay PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

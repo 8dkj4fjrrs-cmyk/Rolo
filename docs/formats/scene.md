@@ -255,6 +255,8 @@ Rolo's built-in behaviours (added in 0.8; see the
 
 | Type | Key | Type | Default |
 |---|---|---|---|
+| `rolo.Script` | `script` | a script asset's ID, or `null` | `null` |
+| | `values` | this object's own values for the script's [properties](../scripting.md#properties-settings-in-the-inspector), by name: `{"speed": 120, "label": "Lift B"}` (numbers, texts, `true`/`false`). Only those that differ from the script's. Optional (added after 0.9.1 without changing the version: older Rolo ignores it with a warning); left out when there are none | none |
 | `rolo.TopDownController` | `speed` | points per second, not negative | `150` |
 | `rolo.SceneDoor` | `scene` | a scene asset's ID, or `null` | `null` |
 | | `arriveAt` | the name of an object in that scene (empty: where the scene puts the player) | `""` |

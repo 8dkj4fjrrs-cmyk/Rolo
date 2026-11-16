@@ -56,6 +56,10 @@ struct PropertyOptions {
     std::string help;                   // one sentence for tooltips
     std::string unit;                   // shown after the value, e.g. "°"
     std::string assetType;              // Asset: the kind of asset accepted, e.g. "image"
+    /// String: the text is a set of named values (rolo/scene/Values.hpp).
+    /// Scene files hold it as JSON itself, and the Inspector shows no text
+    /// field for it (who owns the property shows its values its own way).
+    bool data = false;
 };
 
 struct PropertyInfo {

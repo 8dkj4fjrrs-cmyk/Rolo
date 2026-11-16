@@ -1,4 +1,5 @@
 #include "rolo/scene/SceneFile.hpp"
+#include "rolo/scene/Values.hpp"
 #include "rolo/core/Names.hpp"
 
 #include "rolo/core/Files.hpp"
@@ -147,7 +148,13 @@ Json toJson(const PropertyInfo& info, const PropertyValue& value)
         return Json::array({number(v.x), number(v.y)});
     }
     case PropertyKind::Color: return std::get<Color>(value).toHex();
-    case PropertyKind::String: return std::get<std::string>(value);
+    case PropertyKind::String:
+        if (info.options.data) {
+            // Named values are JSON in the file, not JSON inside a text.
+            const Json values = Json::parse(std::get<std::string>(value), nullptr, false);
+            return values.is_object() ? values : Json::object();
+        }
+        return std::get<std::string>(value);
     case PropertyKind::Asset: {
         const AssetId id = std::get<AssetId>(value);
         return id.isNull() ? Json() : Json(id.toString()); // null = no asset chosen
@@ -214,6 +221,13 @@ std::optional<PropertyValue> fromJson(const PropertyInfo& info, const Json& j, s
         }
         break;
     case PropertyKind::String:
+        if (info.options.data) {
+            expected = "named values, like {\"speed\": 120}";
+            if (j.is_object()) {
+                return writeDataValues(parseDataValues(j.dump()));
+            }
+            break;
+        }
         expected = "text";
         if (j.is_string()) {
             return j.get<std::string>();
@@ -559,6 +573,9 @@ std::string serializeScene(const Scene& scene)
             Json component;
             component["type"] = c->type().id;
             for (const PropertyInfo& p : c->type().properties) {
+                if (p.options.data && std::get<std::string>(p.get(*c)).empty()) {
+                    continue;   // no values: nothing to write (a missing key reads as none)
+                }
                 component[p.key] = toJson(p, p.get(*c));
             }
             if (const std::string data = c->saveData(); !data.empty()) {

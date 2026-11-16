@@ -145,7 +145,7 @@ objects: `local x, y = obj:position()`.
 | `part.Parent`, `:GetChildren()` | not available to scripts yet; find things by name |
 | `textLabel.Text = "Score: 3"` | `obj:setText("Score: 3")` on an object with a Text |
 | a ModuleScript and `require(script.Parent.Maths)` | any script file and `require("maths")` |
-| Attributes (`:GetAttribute("Speed")`) | not yet: put the number at the top of the script. Settings per object in the Inspector are the next thing on Rolo's [roadmap](roadmap.md) |
+| Attributes (`:GetAttribute("Speed")`) | **properties**: the script lists them (`properties = { speed = 90 }`), the Inspector shows a field for each on every object with the script, and the script reads `self.speed` ([scripting guide](scripting.md#properties-settings-in-the-inspector)) |
 
 Positions are in **points**, not studs: one point is one pixel of the
 game's size (1280 × 720 unless you change it). There is an `x` and a `y`;
@@ -273,7 +273,9 @@ open for you to read and change.
 
 1. **File › New Project… › Platformer Starter**, and press ▶.
 2. Open `scripts/player.lua` (select it in Assets, **Open in Code
-   Editor**). Change `SPEED` and `JUMP`, save, press ▶ again.
+   Editor**). Its `properties` are the player's speed and jump: change
+   them in the script, or select the Player and change them in the
+   Inspector, and press ▶ again.
 3. Read `scripts/lift.lua` (a moving platform) and `scripts/pause.lua`
    (a menu): with the player's script they use most of what this page
    lists.

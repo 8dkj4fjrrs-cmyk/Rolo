@@ -35,7 +35,10 @@ and AI assistants.
   (ScriptHost, ScriptApi): no other module includes Luau headers. Luau is used unmodified. Scripts
   stay sandboxed: never open Luau's os or debug libraries or `loadstring`, keep the shared globals
   read-only (`luaL_sandbox`), and every API function checks its arguments and turns
-  C++ exceptions into Lua errors (`guarded`). New script functions need docs/scripting.md and tests. `engine/gameplay` has no
+  C++ exceptions into Lua errors (`guarded`). New script functions need docs/scripting.md and tests.
+  Script properties (ADR 0029): the editor learns them by reading the script's text
+  (`readScriptProperties`), never by running a script; an object's own values are the Script
+  component's `values` text (`rolo/scene/Values.hpp`), changed only through `SetProperty`. `engine/gameplay` has no
   backend; the runtime and editor translate their input into `rolo::Input`. A game always plays a
   copy of the scene (`Game::start`), never the scene being edited.
 - Sound: games ask for it through `rolo::SoundPlayer` (`engine/gameplay`, `Sound.hpp`), never a

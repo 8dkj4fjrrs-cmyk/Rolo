@@ -22,7 +22,8 @@ add_library(rolo_scene STATIC
     src/Scene.cpp
     src/Tilemap.cpp
     src/SceneFile.cpp
-    src/Types.cpp)
+    src/Types.cpp
+    src/Values.cpp)
 add_library(rolo::scene ALIAS rolo_scene)
 
 target_include_directories(rolo_scene PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

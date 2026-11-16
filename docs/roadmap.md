@@ -134,8 +134,12 @@ In order:
      emulator allows (a speed line in the log; a scene no longer redrawn
      every frame for nothing); a real phone has still to say how fast it is.
 7. ~~**A "Coming from Roblox" guide**~~ **Done**
-   ([the guide](coming-from-roblox.md)). Next: script properties in the
-   Inspector (Roblox's Attributes).
+   ([the guide](coming-from-roblox.md)). ~~Script properties in the
+   Inspector (Roblox's Attributes)~~ **Done**
+   ([ADR 0029](adr/0029-script-properties.md)): a script lists its
+   properties, each object can have its own values. Next for scripts,
+   from what that guide had to leave out: making objects from scripts,
+   reaching an object's parent and children, waiting (`task.wait`).
 
 Alongside: the editor polish below. Later: 3D.
 

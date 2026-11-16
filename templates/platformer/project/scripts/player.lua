@@ -3,10 +3,15 @@
 -- The Player has a Rigid Body (physics moves it, gravity pulls it down) and
 -- a capsule Collider (it slides over the edges of tiles). This script only
 -- says how fast it should go: sideways from the arrow keys, and up when
--- you jump. Try other numbers, save, and press Play again.
-
-local SPEED = 280     -- running speed, points per second
-local JUMP = 640      -- jump speed, points per second upwards
+-- you jump.
+--
+-- Properties: the Inspector shows these under the Player's Script, and the
+-- script reads them as self.speed and self.jump. Try other numbers there
+-- (or here), and press Play again.
+properties = {
+    speed = 280,     -- running speed, points per second
+    jump = 640,      -- jump speed, points per second upwards
+}
 
 function start(self)
     -- "jump" is an action: the keys and buttons that do it. Players can
@@ -36,11 +41,11 @@ function update(self, dt)
 
     -- Run: set the sideways speed and keep the up-and-down speed (falling).
     local dx = input.direction()          -- -1 left to 1 right (keys, d-pad or stick)
-    self.object:setVelocity(dx * SPEED, vy)
+    self.object:setVelocity(dx * self.speed, vy)
 
     -- Jump: only from the ground.
     if onGround and input.wasPressed("jump") then
-        self.object:setVelocity(dx * SPEED, JUMP)
+        self.object:setVelocity(dx * self.speed, self.jump)
         audio.play("jump")
     end
 

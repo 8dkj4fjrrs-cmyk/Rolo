@@ -5,6 +5,13 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Script properties** ([scripting guide](docs/scripting.md#properties-settings-in-the-inspector),
+  [ADR 0029](docs/adr/0029-script-properties.md)): a script lists its
+  settings (`properties = { speed = 90, label = "Lift", returns = true }`),
+  the Inspector shows a field for each under the object's Script, and
+  every object can have its own values; the script reads them as
+  `self.speed`. The Platformer Starter's lifts and player use them, and
+  new scripts start with one.
 - **[Coming from Roblox](docs/coming-from-roblox.md)**: a guide for people
   who have scripted in Roblox Studio: what is the same (Luau), what has
   another name (a phrase book, with examples side by side) and what is

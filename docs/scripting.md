@@ -70,6 +70,42 @@ in it (`self.speed`, `self.health`). `self.object` is the object itself.
 **One script per object.** To share code between scripts, put it in a
 module (see `require` below).
 
+### Properties: settings in the Inspector
+
+Three lifts, one script, and each lift goes a different height: that is
+what **properties** are for. A script lists them at its top, with the
+values they start with:
+
+```lua
+properties = {
+    speed = 90,        -- a number
+    label = "Lift",    -- text
+    returns = true,    -- a tick box
+}
+
+function update(self, dt)
+    self.object:setVelocity(0, self.speed)
+end
+```
+
+- Select an object with this script: under its **Script** in the
+  Inspector there is now a field for each property (**Speed**, **Label**,
+  **Returns**). Change one, and only that object changes.
+- In the script they are in `self`: `self.speed` is what the Inspector
+  says for that object, or `90` if nobody changed it.
+- A field put back to the script's value follows the script again: change
+  `90` to `100` in the script and every object that never had its own
+  speed gets 100.
+- (Roblox calls these Attributes; Godot and Unity "exported variables".)
+
+Write the values out plainly: a number, a text in quotes, or `true` /
+`false`. The editor reads the list from the script's text without
+running it, so it cannot show a calculation (`speed = 2 * 45`); it says
+so under the Script. And no `local` in front of `properties`.
+
+The Platformer Starter's `scripts/lift.lua` and `scripts/player.lua` use
+them.
+
 ### When something goes wrong
 
 If a script has an error, the Console shows its file and line, for example:

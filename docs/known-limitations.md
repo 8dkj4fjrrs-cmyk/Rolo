@@ -114,8 +114,9 @@ Please report what you find.
   when they are built ([gameplay guide](gameplay.md)).
 - Luau scripts, for now:
   - one Script per object (share code with `require`);
-  - no per-object settings in the Inspector (put them in the script, or
-    look at the object's name);
+  - [properties](scripting.md#properties-settings-in-the-inspector)
+    (per-object settings in the Inspector) are numbers, texts and tick
+    boxes only: no colours, points, objects or files yet;
   - edits are picked up when Play is pressed again, not while playing;
   - no debugger: use `print`, which writes to the Console.
   - scripts cannot make new objects while playing yet (no spawning or

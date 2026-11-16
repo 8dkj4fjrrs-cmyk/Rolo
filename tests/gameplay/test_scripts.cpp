@@ -7,6 +7,9 @@
 #include "rolo/gameplay/Components.hpp"
 #include "rolo/gameplay/Game.hpp"
 #include "rolo/gameplay/Script.hpp"
+#include "rolo/gameplay/ScriptProperties.hpp"
+#include "rolo/scene/SceneFile.hpp"
+#include "rolo/scene/Values.hpp"
 #include "rolo/scene/Components.hpp"
 #include "support/TempFolder.hpp"
 
@@ -500,9 +503,11 @@ TEST_CASE("The Script component is registered, saved and shown like any behaviou
     const ComponentType* type = registry.find("rolo.Script");
     REQUIRE(type != nullptr);
     CHECK(type->category == "Gameplay");
-    REQUIRE(type->properties.size() == 1);
+    REQUIRE(type->properties.size() == 2);
     CHECK(type->properties[0].key == "script");
     CHECK(type->properties[0].options.assetType == "script");
+    CHECK(type->properties[1].key == "values");
+    CHECK(type->properties[1].options.data);   // named values: the Inspector shows the script's properties instead
     CHECK(assetTypeForPath("scripts/x.lua") == AssetType::Script);
     CHECK(assetTypeName(AssetType::Script) == "script");
     CHECK_THAT(newScriptTemplate("coin"), ContainsSubstring("function update(self, dt)"));
@@ -756,4 +761,154 @@ TEST_CASE("Objects from another kind of value are refused by name", "[gameplay][
     REQUIRE(p.printed.size() == 2);
     CHECK_THAT(p.printed[0], ContainsSubstring("false") && ContainsSubstring("object expected"));
     CHECK(p.printed[1] == "scripts/wrong.lua: object\ttrue");
+}
+
+// --- Script properties (ADR 0029) ------------------------------------------------------------------
+
+TEST_CASE("A script's properties are read from its text, in the order written", "[gameplay][script][properties]")
+{
+    const ScriptProperties found = readScriptProperties(R"(
+        -- a lift
+        properties = {
+            speed = 90,
+            rise = -200.5,
+            label = "Lift A",
+            returns = true,
+            ["walk_speed"] = 3,
+        }
+        local SPEED = 1
+        function update(self, dt) end
+    )");
+    CHECK(found.problems.empty());
+    REQUIRE(found.list.size() == 5);
+    CHECK(found.list[0].name == "speed");
+    CHECK(found.list[0].value == DataValue(90.0));
+    CHECK(found.list[0].line == 4);
+    CHECK(found.list[1].value == DataValue(-200.5));
+    CHECK(found.list[2].value == DataValue(std::string("Lift A")));
+    CHECK(found.list[3].value == DataValue(true));
+    CHECK(found.list[4].name == "walk_speed");
+
+    // Nothing declared, a syntax error (reported elsewhere), a table inside a function.
+    CHECK(readScriptProperties("function update(self, dt) end").list.empty());
+    CHECK(readScriptProperties("properties = { speed = ").list.empty());
+    CHECK(readScriptProperties("function start(self) properties = { speed = 1 } end").list.empty());
+}
+
+TEST_CASE("What the Inspector cannot show of a script's properties is said plainly", "[gameplay][script][properties]")
+{
+    const ScriptProperties found = readScriptProperties(
+        "properties = {\n  speed = 2 * 45,\n  ok = 1,\n  7,\n  object = 3,\n  size = { 1, 2 },\n}\n");
+    REQUIRE(found.list.size() == 1);
+    CHECK(found.list[0].name == "ok");
+    REQUIRE(found.problems.size() == 4);
+    CHECK_THAT(found.problems[0], ContainsSubstring("line 2") && ContainsSubstring("'speed' is not a plain value"));
+    CHECK_THAT(found.problems[1], ContainsSubstring("line 4") && ContainsSubstring("needs a name"));
+    CHECK_THAT(found.problems[2], ContainsSubstring("cannot be called 'object'"));
+    CHECK_THAT(found.problems[3], ContainsSubstring("'size'"));
+
+    const ScriptProperties hidden = readScriptProperties("local properties = { speed = 1 }");
+    CHECK(hidden.list.empty());
+    REQUIRE(hidden.problems.size() == 1);
+    CHECK_THAT(hidden.problems[0], ContainsSubstring("without 'local'"));
+    CHECK_THAT(readScriptProperties("properties = 5").problems.at(0), ContainsSubstring("in braces"));
+}
+
+TEST_CASE("Property names become labels, and an object's own values are kept apart", "[gameplay][script][properties]")
+{
+    CHECK(scriptPropertyLabel("speed") == "Speed");
+    CHECK(scriptPropertyLabel("walkSpeed") == "Walk Speed");
+    CHECK(scriptPropertyLabel("walk_speed") == "Walk Speed");
+    CHECK(scriptPropertyLabel("maxHP") == "Max HP");
+
+    const ScriptProperty speed{"speed", DataValue(90.0), 1};
+    const ScriptProperty label{"label", DataValue(std::string("Lift")), 2};
+    CHECK(scriptPropertyValue(speed, "") == DataValue(90.0));
+    CHECK(scriptPropertyValue(speed, R"({"speed":120})") == DataValue(120.0));
+    // A value of another kind (the script changed since) does not count.
+    CHECK(scriptPropertyValue(speed, R"({"speed":"fast"})") == DataValue(90.0));
+    CHECK(scriptPropertyValue(speed, "not values at all") == DataValue(90.0));
+
+    std::string values = withScriptPropertyValue("", speed, DataValue(120.0));
+    CHECK(values == R"({"speed":120})");
+    values = withScriptPropertyValue(values, label, DataValue(std::string("Lift \"B\"")));
+    CHECK(scriptPropertyValue(label, values) == DataValue(std::string("Lift \"B\"")));
+    CHECK(scriptPropertyValue(speed, values) == DataValue(120.0));
+    // Back to what the script says: taken out, so the script's number rules again.
+    values = withScriptPropertyValue(values, speed, DataValue(90.0));
+    // (In a variable: Microsoft's compiler cannot have this text inside CHECK.)
+    const std::string onlyLabel = "{\"label\":\"Lift \\\"B\\\"\"}";
+    CHECK(values == onlyLabel);
+    CHECK(withScriptPropertyValue(values, label, DataValue(std::string("Lift"))).empty());
+    CHECK(writeDataValues(parseDataValues(R"({"a":1.5,"b":true,"c":[1],"d":null})")) == R"({"a":1.5,"b":true})");
+}
+
+TEST_CASE("self starts with the script's properties, and with the object's own where it has them",
+          "[gameplay][script][properties]")
+{
+    ScriptProject p;
+    const AssetId mover = p.write("scripts/mover.lua", R"(
+        properties = { speed = 60, label = "plain", fast = false, made = 2 * 3 }
+        function start(self)
+            print(self.object:name() .. ": " .. self.speed .. " " .. self.label .. " " .. tostring(self.fast) .. " " .. self.made
+                  .. " " .. tostring(self.unknown))
+        end
+        function update(self, dt)
+            local x, y = self.object:position()
+            self.object:setPosition(x + self.speed * dt, y)
+        end
+    )");
+    Scene scene;
+    const EntityId plain = addScripted(scene, "Plain", mover);
+    const EntityId quick = addScripted(scene, "Quick", mover);
+    // Quick has its own speed and label; "fast" is given as text (the wrong
+    // kind: ignored) and "unknown" is no property of this script.
+    REQUIRE(scene.setProperty(quick, "rolo.Script", "values",
+                              std::string(R"({"speed":120,"label":"mine","fast":"yes","unknown":5})")));
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 60);
+
+    CHECK(positionOf(game, plain).x == Catch::Approx(60.0f).margin(0.01f));
+    CHECK(positionOf(game, quick).x == Catch::Approx(120.0f).margin(0.01f));
+    REQUIRE(p.printed.size() == 2);
+    CHECK(p.printed[0] == "scripts/mover.lua: Plain: 60 plain false 6 nil");
+    CHECK(p.printed[1] == "scripts/mover.lua: Quick: 120 mine false 6 nil");
+    CHECK(p.problems.empty());
+}
+
+TEST_CASE("A Script's own values are written to scene files as values, not as text", "[gameplay][script][properties]")
+{
+    ComponentRegistry registry = ComponentRegistry::withBuiltins();
+    registerGameplayComponents(registry);
+    Scene scene;
+    const EntityId withValues = scene.create("A")->id();
+    const EntityId without = scene.create("B")->id();
+    scene.addComponent(withValues, std::make_unique<Script>());
+    scene.addComponent(without, std::make_unique<Script>());
+    REQUIRE(scene.setProperty(withValues, "rolo.Script", "values", std::string(R"({"label":"Lift","speed":120})")));
+
+    const std::string file = serializeScene(scene);
+    CHECK_THAT(file, ContainsSubstring("\"values\": {"));
+    CHECK_THAT(file, ContainsSubstring("\"speed\": 120"));
+    CHECK_THAT(file, !ContainsSubstring("\\\"speed"));
+    // An object without its own values writes none.
+    CHECK(file.find("\"values\"") == file.rfind("\"values\""));
+
+    const SceneLoadResult read = parseScene(file, registry);
+    REQUIRE(read.scene);
+    CHECK(read.issues.empty());
+    CHECK(read.scene->find(withValues)->get<Script>()->values == R"({"label":"Lift","speed":120})");
+    CHECK(read.scene->find(without)->get<Script>()->values.empty());
+
+    // A file from before properties existed (no "values") reads as before.
+    std::string older = file;
+    const auto at = older.find("\"values\"");
+    REQUIRE(at != std::string::npos);
+    const auto end = older.find('}', at);
+    older.erase(older.rfind(',', at), end + 1 - older.rfind(',', at));
+    const SceneLoadResult old = parseScene(older, registry);
+    REQUIRE(old.scene);
+    CHECK(old.scene->find(withValues)->get<Script>()->values.empty());
 }

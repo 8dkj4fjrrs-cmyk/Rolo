@@ -2,6 +2,7 @@
 
 #include "rolo/gameplay/Components.hpp"
 #include "rolo/gameplay/Script.hpp"
+#include "rolo/gameplay/ScriptProperties.hpp"
 
 #include "../model/EditorPaths.hpp"
 
@@ -96,6 +97,12 @@ std::string InspectorPanel::signature() const
     sig += e->id().toString();
     for (const auto& c : e->components()) {
         sig += "|" + componentTypeId(*c);
+    }
+    // A Script's properties are its script's: rebuilt when another script
+    // is chosen, or a file of the project changes (the script was edited).
+    if (const Script* script = e->get<Script>()) {
+        const AssetDatabase* db = m_editor.assets();
+        sig += "|P" + script->script.toString() + "/" + (db != nullptr ? std::to_string(db->revision()) : "");
     }
     // A tilemap's layer list is rebuilt when its layers change.
     if (const Tilemap* map = e->get<Tilemap>()) {
@@ -415,7 +422,7 @@ void InspectorPanel::buildComponent(ui::Column& content, const Entity& entity, c
     auto& section = content.emplace<ui::Section>(unknown != nullptr ? typeId : type.displayName);
     std::string help = type.description;
     for (const PropertyInfo& p : type.properties) {
-        if (!p.options.help.empty()) {
+        if (!p.options.help.empty() && !p.options.data) {
             help += "\n\n" + p.label + ": " + p.options.help;
         }
     }
@@ -435,6 +442,9 @@ void InspectorPanel::buildComponent(ui::Column& content, const Entity& entity, c
     }
     for (const PropertyInfo& info : type.properties) {
         addPropertyEditor(section, id, typeId, info);
+    }
+    if (const auto* script = dynamic_cast<const Script*>(&component)) {
+        buildScriptProperties(section, id, *script);
     }
     if (dynamic_cast<const Trigger*>(&component) != nullptr) {
         buildTriggerEditor(section, id);
@@ -597,16 +607,100 @@ void InspectorPanel::addClipChoice(ui::PropertyField& row, EntityId id, std::fun
 void InspectorPanel::addPropertyEditor(ui::Section& section, EntityId id, const std::string& typeId,
                                        const PropertyInfo& info)
 {
+    if (info.options.data) {
+        return;   // named values: whoever owns them shows them (a Script's properties, below)
+    }
+    const std::string key = info.key;
+    const std::string label = info.label;
+    addPropertyRow(
+        section, id, typeId, info,
+        [this, id, typeId, key] { return currentValue(m_editor.document().scene(), id, typeId, key); },
+        [this, id, typeId, key, label](PropertyValue value) {
+            m_editor.execute(std::make_unique<SetProperty>(id, typeId, key, std::move(value), label));
+        });
+}
+
+namespace {
+// A number as people write it: 90, 0.5 (not 90.000000).
+std::string formatNumber(double value)
+{
+    char text[40];
+    std::snprintf(text, sizeof text, "%.6g", value);
+    return text;
+}
+} // namespace
+
+// A Script's properties: a row for each one its script declares
+// (rolo/gameplay/ScriptProperties.hpp). They look like any other property,
+// but are kept together in the component's "values" text: a row reads this
+// object's own value from it (or the script's), and writes it back.
+void InspectorPanel::buildScriptProperties(ui::Section& section, EntityId id, const Script& script)
+{
+    const AssetDatabase* db = m_editor.assets();
+    const auto code = db != nullptr && !script.script.isNull() ? db->readText(script.script) : std::nullopt;
+    if (!code) {
+        return;
+    }
+    const ScriptProperties declared = readScriptProperties(*code);
+    const std::string typeId = Script::componentType().id;
+    for (const ScriptProperty& property : declared.list) {
+        PropertyInfo info;
+        info.key = property.name;
+        info.label = scriptPropertyLabel(property.name);
+        info.kind = std::holds_alternative<bool>(property.value)     ? PropertyKind::Bool
+                    : std::holds_alternative<double>(property.value) ? PropertyKind::Float
+                                                                     : PropertyKind::String;
+        info.options.help = "self." + property.name + " in the script. The script gives it "
+                            + (std::holds_alternative<bool>(property.value)
+                                   ? std::string(std::get<bool>(property.value) ? "true" : "false")
+                                   : std::holds_alternative<double>(property.value)
+                                         ? formatNumber(std::get<double>(property.value))
+                                         : "\"" + std::get<std::string>(property.value) + "\"")
+                            + "; this object can have its own.";
+        const auto valuesNow = [this, id, typeId]() -> std::string {
+            const auto v = currentValue(m_editor.document().scene(), id, typeId, "values");
+            return v && std::holds_alternative<std::string>(*v) ? std::get<std::string>(*v) : std::string();
+        };
+        addPropertyRow(
+            section, id, typeId, info,
+            [property, valuesNow]() -> std::optional<PropertyValue> {
+                const DataValue value = scriptPropertyValue(property, valuesNow());
+                if (const bool* flag = std::get_if<bool>(&value)) {
+                    return PropertyValue(*flag);
+                }
+                if (const double* number = std::get_if<double>(&value)) {
+                    return PropertyValue(static_cast<float>(*number));
+                }
+                return PropertyValue(std::get<std::string>(value));
+            },
+            [this, id, typeId, property, valuesNow, label = info.label](PropertyValue value) {
+                DataValue wanted = property.value;
+                if (const bool* flag = std::get_if<bool>(&value)) {
+                    wanted = *flag;
+                } else if (const float* number = std::get_if<float>(&value)) {
+                    wanted = static_cast<double>(*number);
+                } else if (const std::string* text = std::get_if<std::string>(&value)) {
+                    wanted = *text;
+                }
+                m_editor.execute(std::make_unique<SetProperty>(
+                    id, typeId, "values", PropertyValue(withScriptPropertyValue(valuesNow(), property, wanted)), label));
+            });
+    }
+    for (const std::string& problem : declared.problems) {
+        section.body().emplace<ui::Label>("In the script, " + problem, ui::Label::Style::Faint).setWrap(true);
+    }
+}
+
+void InspectorPanel::addPropertyRow(ui::Section& section, EntityId id, const std::string& typeId, const PropertyInfo& info,
+                                    std::function<std::optional<PropertyValue>()> get,
+                                    std::function<void(PropertyValue)> set)
+{
     auto& row = section.body().emplace<ui::PropertyField>(info.label);
     if (!info.options.help.empty()) {
         row.setTooltip(info.options.help);
     }
     const std::string key = info.key;
     const std::string label = info.label;
-    auto set = [this, id, typeId, key, label](PropertyValue value) {
-        m_editor.execute(std::make_unique<SetProperty>(id, typeId, key, std::move(value), label));
-    };
-    auto get = [this, id, typeId, key] { return currentValue(m_editor.document().scene(), id, typeId, key); };
     auto end = [this] { m_editor.endEdit(); };
 
     const auto numberField = [&](const std::string& suffix) -> ui::NumberField& {

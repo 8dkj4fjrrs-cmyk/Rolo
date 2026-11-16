@@ -41,6 +41,10 @@
 #include <utility>
 #include <vector>
 
+namespace rolo {
+struct Script;   // rolo/gameplay/Script.hpp
+}
+
 namespace rolo::editor {
 
 // Panel ids are keys in the saved layout file, so they must never change.
@@ -375,6 +379,9 @@ private:
     /// Remembers an editable widget by a key that stays the same when the
     /// page is rebuilt, so keyboard focus can come back to it.
     ui::Widget& keyed(std::string key, ui::Widget& widget);
+    void buildScriptProperties(ui::Section& section, EntityId id, const Script& script);
+    void addPropertyRow(ui::Section& section, EntityId id, const std::string& typeId, const PropertyInfo& info,
+                        std::function<std::optional<PropertyValue>()> get, std::function<void(PropertyValue)> set);
     void addPropertyEditor(ui::Section& section, EntityId id, const std::string& typeId, const PropertyInfo& info);
     void openComponentMenu(ui::Section& section, EntityId id, const std::string& typeId);
     void openAddComponentMenu(ui::Button& button, EntityId id);

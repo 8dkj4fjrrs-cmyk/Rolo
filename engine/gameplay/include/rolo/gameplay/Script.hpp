@@ -46,6 +46,10 @@ class ScriptHost;
 
 struct Script : BehaviourBase<Script> {
     AssetId script; // a .lua script asset
+    /// This object's own values for the script's properties, where they
+    /// differ from the script's (rolo/gameplay/ScriptProperties.hpp), as
+    /// text: {"speed":120}. Empty: all as the script says.
+    std::string values;
 
     Script() = default;
     // Copies the property; a copy is a new instance with fresh Lua state.

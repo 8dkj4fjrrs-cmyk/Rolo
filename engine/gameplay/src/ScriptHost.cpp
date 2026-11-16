@@ -4,6 +4,7 @@
 #include "rolo/gameplay/Game.hpp"
 #include "rolo/gameplay/Script.hpp"
 #include "rolo/scene/Component.hpp"
+#include "rolo/scene/Values.hpp"
 
 // Luau is compiled as C++ (third_party/luau/CMakeLists.txt), so its errors
 // are C++ exceptions and its headers are included directly.
@@ -387,12 +388,55 @@ ScriptHost::File& ScriptHost::fileFor(AssetId script)
     return found->second;
 }
 
-void ScriptHost::ensureSelf(Script& script, EntityId object)
+void ScriptHost::ensureSelf(Script& script, EntityId object, const File& file)
 {
     if (script.m_self != kNoRef) {
         return;
     }
     lua_newtable(m_L);
+    // The script's properties (ScriptProperties.hpp): self starts with what
+    // the script's `properties` table says...
+    const int self = lua_gettop(m_L);
+    lua_rawgeti(m_L, LUA_REGISTRYINDEX, file.environment);
+    lua_pushstring(m_L, "properties");
+    lua_rawget(m_L, -2);
+    if (lua_istable(m_L, -1)) {
+        lua_pushnil(m_L);
+        while (lua_next(m_L, -2) != 0) {
+            // stack: ..., properties, name, value
+            const int kind = lua_type(m_L, -1);
+            if (lua_type(m_L, -2) == LUA_TSTRING && (kind == LUA_TNUMBER || kind == LUA_TSTRING || kind == LUA_TBOOLEAN)) {
+                lua_pushvalue(m_L, -2);
+                lua_pushvalue(m_L, -2);
+                lua_rawset(m_L, self);
+            }
+            lua_pop(m_L, 1);   // the value; the name stays for lua_next
+        }
+        // ...and then with this object's own values from the Inspector,
+        // where it has any of the same kind (a script that changed a
+        // property from a number to a text wins over an old number).
+        if (!script.values.empty()) {
+            for (const auto& [name, value] : parseDataValues(script.values)) {
+                lua_pushlstring(m_L, name.data(), name.size());
+                lua_rawget(m_L, self);
+                const int declared = lua_type(m_L, -1);
+                lua_pop(m_L, 1);
+                lua_pushlstring(m_L, name.data(), name.size());
+                if (const bool* flag = std::get_if<bool>(&value); flag != nullptr && declared == LUA_TBOOLEAN) {
+                    lua_pushboolean(m_L, *flag ? 1 : 0);
+                } else if (const double* number = std::get_if<double>(&value); number != nullptr && declared == LUA_TNUMBER) {
+                    lua_pushnumber(m_L, *number);
+                } else if (const std::string* text = std::get_if<std::string>(&value); text != nullptr && declared == LUA_TSTRING) {
+                    lua_pushlstring(m_L, text->data(), text->size());
+                } else {
+                    lua_pop(m_L, 1);   // the name: not a property of this script (any more)
+                    continue;
+                }
+                lua_rawset(m_L, self);
+            }
+        }
+    }
+    lua_pop(m_L, 2);   // properties (or nil), the environment
     pushObjectForScripts(m_L, object);
     lua_setfield(m_L, -2, "object");
     script.m_self = lua_ref(m_L, -1);
@@ -409,7 +453,7 @@ std::optional<std::string> ScriptHost::call(Script& script, EntityId object, Hoo
     if (file.environment == kNoRef) {
         return file.error;
     }
-    ensureSelf(script, object);
+    ensureSelf(script, object, file);
     lua_rawgeti(m_L, LUA_REGISTRYINDEX, file.environment);
     lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_hookNames[static_cast<std::size_t>(hook)]);   // "update", already a Luau string
     lua_rawget(m_L, -2);   // the file's own function of that name
@@ -534,13 +578,14 @@ void ScriptHost::require(lua_State* L, std::string_view name)
 
 // --- Script, the component ------------------------------------------------------------------------------
 
-Script::Script(const Script& other) : BehaviourBase<Script>(other), script(other.script) {}
+Script::Script(const Script& other) : BehaviourBase<Script>(other), script(other.script), values(other.values) {}
 
 Script& Script::operator=(const Script& other)
 {
     if (this != &other) {
         BehaviourBase<Script>::operator=(other);
         script = other.script;
+        values = other.values;
     }
     return *this;
 }
@@ -591,6 +636,10 @@ const ComponentType& Script::componentType()
             .property("script", "Script", &Script::script,
                       {.help = "The .lua file to run. Make one with New Script in the Assets panel.",
                        .assetType = "script"})
+            .property("values", "Properties", &Script::values,
+                      {.help = "This object's own values for the script's properties (the script declares "
+                               "them: properties = { speed = 90 }). The Inspector shows a field for each.",
+                       .data = true})
             .build();
     return type;
 }
@@ -632,6 +681,12 @@ std::string newScriptTemplate(std::string_view name)
     text += "-- " + std::string(name) + ".lua\n";
     text += "-- Put this script on an object with a Script component.\n";
     text += "-- self.object is that object; see Help > Scripting Guide for everything a script can use.\n";
+    text += "\n";
+    text += "-- Settings shown in the Inspector, under this script's object. Each object can have\n";
+    text += "-- its own; the script reads them as self.speed and so on.\n";
+    text += "properties = {\n";
+    text += "    speed = 100,\n";
+    text += "}\n";
     text += "\n";
     text += "-- Runs once, when the game starts (or when the object first appears).\n";
     text += "function start(self)\n";

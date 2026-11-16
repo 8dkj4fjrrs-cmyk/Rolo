@@ -128,7 +128,7 @@ class ScriptHost {
     // not define it.
     std::optional<std::string> call(Script& script, EntityId object, Hook hook,
                                     std::optional<float> dt, EntityId other = {});
-    void ensureSelf(Script& script, EntityId object);
+    void ensureSelf(Script& script, EntityId object, const File& file);
 
     static void* allocate(void* ud, void* block, std::size_t oldSize, std::size_t newSize) noexcept;
 #if ROLO_SCRIPT_WATCHDOG_THREAD
