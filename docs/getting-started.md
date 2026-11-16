@@ -81,6 +81,8 @@ Linux); see [exporting](exporting.md).
 - [Editor guide](editor.md): every panel and tool.
 - [Making The Lantern Keeper](making-the-lantern-keeper.md): a whole RPG,
   step by step.
+- [Coming from Roblox](coming-from-roblox.md): if you have scripted there
+  before, what is the same in Rolo and what is not.
 - [Scripting guide](scripting.md): your own gameplay in Lua, no compiler
   needed. The starter's fireflies (`scripts/firefly.lua`) are a first
   example to change.

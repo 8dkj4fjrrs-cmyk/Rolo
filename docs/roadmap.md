@@ -133,7 +133,8 @@ In order:
      the background~~ **done**. ~~Performance~~: done as far as an
      emulator allows (a speed line in the log; a scene no longer redrawn
      every frame for nothing); a real phone has still to say how fast it is.
-7. **A "Coming from Roblox" guide**, and script properties in the
+7. ~~**A "Coming from Roblox" guide**~~ **Done**
+   ([the guide](coming-from-roblox.md)). Next: script properties in the
    Inspector (Roblox's Attributes).
 
 Alongside: the editor polish below. Later: 3D.

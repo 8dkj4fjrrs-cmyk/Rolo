@@ -1,7 +1,8 @@
 # Scripting with Luau
 
 Rolo games are programmed in **Luau**, the Lua that Roblox uses: if you
-have scripted on Roblox, you already know the language. Scripts need no
+have scripted on Roblox, you already know the language
+([Coming from Roblox](coming-from-roblox.md) says what else carries over). Scripts need no
 compiler and no special setup: write a `.lua` (or `.luau`) file, attach it
 to an object, press ▶. A downloaded Rolo runs them, and so does every game
 you export.

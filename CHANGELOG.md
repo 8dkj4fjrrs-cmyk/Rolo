@@ -5,6 +5,10 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **[Coming from Roblox](docs/coming-from-roblox.md)**: a guide for people
+  who have scripted in Roblox Studio: what is the same (Luau), what has
+  another name (a phrase book, with examples side by side) and what is
+  not in Rolo (**Help › Coming from Roblox**).
 - **Faster, everywhere**: setting something to the value it already has
   (a script hiding an already hidden menu every frame, as the Platformer
   Starter's pause menu did) no longer counts as a change. Before, it made

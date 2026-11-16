@@ -1636,6 +1636,7 @@ void EditorApp::buildMenus(ui::Widget& root)
                                [this] { return m_assetDb != nullptr; })}});
     menuBar.addMenu({"Help", {menuItem("Welcome…", "", [this] { showWelcome(); }),
                               menuItem("Getting Started Guide", "", [this] { showGuide("getting-started.md"); }),
+                              menuItem("Coming from Roblox", "", [this] { showGuide("coming-from-roblox.md"); }),
                               menuItem("Exporting Games", "", [this] { showGuide("exporting.md"); }),
                               menuItem("Publishing on Google Play", "", [this] { showGuide("google-play.md"); }),
                               menuItem("Scripting Guide (Luau)", "", [this] { showGuide("scripting.md"); }),
