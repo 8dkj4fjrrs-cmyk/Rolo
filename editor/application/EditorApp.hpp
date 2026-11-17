@@ -80,6 +80,10 @@ public:
     void createEntity(NewEntityKind kind, bool asChildOfSelection) override;
     void deleteSelection() override;
     void duplicateSelection() override;
+    /// Writes the selected object (and what is inside it) as a prefab file
+    /// in the project's "prefabs" folder, named after the object; a prefab
+    /// of that name there is replaced (ADR 0033).
+    void savePrefabFromSelection();
     void renameSelection() override;
     void openScene(const std::filesystem::path& path) override;
     void newScene() override;

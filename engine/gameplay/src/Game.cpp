@@ -106,6 +106,7 @@ void Game::beginScene(Scene scene, AssetId id)
     m_sceneObjects.clear();
     m_textTemplates.clear();
     m_patterns.clear();
+    m_prefabPatterns.clear();
     scene.forEach([&](const Entity& e, int) {
         m_sceneObjects.insert(e.id());
         if (const Text* text = e.get<Text>()) {
@@ -635,10 +636,16 @@ Vec2 Game::worldPosition(EntityId id) const
     return m_scene != nullptr ? m_scene->worldTransform(id).apply({0.0f, 0.0f}) : Vec2{};
 }
 
-EntityId Game::findPattern(std::string_view name)
+EntityId Game::findPattern(std::string_view name, std::string* why)
 {
+    const auto fail = [why](std::string message) {
+        if (why != nullptr) {
+            *why = std::move(message);
+        }
+        return EntityId{};
+    };
     if (m_scene == nullptr) {
-        return {};
+        return fail("no game is running");
     }
     const std::string key(name);
     if (const auto known = m_patterns.find(key); known != m_patterns.end()) {
@@ -647,11 +654,59 @@ EntityId Game::findPattern(std::string_view name)
             return known->second;
         }
     }
+    if (const auto known = m_prefabPatterns.find(key); known != m_prefabPatterns.end()) {
+        if (m_scene->contains(known->second)) {
+            return known->second;   // the prefab's object, brought in before
+        }
+    }
     const EntityId found = m_scene->findByName(name);
     if (!found.isNull()) {
         m_patterns[key] = found;
+        return found;
     }
-    return found;
+
+    // No object of that name in the scene: a prefab of the project, then.
+    const std::string neither = "there is no object called \"" + key + "\" in this scene, and no prefab of that name";
+    if (m_setup.assets == nullptr) {
+        return fail(neither);
+    }
+    const AssetRecord* prefab = nullptr;
+    for (const AssetRecord* a : m_setup.assets->all(AssetType::Prefab)) {
+        std::string_view stem = a->path;
+        if (const std::size_t slash = stem.rfind('/'); slash != std::string_view::npos) {
+            stem.remove_prefix(slash + 1);
+        }
+        stem = stem.substr(0, stem.rfind('.'));
+        if (a->path != name && stem != name) {
+            continue;
+        }
+        if (prefab != nullptr) {
+            return fail("several prefabs are called \"" + key + "\"; write the path, e.g. \"" + prefab->path + "\"");
+        }
+        prefab = a;
+    }
+    if (prefab == nullptr) {
+        return fail(neither);
+    }
+    std::string error;
+    std::optional<Scene> loaded = m_setup.loadScene ? m_setup.loadScene(prefab->id, error) : std::nullopt;
+    if (!loaded || loaded->roots().size() != 1) {
+        return fail("the prefab " + prefab->path + " could not be used"
+                    + (error.empty() ? std::string() : ": " + error));
+    }
+    if (m_scene->size() + loaded->size() > kMostObjects) {
+        return fail("there are " + std::to_string(m_scene->size()) + " objects in the scene, the most a game may make");
+    }
+    // Its object comes into the playing scene once, switched off, at the
+    // end of the top level, and is the pattern from now on: the copies are
+    // then made as from any object of the scene (clone).
+    const EntitySnapshot pattern = m_scene->withNewIds(loaded->capture(loaded->roots().front()));
+    if (!m_scene->restore(pattern, EntityId{}, m_scene->roots().size())) {
+        return fail("the prefab " + prefab->path + " could not be brought into the scene");
+    }
+    m_scene->setActive(pattern.rootId(), false);
+    m_prefabPatterns[key] = pattern.rootId();
+    return pattern.rootId();
 }
 
 EntityId Game::clone(EntityId source, std::string* why)

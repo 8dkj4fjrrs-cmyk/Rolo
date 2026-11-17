@@ -240,3 +240,64 @@ TEST_CASE("Sprites can be picked and outlined like shapes", "[scene][sprite]")
     scene.addComponent(camera->id(), std::make_unique<Camera>());
     CHECK_FALSE(scene.worldCorners(camera->id()).has_value()); // a camera draws nothing
 }
+
+// --- Prefabs: an object kept as a file (ADR 0033) ------------------------------------------------
+
+TEST_CASE("A prefab file holds one object and what is inside it", "[scene][file][prefab]")
+{
+    Scene scene("Level", EntityIdGenerator(5));
+    scene.create("Floor");
+    const EntityId bullet = scene.create("Bullet")->id();
+    scene.setProperty(bullet, "rolo.Transform", "position", Vec2{12.0f, 34.0f});
+    scene.setActive(bullet, false);
+    const EntityId glow = scene.create("Glow", bullet)->id();
+
+    const std::string text = serializePrefab(scene, bullet);
+    CHECK(text.find("\"rolo.prefab\"") != std::string::npos);
+    CHECK(text.find("Floor") == std::string::npos);
+    CHECK(text.find("\"name\": \"Level\"") == std::string::npos);   // no scene name, no gravity
+
+    const SceneLoadResult back = parsePrefab(text, registry());
+    REQUIRE(back.ok());
+    REQUIRE(back.scene->roots().size() == 1);
+    CHECK(back.scene->size() == 2);
+    const Entity* root = back.scene->find(back.scene->roots().front());
+    CHECK(root->id() == bullet);   // saving it again changes nothing
+    CHECK(root->name() == "Bullet");
+    CHECK_FALSE(root->isActive());
+    CHECK(root->get<Transform>()->position == Vec2{12.0f, 34.0f});
+    REQUIRE(root->children().size() == 1);
+    CHECK(root->children().front() == glow);
+    CHECK(serializePrefab(*back.scene, bullet) == text);
+
+    CHECK(serializePrefab(scene, EntityId{}).empty());
+}
+
+TEST_CASE("Prefab files that are not prefabs are refused, saying why", "[scene][file][prefab]")
+{
+    Scene scene("Level", EntityIdGenerator(5));
+    const EntityId a = scene.create("A")->id();
+    scene.create("B");
+
+    // A scene is not a prefab, and a prefab is not a scene.
+    const SceneLoadResult sceneAsPrefab = parsePrefab(serializeScene(scene), registry());
+    CHECK_FALSE(sceneAsPrefab.ok());
+    CHECK(mentions(sceneAsPrefab, "not a Rolo prefab file"));
+    const SceneLoadResult prefabAsScene = parseScene(serializePrefab(scene, a), registry());
+    CHECK_FALSE(prefabAsScene.ok());
+    CHECK(mentions(prefabAsScene, "not a Rolo scene file"));
+
+    // Two objects at the top (edited by hand).
+    std::string two = serializeScene(scene);
+    two.replace(two.find("rolo.scene"), 10, "rolo.prefab");
+    const SceneLoadResult twoRoots = parsePrefab(two, registry());
+    CHECK_FALSE(twoRoots.ok());
+    CHECK(mentions(twoRoots, "this file has 2 objects at the top"));
+
+    const std::string none = "{\"format\": \"rolo.prefab\", \"version\": 1, \"entities\": []}";
+    CHECK_FALSE(parsePrefab(none, registry()).ok());
+    const std::string newer = "{\"format\": \"rolo.prefab\", \"version\": 99, \"entities\": []}";
+    CHECK(mentions(parsePrefab(newer, registry()), "newer version of Rolo"));
+    const std::string noFormat = "{\"format\": 3, \"version\": 1, \"entities\": []}";
+    CHECK_FALSE(parsePrefab(noFormat, registry()).ok());
+}

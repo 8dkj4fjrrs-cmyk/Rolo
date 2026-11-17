@@ -118,6 +118,28 @@ asset in the editor never breaks anything.
 - A damaged or unsupported file is listed with a warning, and the problem is
   shown in the Inspector and the Console.
 
+### Prefabs: an object kept as a file
+
+Something you use in more than one scene (a coin, an enemy, a bullet) can
+be kept as a file, a **prefab**:
+
+1. Build the object in a scene as usual, with what belongs inside it.
+2. Select it and choose **Edit > Save as Prefab**. A file named after the
+   object appears in the project's `prefabs` folder.
+3. In any scene, drag the prefab from Assets into the Scene view (or
+   select it and click **Place in Scene**) to get a copy.
+
+A script makes copies while the game runs with
+`game.spawn("Bullet", x, y)`, without a Bullet in the scene
+([scripting guide](scripting.md#examples)).
+
+Two things to know:
+- **What you place is a copy.** It does not change when the prefab
+  changes later; only what is placed or spawned from then on does.
+- **To change a prefab**, change a copy in a scene and choose **Save as
+  Prefab** again. An object with the same name replaces the file, without
+  asking.
+
 ## The Scene view
 
 | To | Do |
@@ -326,6 +348,7 @@ Undoing one changes the file back, for every scene that uses it.
 | Create an object | Hierarchy **+**, or **Edit > New Rectangle** (and others) |
 | Rename it | Edit the name at the top of the Inspector, or press F2 |
 | Duplicate it (with its children) | ⌘D |
+| Keep it as a file for other scenes | **Edit > Save as Prefab** ([prefabs](#prefabs-an-object-kept-as-a-file)) |
 | Delete it | Delete / Backspace in the Hierarchy, or **Edit > Delete** |
 | Change its drawing order | **Edit > Move Up / Move Down** (later siblings are drawn on top) |
 | Hide it | Untick the box next to its name in the Inspector |

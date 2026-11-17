@@ -5,6 +5,12 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Prefabs, step 1** ([ADR 0033](docs/adr/0033-prefabs.md)): **Edit ›
+  Save as Prefab** keeps the selected object as a file (`.lprefab`);
+  drag it into any scene for a copy, and `game.spawn("Bullet", x, y)`
+  uses the prefab of that name when the scene has no such object. What
+  is placed is a copy: it does not follow the prefab yet.
+- Fixed: a script's page in the Inspector was titled "Font".
 - **Scripts can listen to events** ([ADR 0032](docs/adr/0032-events-in-scripts.md)):
   `event:connect(f)`, `event:once(f)` and `event:wait()`, on
   `game.event("name")`, `input.pressed("jump")`, `input.released("jump")`

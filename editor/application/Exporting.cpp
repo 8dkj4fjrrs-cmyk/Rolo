@@ -55,8 +55,20 @@ ProjectCheck checkProject(const std::filesystem::path& folder, const ComponentRe
     for (FileIssue& issue : checkScripts(assets)) {   // Lua syntax errors
         issues.push_back(std::move(issue));
     }
-    for (const AssetRecord* scene : assets.all(AssetType::Scene)) {
-        SceneLoadResult loaded = loadSceneFile(assets.absolutePath(*scene), registry);
+    // Scenes, and prefabs: a prefab is read as a scene holding its one object.
+    std::vector<const AssetRecord*> scenes = assets.all(AssetType::Scene);
+    for (const AssetRecord* prefab : assets.all(AssetType::Prefab)) {
+        scenes.push_back(prefab);
+    }
+    for (const AssetRecord* scene : scenes) {
+        SceneLoadResult loaded = scene->type == AssetType::Prefab
+                                     ? loadPrefabFile(assets.absolutePath(*scene), registry)
+                                     : loadSceneFile(assets.absolutePath(*scene), registry);
+        for (FileIssue& issue : loaded.issues) {
+            if (issue.where.empty()) {
+                issue.where = scene->path;
+            }
+        }
         for (FileIssue& issue : loaded.issues) {
             issues.push_back(std::move(issue));
         }
@@ -103,8 +115,14 @@ std::vector<std::string> moduleComponentsUsed(const std::filesystem::path& folde
     std::vector<std::string> used;
     AssetDatabase assets(folder, AssetDatabase::Access::ReadOnly);
     static_cast<void>(assets.refresh());
-    for (const AssetRecord* scene : assets.all(AssetType::Scene)) {
-        const SceneLoadResult loaded = loadSceneFile(assets.absolutePath(*scene), registry);
+    std::vector<const AssetRecord*> scenes = assets.all(AssetType::Scene);
+    for (const AssetRecord* prefab : assets.all(AssetType::Prefab)) {
+        scenes.push_back(prefab);
+    }
+    for (const AssetRecord* scene : scenes) {
+        const SceneLoadResult loaded = scene->type == AssetType::Prefab
+                                           ? loadPrefabFile(assets.absolutePath(*scene), registry)
+                                           : loadSceneFile(assets.absolutePath(*scene), registry);
         if (!loaded.ok()) {
             continue;
         }

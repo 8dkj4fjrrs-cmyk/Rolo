@@ -129,14 +129,17 @@ Please report what you find.
   - an object cannot be moved to another parent from a script;
   - scripts make objects by copying one that is in the scene
     (`game.spawn`, `obj:clone()`); they cannot build one from nothing or
-    add components, the copies are not kept in saved games, and there are
-    no prefabs (patterns kept as files) yet;
+    add components, and the copies are not kept in saved games;
   - Luau's type annotations are accepted but not checked by Rolo (your
     code editor can check them, e.g. VS Code with the Luau extension).
 - Scenes cannot be renamed, and folders cannot be created, in the editor.
   Use your file manager; the editor notices.
-- One object can be selected at a time. There are no prefabs (reusable
-  objects); copy and paste or duplicate instead.
+- One object can be selected at a time.
+- [Prefabs](editor.md#prefabs-an-object-kept-as-a-file) (objects kept as
+  files) are patterns to copy: what is placed in a scene from one does
+  **not** follow the prefab when it changes later. A prefab cannot be
+  opened on its own (change a copy and save it again), and saving over
+  one of the same name does not ask and cannot be undone.
 - Dialogue is edited as forms in the Inspector, with one-line text fields.
   There is no visual dialogue graph.
 - No timeline animation: flipbook clips only (see the [roadmap](roadmap.md)).

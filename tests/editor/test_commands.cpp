@@ -560,3 +560,40 @@ TEST_CASE("Content files are edited through undoable steps", "[editor][commands]
     CHECK(*a.db->readText(*id) == "{\"v\":3}\n");
     CHECK_FALSE(f.doc.execute(std::make_unique<ChangeAssetText>(*id, "{\"v\":3}\n", "Edit Line")));   // no change
 }
+
+TEST_CASE("Placing a prefab's object puts a copy with new IDs at the end; undo takes it away", "[editor][commands][prefab]")
+{
+    // The prefab: an object with one inside, in a scene of its own.
+    Scene prefab("Prefab", EntityIdGenerator(3));
+    const EntityId bullet = prefab.create("Bullet")->id();
+    prefab.create("Glow", bullet);
+
+    Fixture f;
+    f.make("Floor");
+    auto place = std::make_unique<PlaceObject>(prefab.capture(bullet), Vec2{100.0f, 50.0f});
+    PlaceObject* raw = place.get();
+    CHECK(place->label() == "Place Bullet");
+    REQUIRE(f.doc.execute(std::move(place)));
+    const EntityId copy = raw->id();
+    REQUIRE(f.doc.scene().contains(copy));
+    CHECK(copy != bullet);
+    CHECK(f.doc.scene().roots().back() == copy);
+    const Entity* placed = f.doc.scene().find(copy);
+    CHECK(placed->name() == "Bullet");
+    CHECK(placed->get<Transform>()->position == Vec2{100.0f, 50.0f});
+    REQUIRE(placed->children().size() == 1);
+    CHECK(f.doc.scene().find(placed->children().front())->name() == "Glow");
+
+    f.doc.undo();
+    CHECK_FALSE(f.doc.scene().contains(copy));
+    CHECK(f.doc.scene().size() == 1);
+    f.doc.redo();
+    CHECK(f.doc.scene().contains(copy));   // the same copy comes back
+
+    // A second one is another object.
+    auto again = std::make_unique<PlaceObject>(prefab.capture(bullet));
+    PlaceObject* second = again.get();
+    REQUIRE(f.doc.execute(std::move(again)));
+    CHECK(second->id() != copy);
+    CHECK(f.doc.scene().size() == 5);
+}

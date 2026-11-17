@@ -303,6 +303,23 @@ void EditorApp::placeAsset(AssetId id, Vec2 worldPosition)
         map->cellSize = {static_cast<float>(asset->tileset->tileWidth), static_cast<float>(asset->tileset->tileHeight)};
         components.push_back(std::move(map));
         m_tileLayer = 0;
+    } else if (asset->type == AssetType::Prefab) {
+        // A copy of the prefab's object. (A copy: it does not follow the
+        // prefab when that is changed later. ADR 0033.)
+        SceneLoadResult prefab = loadPrefabFile(m_assetDb->absolutePath(*asset), m_registry);
+        reportIssues(m_assetDb->absolutePath(*asset), prefab.issues);
+        if (!prefab.ok()) {
+            showMessage("Cannot Place This Prefab", asset->fileName() + " could not be read: " + prefab.firstError());
+            return;
+        }
+        auto place = std::make_unique<PlaceObject>(prefab.scene->capture(prefab.scene->roots().front()),
+                                                   Vec2{std::round(worldPosition.x), std::round(worldPosition.y)});
+        PlaceObject* placed = place.get();
+        if (execute(std::move(place))) {
+            endEdit();
+            select(placed->id());
+        }
+        return;
     } else if (asset->type == AssetType::Audio) {
         // An object that plays the sound when the scene starts.
         auto sound = std::make_unique<Sound>();
@@ -310,7 +327,7 @@ void EditorApp::placeAsset(AssetId id, Vec2 worldPosition)
         components.push_back(std::move(sound));
     } else {
         showMessage("Cannot Place This Asset", asset->fileName() + " cannot be placed in a scene. Drag an image, "
-                                                                   "a tileset or a sound into the Scene view.");
+                                                                   "a tileset, a sound or a prefab into the Scene view.");
         return;
     }
     auto command = std::make_unique<CreateEntity>(name, EntityId{}, std::nullopt, std::move(components));
@@ -718,6 +735,15 @@ void EditorApp::updateGame(UiFrame& frame)
 std::optional<Scene> EditorApp::loadSceneForGame(AssetId id, std::string& error)
 {
     const AssetRecord* record = m_assetDb ? m_assetDb->find(id) : nullptr;
+    if (record != nullptr && record->type == AssetType::Prefab) {
+        // A prefab (game.spawn): read as a scene holding its one object.
+        SceneLoadResult prefab = loadPrefabFile(m_assetDb->absolutePath(*record), m_registry);
+        if (!prefab.ok()) {
+            error = prefab.firstError();
+            return std::nullopt;
+        }
+        return std::move(*prefab.scene);
+    }
     if (record == nullptr || record->type != AssetType::Scene) {
         error = "it is not a scene of this project";
         return std::nullopt;
@@ -830,6 +856,54 @@ void EditorApp::duplicateSelection()
     if (execute(std::move(command))) {
         endEdit();
         select(raw->copyId());
+    }
+}
+
+void EditorApp::savePrefabFromSelection()
+{
+    const EntityId id = selection();
+    const Entity* object = id.isNull() ? nullptr : m_document->scene().find(id);
+    if (object == nullptr) {
+        return;
+    }
+    if (!m_assetDb) {
+        showMessage("No Project Open", "Prefabs are files of a project. Create or open a project first.");
+        return;
+    }
+    // The file is named after the object, without what file names cannot hold.
+    std::string name;
+    for (const char c : object->name()) {
+        const bool bad = c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>'
+                         || c == '|' || static_cast<unsigned char>(c) < 32;
+        name += bad ? '-' : c;
+    }
+    while (!name.empty() && (name.back() == ' ' || name.back() == '.')) {
+        name.pop_back();
+    }
+    if (name.empty()) {
+        name = "Prefab";
+    }
+    const std::string text = serializePrefab(m_document->scene(), id);
+    const std::string path = "prefabs/" + name + std::string(PrefabFormat::kExtension);
+    m_assetDb->refresh();
+    if (const AssetRecord* existing = m_assetDb->findByPath(path)) {
+        const AssetId prefab = existing->id;
+        if (const Status status = m_assetDb->writeText(prefab, text); !status.ok) {
+            showMessage("Could Not Save the Prefab", status.message);
+            return;
+        }
+        log().info(kCategory, "Updated the prefab " + path + " from '" + object->name()
+                                  + "'. Copies already placed in scenes stay as they are.");
+        refreshAssets();
+        return;
+    }
+    std::string error;
+    if (const auto prefab = m_assetDb->createTextAsset("prefabs", name, PrefabFormat::kExtension, text, &error)) {
+        log().info(kCategory, "Saved '" + object->name() + "' as the prefab " + m_assetDb->find(*prefab)->path
+                                  + ". Drag it into a scene, or copy it in a game with game.spawn(\"" + name + "\", x, y).");
+        refreshAssets();
+    } else {
+        showMessage("Could Not Save the Prefab", error);
     }
 }
 
@@ -1580,6 +1654,7 @@ void EditorApp::buildMenus(ui::Widget& root)
                       ui::MenuItem::divider(),
                       menuItem("Rename", "F2", [this] { renameSelection(); }, hasSelection),
                       menuItem("Duplicate", key("D"), [this] { duplicateSelection(); }, hasSelection),
+                      menuItem("Save as Prefab", "", [this] { savePrefabFromSelection(); }, hasSelection),
                       menuItem("Delete", platform.macConventions ? "⌫" : "Delete", [this] { deleteSelection(); },
                                hasSelection),
                       ui::MenuItem::divider(),

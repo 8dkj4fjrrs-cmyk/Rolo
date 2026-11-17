@@ -210,6 +210,38 @@ void DuplicateEntity::revert(Scene& scene)
     scene.remove(m_copy.rootId());
 }
 
+// --- PlaceObject ---------------------------------------------------------------------------------
+
+PlaceObject::PlaceObject(EntitySnapshot object, std::optional<Vec2> position)
+    : m_object(std::move(object))
+    , m_position(position)
+    , m_name(m_object.items.empty() ? std::string("Object") : m_object.items.front().name)
+{
+}
+
+bool PlaceObject::apply(Scene& scene)
+{
+    if (m_object.empty()) {
+        return false;
+    }
+    if (m_copy.empty()) {
+        m_copy = scene.withNewIds(m_object);
+        if (m_position) {
+            for (const auto& component : m_copy.items.front().components) {
+                if (auto* transform = dynamic_cast<Transform*>(component.get())) {
+                    transform->position = *m_position;
+                }
+            }
+        }
+    }
+    return scene.restore(m_copy, EntityId{}, scene.roots().size());
+}
+
+void PlaceObject::revert(Scene& scene)
+{
+    scene.remove(m_copy.rootId());
+}
+
 // --- RenameEntity / SetEntityActive ------------------------------------------------------------------
 
 RenameEntity::RenameEntity(EntityId id, std::string name)

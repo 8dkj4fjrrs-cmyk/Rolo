@@ -1033,6 +1033,7 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
                                  : asset.type == AssetType::Dialogue ? ui::Icon::Terminal
                                  : asset.type == AssetType::Quest    ? ui::Icon::Check
                                  : asset.type == AssetType::Script   ? ui::Icon::Code
+                                 : asset.type == AssetType::Prefab   ? ui::Icon::Layers
                                  : asset.type == AssetType::Audio    ? ui::Icon::Sound
                                                                    : ui::Icon::Folder,
                                  16.0f, ui::Color::hex(0xF2A93B));
@@ -1106,6 +1107,8 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
                                               : typeName == "dialogue" ? "Dialogue"
                                               : typeName == "quest"   ? "Quest"
                                               : typeName == "animation" ? "Animations"
+                                              : typeName == "script"  ? "Script"
+                                              : typeName == "prefab"  ? "Prefab"
                                                                       : "Font");
     auto row = [&](const char* label, const std::string& value, const std::string& tip) {
         auto& r = info.body().emplace<ui::PropertyField>(label);
@@ -1236,6 +1239,30 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
         buildContentAsset(content, asset);
     }
 
+    if (asset.type == AssetType::Prefab && db != nullptr) {
+        // What the prefab holds, and how it is used.
+        const SceneLoadResult prefab = loadPrefabFile(db->absolutePath(asset), m_editor.registry());
+        if (prefab.ok()) {
+            const Entity* object = prefab.scene->find(prefab.scene->roots().front());
+            row("Object", object->name(), "The object this prefab is a pattern of");
+            if (prefab.scene->size() > 1) {
+                row("Objects Inside", std::to_string(prefab.scene->size() - 1), "The objects inside it come along");
+            }
+            std::string stem = asset.fileName();
+            stem = stem.substr(0, stem.rfind('.'));
+            auto& how = content.emplace<ui::Label>(
+                "Drag it into the Scene view to put a copy into the scene. A script makes copies while the game "
+                "runs with game.spawn(\"" + stem + "\", x, y). To change the prefab, change a copy in a scene and "
+                "choose Edit › Save as Prefab again: copies already placed stay as they are.",
+                ui::Label::Style::Small);
+            how.setWrap(true);
+        } else {
+            auto& problem = content.emplace<ui::Label>("Problem: " + prefab.firstError(), ui::Label::Style::Small);
+            problem.setWrap(true);
+            problem.setColor(ui::Color::hex(0xF26B65));
+        }
+    }
+
     if (asset.type == AssetType::Script && db != nullptr) {
         // Scripts are edited in a code editor; here: whether the code is
         // valid, and its first lines.
@@ -1275,8 +1302,9 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
         }
     }
 
-    // Where it is used.
-    if (db != nullptr) {
+    // Where it is used. (Not for prefabs: what is placed from one is a
+    // copy, which keeps no tie to the file.)
+    if (db != nullptr && asset.type != AssetType::Prefab) {
         const std::vector<std::string> scenes = db->scenesReferencing(id);
         std::string used = scenes.empty() ? "No saved scene" : std::to_string(scenes.size()) + (scenes.size() == 1 ? " scene" : " scenes");
         std::string tip = "Saved scenes that use this asset:";
@@ -1305,6 +1333,10 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
         actions.emplace<ui::Button>("Place in Scene", [this, id] { m_editor.placeAsset(id, {640.0f, 360.0f}); })
             .setTooltip("Adds an object with a Sound component that plays it when the scene starts (or drag the "
                         "sound into the Scene view)");
+    }
+    if (asset.type == AssetType::Prefab) {
+        actions.emplace<ui::Button>("Place in Scene", [this, id] { m_editor.placeAsset(id, {640.0f, 360.0f}); })
+            .setTooltip("Adds a copy of the prefab's object to the scene (or drag the prefab into the Scene view)");
     }
     actions.emplace<ui::Button>("Show in Folder", [this, id] {
         AssetDatabase* assets = m_editor.assets();

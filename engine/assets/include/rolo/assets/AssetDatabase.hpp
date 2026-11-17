@@ -35,9 +35,9 @@ namespace rolo {
 
 class Scene;
 
-enum class AssetType { Image, Tileset, Audio, Font, Scene, Variables, Dialogue, Quest, Animation, Script };
+enum class AssetType { Image, Tileset, Audio, Font, Scene, Variables, Dialogue, Quest, Animation, Script, Prefab };
 
-/// "image", "tileset", "audio", "font", "scene", "variables", "dialogue", "quest", "animation", "script"
+/// "image", "tileset", "audio", "font", "scene", "variables", "dialogue", "quest", "animation", "script", "prefab"
 /// (as in .meta files and PropertyOptions::assetType).
 std::string_view assetTypeName(AssetType type);
 std::optional<AssetType> assetTypeFromName(std::string_view name);
@@ -47,7 +47,8 @@ std::optional<AssetType> assetTypeFromName(std::string_view name);
 /// and keep working when the scene file is renamed), .lvars (Variables),
 /// .ldialogue (Dialogue), .lquest (Quest): RPG content, see rolo_content;
 /// .lanim (Animation): flipbook clips cut from an image; .lua (Script): gameplay
-/// code in Lua (run by rolo_gameplay's Script component).
+/// code in Lua (run by rolo_gameplay's Script component); .lprefab (Prefab): an
+/// object kept as a file, to put into scenes and to copy while playing.
 std::optional<AssetType> assetTypeForPath(const std::filesystem::path& path);
 
 /// How an image is smoothed when it is drawn larger or smaller than its size.

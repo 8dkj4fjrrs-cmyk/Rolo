@@ -151,6 +151,26 @@ private:
     EntityId m_parent;
 };
 
+/// Puts a copy of an object taken from elsewhere (a prefab file) into the
+/// scene, at the end of the top level, with new IDs.
+class PlaceObject final : public Command {
+public:
+    /// `object`: the object and what is inside it. `position`: where its
+    /// Transform is put (without one: where it was saved).
+    explicit PlaceObject(EntitySnapshot object, std::optional<Vec2> position = {});
+    std::string label() const override { return "Place " + m_name; }
+    bool apply(Scene& scene) override;
+    void revert(Scene& scene) override;
+    /// The new object's ID (valid after the first apply; kept for redo).
+    EntityId id() const noexcept { return m_copy.rootId(); }
+
+private:
+    EntitySnapshot m_object;
+    std::optional<Vec2> m_position;
+    std::string m_name;
+    EntitySnapshot m_copy;   // made on first apply, reused on redo (same IDs)
+};
+
 class RenameEntity final : public Command {
 public:
     RenameEntity(EntityId id, std::string name);

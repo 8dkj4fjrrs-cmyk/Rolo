@@ -300,6 +300,11 @@ end
 Always destroy what you make when it is no longer needed. Copies are not
 part of saved games: after loading, the scene is as you made it.
 
+**In more than one scene?** Keep the bullet as a file instead: select it
+and choose **Edit › Save as Prefab**, then delete it from the scene.
+`game.spawn("Bullet", x, y)` finds the [prefab](editor.md#prefabs-an-object-kept-as-a-file)
+of that name in any scene, with nothing switched off lying about.
+
 The **Top-Down Starter** template's fireflies (`scripts/firefly.lua`) are a
 complete example to read and change.
 
@@ -348,7 +353,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | Function | What it does |
 |---|---|
 | `game.find("Name")` | the first object with that name, or `nil` |
-| `game.spawn("Bullet", x, y)` | makes a copy of the object with that name (or of an object: `game.spawn(obj)`), puts it at `x, y` (without them: where the original is) and **switches it on**. Returns the copy. Keep the original switched off in the scene as the pattern |
+| `game.spawn("Bullet", x, y)` | makes a copy of the object with that name (or of an object: `game.spawn(obj)`), puts it at `x, y` (without them: where the original is) and **switches it on**. Returns the copy. Keep the original switched off in the scene as the pattern, or as a [prefab](editor.md#prefabs-an-object-kept-as-a-file): if the scene has no object of that name, the prefab file of that name is used (`"Bullet"`, or its path, `"prefabs/Bullet.lprefab"`) |
 | `game.spawn("Bullet", x, y, { speed = 400 })` | ...and gives the copy its own values for its script's [properties](#properties-settings-in-the-inspector) |
 | `game.player()` | the player (the object with the Interactor), or `nil` |
 | `game.time()` | seconds since the game started |

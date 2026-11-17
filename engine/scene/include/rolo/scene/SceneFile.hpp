@@ -63,6 +63,22 @@ inline constexpr int kVersion = 1;
 inline constexpr std::string_view kExtension = ".lscene";
 } // namespace SceneFormat
 
+/// A prefab file (.lprefab): one object and everything inside it, kept as a
+/// file of its own so that it can be put into any scene and copied by a
+/// running game (game.spawn). It is written exactly as a scene is, with
+/// another format name and no scene name or gravity:
+///
+///   { "format": "rolo.prefab", "version": 1, "entities": [ ... ] }
+///
+/// The first entity is the object (it has no parent), the others are inside
+/// it. The version is the scene format's, and moves with it: one set of
+/// upgrade steps serves both. See docs/formats/scene.md.
+namespace PrefabFormat {
+inline constexpr std::string_view kName = "rolo.prefab";
+inline constexpr int kVersion = SceneFormat::kVersion;
+inline constexpr std::string_view kExtension = ".lprefab";
+} // namespace PrefabFormat
+
 /// Reads a scene from JSON text.
 SceneLoadResult parseScene(std::string_view json, const ComponentRegistry& registry);
 /// Writes a scene as JSON text (2-space indented, short lists on one line,
@@ -72,6 +88,14 @@ std::string serializeScene(const Scene& scene);
 SceneLoadResult loadSceneFile(const std::filesystem::path& path, const ComponentRegistry& registry);
 /// Saves atomically (never leaves a half-written file).
 Status saveSceneFile(const std::filesystem::path& path, const Scene& scene);
+
+/// Reads a prefab: the result is a scene holding just the prefab's object
+/// (scene.roots().front()) and what is inside it.
+SceneLoadResult parsePrefab(std::string_view json, const ComponentRegistry& registry);
+SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const ComponentRegistry& registry);
+/// Writes the object `root` of `scene`, with everything inside it, as a
+/// prefab file's text. Empty if there is no such object.
+std::string serializePrefab(const Scene& scene, EntityId root);
 
 /// Checks a scene in memory: the tree is consistent, every entity has a
 /// Transform, numbers are finite. Returns the problems found (empty = fine).

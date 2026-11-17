@@ -42,6 +42,9 @@ TEST_CASE("Asset types come from file extensions", "[assets]")
 {
     CHECK(assetTypeForPath("a/hero.png") == AssetType::Image);
     CHECK(assetTypeForPath("HERO.JPG") == AssetType::Image);
+    CHECK(assetTypeForPath("prefabs/Bullet.lprefab") == AssetType::Prefab);
+    CHECK(assetTypeName(AssetType::Prefab) == "prefab");
+    CHECK(assetTypeFromName("prefab") == AssetType::Prefab);
     CHECK(assetTypeForPath("map.ltileset") == AssetType::Tileset);
     CHECK(assetTypeForPath("jump.ogg") == AssetType::Audio);
     CHECK(assetTypeForPath("ui.ttf") == AssetType::Font);

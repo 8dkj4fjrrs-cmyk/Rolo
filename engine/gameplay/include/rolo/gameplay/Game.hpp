@@ -183,7 +183,13 @@ public:
     /// The object called `name` to make copies of (game.spawn("Bullet")).
     /// Like find(), but remembered: making an object changes the scene, and
     /// find() would look the name up afresh for every copy.
-    EntityId findPattern(std::string_view name);
+    ///
+    /// If the scene has no such object, a prefab of the project with that
+    /// file name (or path) serves (ADR 0033): its object is brought into
+    /// the playing scene once, switched off, as the pattern, and found
+    /// again from then on. Nothing, with `why` filled in, if there is
+    /// neither (or the prefab cannot be read).
+    EntityId findPattern(std::string_view name, std::string* why = nullptr);
     /// Removes an object (and its children) at the end of this frame. An
     /// object that was part of the scene stays removed for the rest of the
     /// playthrough (e.g. a collected gem), also in save games.
@@ -370,6 +376,7 @@ private:
     std::map<EntityId, TriggerState> m_triggers;
     std::map<EntityId, std::string> m_textTemplates;  // each Text's own text, as written
     std::unordered_map<std::string, EntityId> m_patterns;   // names spawned from, and the object each meant
+    std::unordered_map<std::string, EntityId> m_prefabPatterns;   // ...and those that meant a prefab: its object, brought in
     std::vector<std::string> m_pendingEvents;         // sent this frame
     std::vector<std::string> m_events;                // sent last frame: delivered now
     std::string m_prompt;                             // "[E] Talk"

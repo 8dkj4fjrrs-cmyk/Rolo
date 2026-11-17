@@ -398,8 +398,20 @@ std::string SceneLoadResult::firstError() const
 
 // --- Reading ------------------------------------------------------------------------------------
 
-SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& registry)
+namespace {
+
+// Scenes and prefabs are the same kind of file under two names.
+struct FileKind {
+    std::string_view format;
+    const char* word;   // "scene" or "prefab", for messages
+    bool prefab;
+};
+constexpr FileKind kSceneKind{SceneFormat::kName, "scene", false};
+constexpr FileKind kPrefabKind{PrefabFormat::kName, "prefab", true};
+
+SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& registry, const FileKind& kind)
 {
+    const std::string word = kind.word;
     SceneLoadResult result;
     Issues issues{result.issues};
 
@@ -412,23 +424,26 @@ SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& regis
         return result;
     }
 
-    if (!document.is_object() || !isFormatName(document.value("format", ""), SceneFormat::kName)) {
-        issues.error("", "This is not a Rolo scene file (\"format\" should be \"rolo.scene\").");
+    if (!document.is_object() || !document.contains("format") || !document["format"].is_string()
+        || !isFormatName(document["format"].get<std::string>(), kind.format)) {
+        issues.error("", "This is not a Rolo " + word + " file (\"format\" should be \"" + std::string(kind.format)
+                             + "\").");
         return result;
     }
     if (!document.contains("version") || !document["version"].is_number_integer()) {
-        issues.error("", "The scene file has no format \"version\".");
+        issues.error("", "The " + word + " file has no format \"version\".");
         return result;
     }
     const int version = document["version"].get<int>();
     if (version > SceneFormat::kVersion) {
-        issues.error("", "This scene was saved by a newer version of Rolo (scene format " + std::to_string(version)
+        issues.error("", "This " + word + " was saved by a newer version of Rolo (" + word + " format "
+                             + std::to_string(version)
                              + "; this version reads up to " + std::to_string(SceneFormat::kVersion)
                              + "). Update Rolo to open it.");
         return result;
     }
     if (version < 1) {
-        issues.error("", "Unknown scene format version " + std::to_string(version) + ".");
+        issues.error("", "Unknown " + word + " format version " + std::to_string(version) + ".");
         return result;
     }
     for (int v = version; v < SceneFormat::kVersion; ++v) {
@@ -436,12 +451,14 @@ SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& regis
     }
 
     if (!document.contains("entities") || !document["entities"].is_array()) {
-        issues.error("", "The scene file has no \"entities\" list.");
+        issues.error("", "The " + word + " file has no \"entities\" list.");
         return result;
     }
 
-    Scene scene(document.value("name", std::string("Untitled")));
-    if (!document.contains("name") || !document["name"].is_string()) {
+    Scene scene(!kind.prefab && document.contains("name") && document["name"].is_string()
+                    ? document["name"].get<std::string>()
+                    : std::string(kind.prefab ? "Prefab" : "Untitled"));
+    if (!kind.prefab && (!document.contains("name") || !document["name"].is_string())) {
         issues.warning("", "The scene has no name; it is called \"Untitled\".");
     }
     // Optional (added with physics): files without it have the default gravity.
@@ -515,9 +532,17 @@ SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& regis
         }
     }
     for (const auto& [key, value] : document.items()) {
-        if (key != "format" && key != "version" && key != "name" && key != "gravity" && key != "entities") {
+        const bool known = key == "format" || key == "version" || key == "entities"
+                           || (!kind.prefab && (key == "name" || key == "gravity"));
+        if (!known) {
             issues.warning("", "Unknown field \"" + key + "\" was ignored.");
         }
+    }
+    if (kind.prefab && scene.roots().size() != 1) {
+        issues.error("", "A prefab is one object, with others inside it if you like; this file has "
+                             + std::to_string(scene.roots().size())
+                             + " objects at the top. Was it edited by hand? Make the prefab again in the editor.");
+        return result;
     }
 
     for (FileIssue& issue : validateScene(scene)) {
@@ -532,7 +557,7 @@ SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& regis
     return result;
 }
 
-SceneLoadResult loadSceneFile(const std::filesystem::path& path, const ComponentRegistry& registry)
+SceneLoadResult loadFile(const std::filesystem::path& path, const ComponentRegistry& registry, const FileKind& kind)
 {
     const auto text = readTextFile(path);
     if (!text) {
@@ -540,20 +565,67 @@ SceneLoadResult loadSceneFile(const std::filesystem::path& path, const Component
         result.issues.push_back({FileIssue::Severity::Error, path.string(), "The file could not be read."});
         return result;
     }
-    return parseScene(*text, registry);
+    return parseDocument(*text, registry, kind);
+}
+
+std::string serializeDocument(const Scene& scene, const FileKind& kind);
+
+} // namespace
+
+SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& registry)
+{
+    return parseDocument(text, registry, kSceneKind);
+}
+
+SceneLoadResult parsePrefab(std::string_view text, const ComponentRegistry& registry)
+{
+    return parseDocument(text, registry, kPrefabKind);
+}
+
+SceneLoadResult loadSceneFile(const std::filesystem::path& path, const ComponentRegistry& registry)
+{
+    return loadFile(path, registry, kSceneKind);
+}
+
+SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const ComponentRegistry& registry)
+{
+    return loadFile(path, registry, kPrefabKind);
 }
 
 // --- Writing ---------------------------------------------------------------------------------------
 
 std::string serializeScene(const Scene& scene)
 {
+    return serializeDocument(scene, kSceneKind);
+}
+
+std::string serializePrefab(const Scene& scene, EntityId root)
+{
+    if (!scene.contains(root)) {
+        return {};
+    }
+    // A scene of its own holding just that object: then it is written as
+    // any scene is. (The object keeps its IDs in the file, so saving the
+    // same prefab again changes only what was changed; whoever puts a
+    // prefab into a scene gives the copy new ones.)
+    Scene alone("Prefab");
+    alone.restore(scene.capture(root), EntityId{}, 0);
+    return serializeDocument(alone, kPrefabKind);
+}
+
+namespace {
+
+std::string serializeDocument(const Scene& scene, const FileKind& kind)
+{
     Json document;
-    document["format"] = SceneFormat::kName;
+    document["format"] = kind.format;
     document["version"] = SceneFormat::kVersion;
-    document["name"] = scene.name();
-    // Written only when changed, so scenes without physics stay as they were.
-    if (scene.gravity() != Scene::kDefaultGravity) {
-        document["gravity"] = Json::array({number(scene.gravity().x), number(scene.gravity().y)});
+    if (!kind.prefab) {
+        document["name"] = scene.name();
+        // Written only when changed, so scenes without physics stay as they were.
+        if (scene.gravity() != Scene::kDefaultGravity) {
+            document["gravity"] = Json::array({number(scene.gravity().x), number(scene.gravity().y)});
+        }
     }
     Json entities = Json::array();
     scene.forEach([&](const Entity& e, int) {
@@ -589,6 +661,8 @@ std::string serializeScene(const Scene& scene)
     document["entities"] = std::move(entities);
     return pretty(document);
 }
+
+} // namespace
 
 Status saveSceneFile(const std::filesystem::path& path, const Scene& scene)
 {

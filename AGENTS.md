@@ -62,6 +62,10 @@ and AI assistants.
   (`GameState`, save files). New action or condition types need the JSON form, the written form
   (`Notation.hpp`), checks in `ContentLibrary`, docs/formats/content.md and tests.
 - Scenes refer to project files by `AssetId`, never by path; files reach the runtime only through `AssetDatabase` (`engine/assets`). Games open it read-only. `engine/scene` and `engine/assets` stay free of Axmol so they are tested in every preset.
+- Prefabs (ADR 0033): a `.lprefab` file is a scene file under another name holding one object
+  (`parsePrefab`, `serializePrefab`); its version is the scene format's, so an upgrade step for scenes
+  is one for prefabs. What is placed from a prefab is a plain copy (`PlaceObject`); games get a prefab's
+  object through their scene loader (`GameSetup::loadScene`) and copy it with `Game::clone`.
 - File formats (`docs/formats/`) are versioned: changing one means bumping its version, adding an upgrade step and a test with an old file.
 - No global mutable state. Pass `Engine&` / `Logger&` explicitly.
 - Ownership: RAII and `std::unique_ptr` by default; raw pointers only as non-owning observers.

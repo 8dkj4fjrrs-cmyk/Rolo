@@ -145,8 +145,11 @@ In order:
    ([ADR 0031](adr/0031-waiting-in-scripts.md)): `task.wait`,
    `task.spawn`, `task.delay`, and a `start` that may wait. ~~Events~~
    **done** ([ADR 0032](adr/0032-events-in-scripts.md)): `connect`,
-   `once` and `wait` on game events, keys and collisions. Next for
-   scripts: prefabs, more kinds of property, more events.
+   `once` and `wait` on game events, keys and collisions. ~~Prefabs~~
+   **step 1 done** ([ADR 0033](adr/0033-prefabs.md)): an object kept as
+   a file, placed in scenes and spawned by scripts. Next: placed copies
+   that follow their prefab (step 2), more kinds of property, more
+   events.
 
 Alongside: the editor polish below. Later: 3D.
 
@@ -179,7 +182,7 @@ above now):
 6. Smaller gaps:
    - renaming scenes and creating folders in the editor;
    - multi-selection;
-   - prefabs;
+   - ~~prefabs~~ — step 1 **done** (ADR 0033); copies that follow their prefab are still to do;
    - fullscreen and window settings for games;
    - ~~removing Axmol's unused networking libraries (and yasio's Anti 996
      terms with them)~~ — **done** after the alpha (ADR 0012).

@@ -231,6 +231,7 @@ void AssetsPanel::rebuild()
             case AssetType::Dialogue: item.icon = ui::Icon::Terminal; item.detail = "Dialogue"; break;
             case AssetType::Quest: item.icon = ui::Icon::Check; item.detail = "Quest"; break;
             case AssetType::Script: item.icon = ui::Icon::Code; item.detail = "Luau script"; break;
+            case AssetType::Prefab: item.icon = ui::Icon::Layers; item.detail = "Prefab"; break;
             case AssetType::Animation:
                 item.icon = ui::Icon::Play;
                 item.detail = asset->animation ? std::to_string(asset->animation->clips.size())

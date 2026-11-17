@@ -126,9 +126,12 @@ and goes when the object does. For everything else, ask in `update`
 ("am I touching the player?").
 
 The habit to drop: **`Instance.new`.** Nothing is built from nothing in
-a script. Make the thing once in the editor, switch it off, and copy it
-when you need one: `game.spawn("Bullet", x, y)`. That is `:Clone()` with
-the parent and the place set for you; `obj:clone()` is the plain copy.
+a script. Make the thing once in the editor and copy it when you need
+one: `game.spawn("Bullet", x, y)`. That is `:Clone()` with the parent and
+the place set for you; `obj:clone()` is the plain copy. Where Roblox
+keeps the template in ServerStorage or ReplicatedStorage, Rolo keeps it
+as a **prefab**, a file (**Edit › Save as Prefab**), or switched off in
+the scene.
 
 ### `game` is not the same `game`
 
@@ -159,6 +162,7 @@ objects: `local x, y = obj:position()`.
 | `part.Transparency = 1`, parenting to `nil` | `obj:setActive(false)` |
 | `part:Destroy()` | `obj:destroy()` |
 | `template:Clone()`, then `.Parent = workspace` | `game.spawn("Bullet", x, y)`: a copy of the object called Bullet, placed and switched on. `obj:clone()` for an exact copy |
+| a template kept in ServerStorage / ReplicatedStorage | a **prefab**: select the object, **Edit › Save as Prefab**; `game.spawn("Bullet", x, y)` then works in every scene ([editor guide](editor.md#prefabs-an-object-kept-as-a-file)) |
 | `Instance.new("Part")` | not available: copy something you made in the editor |
 | setting attributes on the clone | `game.spawn("Bullet", x, y, { speed = 400 })` gives the copy its own properties |
 | `part.Parent`, `:GetChildren()` | `obj:parent()`, `obj:children()` |

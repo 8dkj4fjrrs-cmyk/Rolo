@@ -350,6 +350,15 @@ int Player::run()
     setup.sound = audio.get();
     setup.loadScene = [&](rolo::AssetId id, std::string& error) -> std::optional<rolo::Scene> {
         const rolo::AssetRecord* record = assets != nullptr ? assets->find(id) : nullptr;
+        if (record != nullptr && record->type == rolo::AssetType::Prefab) {
+            // A prefab (game.spawn): read as a scene holding its one object.
+            rolo::SceneLoadResult prefab = rolo::loadPrefabFile(assets->absolutePath(*record), registry);
+            if (!prefab.ok()) {
+                error = prefab.firstError();
+                return std::nullopt;
+            }
+            return std::move(*prefab.scene);
+        }
         if (record == nullptr || record->type != rolo::AssetType::Scene) {
             error = "it is not a scene of this project";
             return std::nullopt;

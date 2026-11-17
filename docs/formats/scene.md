@@ -273,6 +273,34 @@ exactly as they are and writes them back unchanged.
 { "type": "sample.SceneDoor", "scene": "5a4d1e0000000005" }
 ```
 
+## A prefab (`.lprefab`)
+
+A prefab is one object, with everything inside it, kept as a file so that
+it can be put into any scene and copied by a running game
+([ADR 0033](../adr/0033-prefabs.md)). It is written exactly as a scene
+is, under another format name and without the scene's `name` and
+`gravity`:
+
+```json
+{
+  "format": "rolo.prefab",
+  "version": 1,
+  "entities": [
+    { "id": "504c010000000002", "name": "Bullet", "active": true,
+      "components": [ { "type": "rolo.Transform", "position": [0, 0], "rotation": 0, "scale": [1, 1] } ] },
+    { "id": "504c010000000003", "parent": "504c010000000002", "name": "Glow", "active": true, "components": [ ... ] }
+  ]
+}
+```
+
+- The first entity is the object and has no `parent`; the others are
+  inside it. A file with no entity, or with more than one at the top, is
+  refused.
+- `version` is the scene format's version and changes with it: the same
+  upgrade steps are applied to both kinds of file.
+- The IDs are the object's own. Putting a prefab into a scene, in the
+  editor or with `game.spawn`, gives the copy new IDs.
+
 ## Asset IDs (`.meta` files)
 
 Every image, tileset, animation set, sound, font, scene and script in a project has a small file
@@ -288,14 +316,14 @@ assets/hero.png.meta    {"format": "rolo.asset", "version": 1,
 | Key | Meaning |
 |---|---|
 | `id` | The asset's permanent ID: 16 hex digits. Scenes refer to assets by this ID. |
-| `type` | `"image"`, `"tileset"`, `"animation"`, `"audio"`, `"font"`, `"scene"` or `"script"` (`.lua`), and the content types (from the file extension). |
+| `type` | `"image"`, `"tileset"`, `"animation"`, `"audio"`, `"font"`, `"scene"`, `"prefab"` or `"script"` (`.lua`), and the content types (from the file extension). |
 | `filter` | Images: `"pixel"` (hard pixel edges, for pixel art) or `"smooth"`. |
 
 Keep each `.meta` file next to its asset when moving files outside the
 editor; renaming or moving inside the editor does this for you. A file
 without one gets a new ID automatically (references to an old ID then show
 as missing). A copied file *and* `.meta` is noticed and the copy gets a new
-ID. Supported files: PNG and JPEG images, `.ltileset` tilesets, `.lanim` animation sets, `.lua` scripts, WAV, OGG and
+ID. Supported files: PNG and JPEG images, `.ltileset` tilesets, `.lanim` animation sets, `.lprefab` prefabs, `.lua` scripts, WAV, OGG and
 MP3 sounds, TTF and OTF fonts, and `.lscene` scenes (scenes have IDs so that
 gameplay can refer to them, e.g. a door leading to another scene; the
 project's `startScene` stays a path). Files written by Rolo 0.4 have no

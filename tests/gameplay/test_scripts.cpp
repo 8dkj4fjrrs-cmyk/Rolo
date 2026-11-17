@@ -1499,3 +1499,139 @@ TEST_CASE("Mistakes with events are said plainly", "[gameplay][script][event]")
     frames(game, 2);
     CHECK(p.printed.size() == 4);   // its update no longer runs
 }
+
+// --- Prefabs: game.spawn from a file (ADR 0033) -----------------------------------------------------------
+
+namespace {
+
+// A game whose scene loader reads prefab files, as the player's and the editor's do.
+struct PrefabGame {
+    ScriptProject& p;
+    ComponentRegistry registry = ComponentRegistry::withBuiltins();
+    int loads = 0;
+    std::unique_ptr<Game> game;
+
+    explicit PrefabGame(ScriptProject& project)
+        : p(project)
+    {
+        registerGameplayComponents(registry);
+        GameSetup setup;
+        setup.assets = &p.assets;
+        setup.loadScene = [this](AssetId id, std::string& error) -> std::optional<Scene> {
+            const AssetRecord* record = p.assets.find(id);
+            if (record == nullptr || record->type != AssetType::Prefab) {
+                error = "not a prefab";
+                return std::nullopt;
+            }
+            ++loads;
+            SceneLoadResult loaded = loadPrefabFile(p.assets.absolutePath(*record), registry);
+            if (!loaded.ok()) {
+                error = loaded.firstError();
+                return std::nullopt;
+            }
+            return std::move(*loaded.scene);
+        };
+        game = std::make_unique<Game>(p.log, std::move(setup));
+    }
+
+    // Writes `root` of `scene` as the prefab file `path`.
+    void save(const std::string& path, const Scene& scene, EntityId root)
+    {
+        fs::create_directories((p.folder / path).parent_path());
+        std::ofstream(p.folder / path, std::ios::binary) << serializePrefab(scene, root);
+        p.assets.refresh();
+        REQUIRE(p.assets.findByPath(path) != nullptr);
+    }
+};
+
+} // namespace
+
+TEST_CASE("game.spawn makes copies of a prefab when the scene has no object of that name",
+          "[gameplay][script][spawn][prefab]")
+{
+    ScriptProject p;
+    const AssetId bulletScript = p.write("scripts/bullet.lua", R"(
+        properties = { speed = 500 }
+        function start(self)
+            local x, y = self.object:position()
+            print("bullet at " .. x .. "," .. y .. " speed " .. self.speed .. " with " .. #self.object:children() .. " inside")
+        end
+    )");
+    const AssetId gun = p.write("scripts/gun.lua", R"(
+        function start(self)
+            local a = game.spawn("bullet", 10, 20)
+            local b = game.spawn("bullet", 30, 40, { speed = 90 })
+            local c = game.spawn("prefabs/bullet.lprefab")       -- by path, where it was saved
+            print(a:name(), a:isActive(), a ~= b, c:position())
+            print(pcall(game.spawn, "rocket"))
+        end
+    )");
+    PrefabGame g(p);
+    {
+        // The prefab is made in some other scene: a Bullet with a Glow inside.
+        Scene workshop("Workshop", EntityIdGenerator(21));
+        const EntityId bullet = addScripted(workshop, "Bullet", bulletScript);
+        workshop.setProperty(bullet, "rolo.Transform", "position", Vec2{7.0f, 8.0f});
+        workshop.create("Glow", bullet);
+        g.save("prefabs/bullet.lprefab", workshop, bullet);
+    }
+    Scene scene;
+    addScripted(scene, "Gun", gun);
+    g.game->start(scene);
+    frames(*g.game, 3);
+    CHECK(p.problems.empty());
+    REQUIRE(p.printed.size() == 5);
+    CHECK(p.printed[0] == "scripts/gun.lua: Bullet\ttrue\ttrue\t7\t8");
+    CHECK_THAT(p.printed[1], ContainsSubstring("false") && ContainsSubstring("there is no object called")
+                                 && ContainsSubstring("rocket") && ContainsSubstring("no prefab of that name"));
+    // (The copies start in the scene's order, which is not the order they were made in.)
+    const auto started = [&p](const std::string& line) {
+        return std::count(p.printed.begin() + 2, p.printed.end(), "scripts/bullet.lua: " + line) == 1;
+    };
+    CHECK(started("bullet at 10,20 speed 500 with 1 inside"));
+    CHECK(started("bullet at 30,40 speed 90 with 1 inside"));
+    CHECK(started("bullet at 7,8 speed 500 with 1 inside"));
+
+    // The file was read once for each name it was asked by; the pattern
+    // waits in the playing scene, switched off, and its script never ran.
+    CHECK(g.loads == 2);
+    CHECK(scene.size() == 1);   // the scene that was started is untouched
+    // Gun, 2 patterns and 3 copies, each Bullet with its Glow.
+    CHECK(g.game->scene().size() == 1 + 5 * 2);
+}
+
+TEST_CASE("An object of the scene comes before a prefab of the same name, and broken prefabs are said",
+          "[gameplay][script][spawn][prefab]")
+{
+    ScriptProject p;
+    const AssetId maker = p.write("scripts/maker.lua", R"(
+        function start(self)
+            local crate = game.spawn("Crate")
+            print(#crate:children())
+            print(pcall(game.spawn, "broken"))
+            print(pcall(game.spawn, "twin"))
+        end
+    )");
+    PrefabGame g(p);
+    {
+        Scene workshop("Workshop", EntityIdGenerator(22));
+        const EntityId crate = workshop.create("Crate")->id();
+        workshop.create("Lid", crate);
+        g.save("prefabs/Crate.lprefab", workshop, crate);
+        g.save("a/twin.lprefab", workshop, crate);
+        g.save("b/twin.lprefab", workshop, crate);
+    }
+    std::ofstream(p.folder / "prefabs/broken.lprefab", std::ios::binary) << "{ not json";
+    p.assets.refresh();
+    Scene scene;
+    scene.create("Crate");   // the scene's own Crate has nothing inside
+    addScripted(scene, "Maker", maker);
+    g.game->start(scene);
+    frames(*g.game, 2);
+    REQUIRE(p.printed.size() == 3);
+    CHECK(p.printed[0] == "scripts/maker.lua: 0");
+    CHECK_THAT(p.printed[1], ContainsSubstring("false") && ContainsSubstring("prefabs/broken.lprefab could not be used"));
+    CHECK_THAT(p.printed[2], ContainsSubstring("false") && ContainsSubstring("several prefabs are called")
+                                 && ContainsSubstring("write the path"));
+    CHECK(p.problems.empty());
+}

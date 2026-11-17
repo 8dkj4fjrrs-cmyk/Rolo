@@ -458,10 +458,10 @@ int gameSpawn(lua_State* L)
     EntityId source;
     if (lua_type(L, 1) == LUA_TSTRING) {
         const std::string_view name = checkText(L, 1);
-        source = game.findPattern(name);
+        std::string why;
+        source = game.findPattern(name, &why);
         if (source.isNull()) {
-            luaL_error(L, "game.spawn: there is no object called \"%s\" in this scene to copy",
-                       std::string(name).c_str());
+            luaL_error(L, "game.spawn: %s", why.c_str());
         }
     } else {
         source = objectEntity(L, 1).id();
