@@ -166,7 +166,7 @@ end
 ```lua
 function start(self)
     -- A chest: play the opening once, wait for it to end, then hand over the coin.
-    input.pressed("interact"):wait()
+    input.pressed("e"):wait()
     self.object:play("open", true)
     self.object:animationFinished():wait()
     game.spawn("Coin", self.object:position())

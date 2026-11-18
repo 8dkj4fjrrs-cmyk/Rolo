@@ -117,7 +117,7 @@ end)                                                print(other:name())
                                             end
 ```
 
-There are three kinds so far: `game.event("name")` (your own, sent with
+The main kinds: `game.event("name")` (your own, sent with
 `game.emit`), `input.pressed("jump")` / `input.released("jump")`, and
 `obj:collided()`, and a few more (`obj:separated()`,
 `obj:animationFinished()`, `obj:destroyed()`). Each has `:connect(f)`, `:once(f)` and `:wait()`, and
