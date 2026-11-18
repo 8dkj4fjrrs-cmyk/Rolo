@@ -163,6 +163,7 @@ objects: `local x, y = obj:position()`.
 | `part:Destroy()` | `obj:destroy()` |
 | `template:Clone()`, then `.Parent = workspace` | `game.spawn("Bullet", x, y)`: a copy of the object called Bullet, placed and switched on. `obj:clone()` for an exact copy |
 | a template kept in ServerStorage / ReplicatedStorage | a **prefab**: select the object, **Edit › Save as Prefab**; `game.spawn("Bullet", x, y)` then works in every scene ([editor guide](editor.md#prefabs-an-object-kept-as-a-file)) |
+| a Package (a model whose copies update together) | a prefab's **linked copies**: change one, click **Apply to Prefab**, and the others follow, keeping their own changes |
 | `Instance.new("Part")` | not available: copy something you made in the editor |
 | setting attributes on the clone | `game.spawn("Bullet", x, y, { speed = 400 })` gives the copy its own properties |
 | `part.Parent`, `:GetChildren()` | `obj:parent()`, `obj:children()` |

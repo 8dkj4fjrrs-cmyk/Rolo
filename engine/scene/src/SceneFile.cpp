@@ -288,7 +288,9 @@ static_assert(std::size(kUpgrades) == SceneFormat::kVersion - 1, "one upgrade st
 //     "components": [ { "type": "rolo.Transform", "position": [40, 8] } ],
 //                                                         only the changed keys of a component; a
 //                                                         component the prefab lacks is written whole;
-//                                                         "$unset": [keys] for keys the copy has not
+//                                                         "$unset": [keys] for keys the copy has not;
+//                                                         named values (a Script's "values") name by
+//                                                         name: { "$changed": {..}, "$unset": [names] }
 //     "removedComponents": [ "rolo.Collider" ],
 //     "objects": [ { "from": "<id in the prefab>", "id": "<id in this scene>", ...as above } ],
 //                                                         the objects inside, by which of the
@@ -443,6 +445,24 @@ void applyChanges(Json& entity, const Json& changes)
                         for (const Json& gone : value) {
                             if (gone.is_string()) {
                                 target->erase(gone.get<std::string>());
+                            }
+                        }
+                    }
+                } else if (key != "type" && value.is_object() && value.contains("$changed")) {
+                    // Named values, changed name by name (see writeChanges).
+                    Json& named = (*target)[key];
+                    if (!named.is_object()) {
+                        named = Json::object();
+                    }
+                    if (value["$changed"].is_object()) {
+                        for (const auto& [name, held] : value["$changed"].items()) {
+                            named[name] = held;
+                        }
+                    }
+                    if (value.contains("$unset") && value["$unset"].is_array()) {
+                        for (const Json& gone : value["$unset"]) {
+                            if (gone.is_string()) {
+                                named.erase(gone.get<std::string>());
                             }
                         }
                     }
@@ -1042,15 +1062,40 @@ void writeChanges(const Entity& object, const Json& mine, const Json& theirs, Js
                 continue;
             }
             Json other = (*same)[key];
-            if (const PropertyInfo* info = held != nullptr ? held->type().findProperty(key) : nullptr) {
+            const PropertyInfo* info = held != nullptr ? held->type().findProperty(key) : nullptr;
+            if (info != nullptr) {
                 std::string expected;
                 if (const auto parsed = fromJson(*info, other, expected)) {
                     other = toJson(*info, info->coerce(*parsed).value_or(*parsed));
                 }
             }
-            if (other != value) {
-                difference[key] = value;
+            if (other == value) {
+                continue;
             }
+            if (info != nullptr && info->options.data && value.is_object() && other.is_object()) {
+                // Named values (a Script's properties): name by name, so
+                // that a copy with its own speed still follows the prefab's
+                // other values.
+                Json named;
+                named["$changed"] = Json::object();
+                Json gone = Json::array();
+                for (const auto& [name, held2] : value.items()) {
+                    if (!other.contains(name) || other[name] != held2) {
+                        named["$changed"][name] = held2;
+                    }
+                }
+                for (const auto& [name, held2] : other.items()) {
+                    if (!value.contains(name)) {
+                        gone.push_back(name);
+                    }
+                }
+                if (!gone.empty()) {
+                    named["$unset"] = std::move(gone);
+                }
+                difference[key] = std::move(named);
+                continue;
+            }
+            difference[key] = value;
         }
         for (const auto& [key, value] : same->items()) {
             if (key != "type" && !component.contains(key)) {

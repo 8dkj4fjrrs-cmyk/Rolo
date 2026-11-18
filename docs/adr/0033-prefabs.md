@@ -1,6 +1,8 @@
 # ADR 0033: Prefabs, step 1: an object kept as a file
 
-- **Status:** Accepted; built (2026-11-17)
+- **Status:** Accepted; built (2026-11-17). Two parts were changed by
+  [ADR 0035](0035-linked-copies-of-prefabs.md): placed objects are now
+  linked copies, and Save as Prefab no longer replaces a file
 - **Follows:** ADR 0005 (scenes and files), ADR 0006 (assets), ADR 0030 (making objects while playing)
 
 ## The need

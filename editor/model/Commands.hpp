@@ -88,6 +88,9 @@ public:
     void breakMerge() noexcept { m_mergeAllowed = false; }
 
     void clear() noexcept;
+    /// Says the scene differs from what is saved, whatever the history holds
+    /// (it was changed by something that is not a command).
+    void markDirty() noexcept { m_cleanPosition.reset(); }
     std::size_t size() const noexcept { return m_commands.size(); }
 
 private:
@@ -169,6 +172,38 @@ private:
     std::optional<Vec2> m_position;
     std::string m_name;
     EntitySnapshot m_copy;   // made on first apply, reused on redo (same IDs)
+};
+
+/// Ties objects to a prefab file, or unties them (ADR 0035): how they are
+/// saved changes, nothing about the objects themselves.
+class SetPrefabLinks final : public Command {
+public:
+    SetPrefabLinks(std::vector<std::pair<EntityId, PrefabLink>> links, std::string label);
+    std::string label() const override { return m_label; }
+    bool apply(Scene& scene) override;
+    void revert(Scene& scene) override;
+
+private:
+    std::vector<std::pair<EntityId, PrefabLink>> m_links;
+    std::vector<std::pair<EntityId, PrefabLink>> m_before;
+    std::string m_label;
+};
+
+/// Puts another object (with what is inside it) in an object's place: same
+/// parent, same position among its siblings. For "Reset to Prefab".
+class ReplaceObject final : public Command {
+public:
+    ReplaceObject(EntityId id, EntitySnapshot replacement, std::string label);
+    std::string label() const override { return m_label; }
+    bool apply(Scene& scene) override;
+    void revert(Scene& scene) override;
+
+private:
+    EntityId m_id;
+    EntitySnapshot m_replacement;
+    EntitySnapshot m_before;
+    EntityId m_parent;
+    std::string m_label;
 };
 
 class RenameEntity final : public Command {

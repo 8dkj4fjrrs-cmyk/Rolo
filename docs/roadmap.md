@@ -149,8 +149,10 @@ In order:
    **step 1 done** ([ADR 0033](adr/0033-prefabs.md)): an object kept as
    a file, placed in scenes and spawned by scripts. ~~More kinds of
    property~~ **done** ([ADR 0034](adr/0034-more-kinds-of-property.md)):
-   colours, points and other objects. Next: placed copies that follow
-   their prefab (prefabs, step 2), more events.
+   colours, points and other objects. ~~Copies that follow their
+   prefab~~ **done** ([ADR 0035](adr/0035-linked-copies-of-prefabs.md)):
+   Apply to Prefab, Reset, Unlink. Next: more events, showing a copy's
+   own fields, prefabs inside prefabs.
 
 Alongside: the editor polish below. Later: 3D.
 
@@ -183,7 +185,7 @@ above now):
 6. Smaller gaps:
    - renaming scenes and creating folders in the editor;
    - multi-selection;
-   - ~~prefabs~~ — step 1 **done** (ADR 0033); copies that follow their prefab are still to do;
+   - ~~prefabs~~ — **done** (ADR 0033, ADR 0035);
    - fullscreen and window settings for games;
    - ~~removing Axmol's unused networking libraries (and yasio's Anti 996
      terms with them)~~ — **done** after the alpha (ADR 0012).

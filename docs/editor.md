@@ -120,25 +120,48 @@ asset in the editor never breaks anything.
 
 ### Prefabs: an object kept as a file
 
-Something you use in more than one scene (a coin, an enemy, a bullet) can
-be kept as a file, a **prefab**:
+Something you use in more than one place (a coin, an enemy, a bullet)
+can be kept as a file, a **prefab**. Objects placed from it are **linked
+copies**: change the prefab once and every copy changes.
 
 1. Build the object in a scene as usual, with what belongs inside it.
 2. Select it and choose **Edit > Save as Prefab**. A file named after the
-   object appears in the project's `prefabs` folder.
+   object appears in the project's `prefabs` folder, and the object you
+   saved becomes its first copy.
 3. In any scene, drag the prefab from Assets into the Scene view (or
-   select it and click **Place in Scene**) to get a copy.
+   select it and click **Place in Scene**) for another copy. The
+   Hierarchy marks a copy's top object with the prefab icon.
+
+**Changing a copy.** Change anything you like on a copy: move it, rename
+it, change a property, add or remove a component, put objects inside it.
+Those changes are that copy's own. In everything else it goes on
+following the prefab.
+
+**Changing the prefab.** Select a copy, make it what the prefab should
+be, and click **Apply to Prefab** in the **Prefab** section of its
+Inspector. Every other copy follows and keeps its own changes: make the
+prefab bigger and a coin you had made red is bigger and still red.
+Copies in other scenes follow when those scenes are next opened. Where
+a copy stands is always its own, so applying never moves other copies.
+
+| Button | What it does |
+|---|---|
+| **Apply to Prefab** | The prefab becomes what this copy is now. Cannot be undone, and the open scene's undo history starts afresh |
+| **Reset** | This copy drops its own changes, and what you put inside it, and is what the prefab is again, where it stands. Undoable |
+| **Unlink** | Makes it an ordinary object that no longer follows the prefab. Undoable |
 
 A script makes copies while the game runs with
 `game.spawn("Bullet", x, y)`, without a Bullet in the scene
 ([scripting guide](scripting.md#examples)).
 
-Two things to know:
-- **What you place is a copy.** It does not change when the prefab
-  changes later; only what is placed or spawned from then on does.
-- **To change a prefab**, change a copy in a scene and choose **Save as
-  Prefab** again. An object with the same name replaces the file, without
-  asking.
+Good to know:
+- **Save as Prefab always makes a new file** (a name that is taken gets
+  a number). To change an existing prefab, use Apply to Prefab.
+- If a prefab file is deleted, its copies show as empty objects with a
+  warning, and nothing is lost: put the file back and open the scene
+  again, or Unlink them.
+- Objects placed from a prefab before linked copies existed are
+  ordinary objects. To link one, delete it and place the prefab again.
 
 ## The Scene view
 

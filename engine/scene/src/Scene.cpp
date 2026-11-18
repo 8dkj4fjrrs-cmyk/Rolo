@@ -537,13 +537,23 @@ bool Scene::restore(const EntitySnapshot& snapshot, EntityId parent, std::size_t
 
 EntitySnapshot Scene::withNewIds(const EntitySnapshot& snapshot)
 {
+    return withIds(snapshot, {});
+}
+
+EntitySnapshot Scene::withIds(const EntitySnapshot& snapshot, const std::unordered_map<EntityId, EntityId>& ids)
+{
     EntitySnapshot copy;
     copy.index = snapshot.index;
     std::unordered_map<EntityId, EntityId> remap;
     for (const auto& item : snapshot.items) {
+        if (const auto given = ids.find(item.id); given != ids.end()) {
+            remap[item.id] = given->second;
+            continue;
+        }
         EntityId fresh = newId();
         // Also avoid IDs given out earlier in this copy.
-        while (std::any_of(remap.begin(), remap.end(), [&](const auto& kv) { return kv.second == fresh; })) {
+        while (std::any_of(remap.begin(), remap.end(), [&](const auto& kv) { return kv.second == fresh; })
+               || std::any_of(ids.begin(), ids.end(), [&](const auto& kv) { return kv.second == fresh; })) {
             fresh = newId();
         }
         remap[item.id] = fresh;

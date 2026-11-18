@@ -35,6 +35,7 @@ public:
     std::string displayName() const;
     /// True if there are changes that are not saved.
     bool isDirty() const noexcept { return !m_history.isClean(); }
+    void markDirty() noexcept { m_history.markDirty(); }
 
     bool execute(std::unique_ptr<Command> command);
     bool undo();

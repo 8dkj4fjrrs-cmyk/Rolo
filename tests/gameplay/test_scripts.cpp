@@ -1768,3 +1768,77 @@ TEST_CASE("Colours, points and objects reach self, and a copy's objects are its 
     CHECK(said("object() takes nothing"));
     CHECK(has("maker.lua: false\t#fffffff0"));
 }
+
+// --- Linked copies of prefabs in a game (ADR 0035) ---------------------------------------------------------
+
+TEST_CASE("A scene's linked copies of a prefab play as ordinary objects, each with its own parts",
+          "[gameplay][script][prefab][linked]")
+{
+    ScriptProject p;
+    const AssetId tank = p.write("scripts/tank.lua", R"(
+        properties = { turret = object(), speed = 10 }
+        function start(self)
+            local x = self.object:position()
+            print(self.object:name() .. " at " .. x .. " speed " .. self.speed .. " own turret: "
+                  .. tostring(self.turret ~= nil and self.turret:parent() == self.object))
+        end
+    )");
+    ComponentRegistry registry = ComponentRegistry::withBuiltins();
+    registerGameplayComponents(registry);
+
+    // The prefab: a Tank whose script points at its own Turret.
+    Scene workshop("Workshop", EntityIdGenerator(31));
+    const EntityId tankId = addScripted(workshop, "Tank", tank);
+    const EntityId turret = workshop.create("Turret", tankId)->id();
+    workshop.setProperty(tankId, "rolo.Script", "values", "{\"turret\":\"" + turret.toString() + "\"}");
+    const AssetId prefabId{0x7A4C};
+    const std::string prefabText = serializePrefab(workshop, tankId);
+    const PrefabTexts prefabs = [&](AssetId id) -> std::optional<std::string> {
+        return id == prefabId ? std::optional<std::string>(prefabText) : std::nullopt;
+    };
+
+    // A level with two copies; the second is faster and stands elsewhere.
+    Scene level("Level", EntityIdGenerator(32));
+    const SceneLoadResult prefab = parsePrefab(prefabText, registry);
+    REQUIRE(prefab.ok());
+    const EntitySnapshot first = linkedCopyOf(level, *prefab.scene, prefabId);
+    const EntitySnapshot second = linkedCopyOf(level, *prefab.scene, prefabId);
+    REQUIRE(level.restore(first, EntityId{}, 0));
+    REQUIRE(level.restore(second, EntityId{}, 1));
+    level.setProperty(second.rootId(), "rolo.Transform", "position", Vec2{300.0f, 0.0f});
+    level.rename(second.rootId(), "Fast Tank");
+    const std::string values = "{\"speed\":50,\"turret\":\"" + second.items[1].id.toString() + "\"}";
+    level.setProperty(second.rootId(), "rolo.Script", "values", values);
+
+    // Saved and read again, as a game reads it.
+    const std::string file = serializeScene(level, prefabs);
+    CHECK(file.find("Turret") == std::string::npos);
+    // The second copy's own speed is there; that its turret is its own Turret is the prefab's doing, and is not.
+    CHECK(file.find("\"speed\": 50") != std::string::npos);
+    CHECK(file.find("\"turret\"") == std::string::npos);
+    const SceneLoadResult read = parseScene(file, registry, prefabs);
+    REQUIRE(read.ok());
+    CHECK(read.warningCount() == 0);
+
+    // The prefab's speed changes later: the copy with its own speed keeps it, the other follows.
+    workshop.setProperty(tankId, "rolo.Script", "values", "{\"speed\":20,\"turret\":\"" + turret.toString() + "\"}");
+    const std::string faster = serializePrefab(workshop, tankId);
+    const PrefabTexts later = [&](AssetId id) -> std::optional<std::string> {
+        return id == prefabId ? std::optional<std::string>(faster) : std::nullopt;
+    };
+    const SceneLoadResult followed = parseScene(file, registry, later);
+    REQUIRE(followed.ok());
+    const DataValues firstValues = parseDataValues(followed.scene->find(first.rootId())->get<Script>()->values);
+    const DataValues secondValues = parseDataValues(followed.scene->find(second.rootId())->get<Script>()->values);
+    CHECK(std::get<double>(firstValues.at("speed")) == 20.0);
+    CHECK(std::get<double>(secondValues.at("speed")) == 50.0);
+    CHECK(std::get<std::string>(secondValues.at("turret")) == second.items[1].id.toString());
+
+    Game game(p.log, &p.assets);
+    game.start(*read.scene);
+    frames(game, 2);
+    CHECK(p.problems.empty());
+    REQUIRE(p.printed.size() == 2);
+    CHECK(p.printed[0] == "scripts/tank.lua: Tank at 0 speed 10 own turret: true");
+    CHECK(p.printed[1] == "scripts/tank.lua: Fast Tank at 300 speed 50 own turret: true");
+}

@@ -66,8 +66,14 @@ and AI assistants.
 - Scenes refer to project files by `AssetId`, never by path; files reach the runtime only through `AssetDatabase` (`engine/assets`). Games open it read-only. `engine/scene` and `engine/assets` stay free of Axmol so they are tested in every preset.
 - Prefabs (ADR 0033): a `.lprefab` file is a scene file under another name holding one object
   (`parsePrefab`, `serializePrefab`); its version is the scene format's, so an upgrade step for scenes
-  is one for prefabs. What is placed from a prefab is a plain copy (`PlaceObject`); games get a prefab's
-  object through their scene loader (`GameSetup::loadScene`) and copy it with `Game::clone`.
+  is one for prefabs. Games get a prefab's object through their scene loader (`GameSetup::loadScene`)
+  and copy it with `Game::clone`.
+  Linked copies (ADR 0035): an object placed from a prefab is written in its scene as a link and its
+  differences, and is turned back into ordinary objects when the scene is read
+  (`expandLinkedCopies`, `linkedCopyJson` in `SceneFile.cpp`); nothing outside scene files and
+  `editor/model/Prefabs.*` may treat such an object specially. Everything that reads or writes scene
+  files must be given the project's prefabs (`prefabTextsOf`), or links are read as stand-ins and
+  written out in full. A prefab's objects keep their IDs for ever (`prefabTextFromCopy`).
 - File formats (`docs/formats/`) are versioned: changing one means bumping its version, adding an upgrade step and a test with an old file.
 - No global mutable state. Pass `Engine&` / `Logger&` explicitly.
 - Ownership: RAII and `std::unique_ptr` by default; raw pointers only as non-owning observers.

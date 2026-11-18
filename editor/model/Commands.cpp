@@ -242,6 +242,67 @@ void PlaceObject::revert(Scene& scene)
     scene.remove(m_copy.rootId());
 }
 
+// --- SetPrefabLinks / ReplaceObject ------------------------------------------------------------------
+
+SetPrefabLinks::SetPrefabLinks(std::vector<std::pair<EntityId, PrefabLink>> links, std::string label)
+    : m_links(std::move(links))
+    , m_label(std::move(label))
+{
+}
+
+bool SetPrefabLinks::apply(Scene& scene)
+{
+    m_before.clear();
+    for (const auto& [id, link] : m_links) {
+        if (const Entity* e = scene.find(id)) {
+            m_before.emplace_back(id, e->prefabLink());
+        }
+    }
+    if (m_before.empty()) {
+        return false;
+    }
+    for (const auto& [id, link] : m_links) {
+        scene.setPrefabLink(id, link);
+    }
+    return true;
+}
+
+void SetPrefabLinks::revert(Scene& scene)
+{
+    for (const auto& [id, link] : m_before) {
+        scene.setPrefabLink(id, link);
+    }
+}
+
+ReplaceObject::ReplaceObject(EntityId id, EntitySnapshot replacement, std::string label)
+    : m_id(id)
+    , m_replacement(std::move(replacement))
+    , m_label(std::move(label))
+{
+}
+
+bool ReplaceObject::apply(Scene& scene)
+{
+    const Entity* entity = scene.find(m_id);
+    if (entity == nullptr || m_replacement.empty()) {
+        return false;
+    }
+    m_parent = entity->parent();
+    m_before = scene.capture(m_id);
+    scene.remove(m_id);
+    if (!scene.restore(m_replacement, m_parent, m_before.index)) {
+        scene.restore(m_before, m_parent, m_before.index);   // (IDs taken elsewhere: leave things as they were)
+        return false;
+    }
+    return true;
+}
+
+void ReplaceObject::revert(Scene& scene)
+{
+    scene.remove(m_replacement.rootId());
+    scene.restore(m_before, m_parent, m_before.index);
+}
+
 // --- RenameEntity / SetEntityActive ------------------------------------------------------------------
 
 RenameEntity::RenameEntity(EntityId id, std::string name)

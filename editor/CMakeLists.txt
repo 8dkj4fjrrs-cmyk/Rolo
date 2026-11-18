@@ -15,6 +15,7 @@ add_library(rolo_editor_core STATIC
     model/AndroidExport.cpp
     model/CommandLine.cpp
     model/Commands.cpp
+    model/Prefabs.cpp
     model/ConsoleLog.cpp
     model/EditorPaths.cpp
     model/EditorState.cpp

@@ -3,6 +3,7 @@
 #include "Exporting.hpp"
 
 #include "../model/EditorPaths.hpp"
+#include "../model/Prefabs.hpp"
 
 #include "rolo/core/Version.hpp"
 #include "rolo/gameplay/Components.hpp"
@@ -304,15 +305,16 @@ void EditorApp::placeAsset(AssetId id, Vec2 worldPosition)
         components.push_back(std::move(map));
         m_tileLayer = 0;
     } else if (asset->type == AssetType::Prefab) {
-        // A copy of the prefab's object. (A copy: it does not follow the
-        // prefab when that is changed later. ADR 0033.)
+        // A linked copy of the prefab's object: it follows the prefab, and
+        // the scene keeps only what the copy changes (ADR 0035).
         SceneLoadResult prefab = loadPrefabFile(m_assetDb->absolutePath(*asset), m_registry);
         reportIssues(m_assetDb->absolutePath(*asset), prefab.issues);
         if (!prefab.ok()) {
             showMessage("Cannot Place This Prefab", asset->fileName() + " could not be read: " + prefab.firstError());
             return;
         }
-        auto place = std::make_unique<PlaceObject>(prefab.scene->capture(prefab.scene->roots().front()),
+        Scene scratch(m_document->scene());   // (only to make the snapshot; PlaceObject gives it its IDs)
+        auto place = std::make_unique<PlaceObject>(linkedCopyOf(scratch, *prefab.scene, asset->id),
                                                    Vec2{std::round(worldPosition.x), std::round(worldPosition.y)});
         PlaceObject* placed = place.get();
         if (execute(std::move(place))) {
@@ -883,27 +885,127 @@ void EditorApp::savePrefabFromSelection()
     if (name.empty()) {
         name = "Prefab";
     }
+    // Always a new file (a name that is taken gets a number): an existing
+    // prefab is changed with Apply to Prefab, which its other copies survive.
     const std::string text = serializePrefab(m_document->scene(), id);
-    const std::string path = "prefabs/" + name + std::string(PrefabFormat::kExtension);
-    m_assetDb->refresh();
-    if (const AssetRecord* existing = m_assetDb->findByPath(path)) {
-        const AssetId prefab = existing->id;
-        if (const Status status = m_assetDb->writeText(prefab, text); !status.ok) {
-            showMessage("Could Not Save the Prefab", status.message);
-            return;
-        }
-        log().info(kCategory, "Updated the prefab " + path + " from '" + object->name()
-                                  + "'. Copies already placed in scenes stay as they are.");
-        refreshAssets();
+    std::string error;
+    const auto prefab = m_assetDb->createTextAsset("prefabs", name, PrefabFormat::kExtension, text, &error);
+    if (!prefab) {
+        showMessage("Could Not Save the Prefab", error);
         return;
     }
+    const std::string path = m_assetDb->find(*prefab)->path;
+    const std::string objectName = object->name();
+    // The object it was made from follows the new prefab from now on.
+    execute(std::make_unique<SetPrefabLinks>(linksAfterSaving(m_document->scene(), id, *prefab), "Save as Prefab"));
+    endEdit();
+    refreshAssets();
+    std::string stem = path.substr(path.rfind('/') + 1);
+    stem = stem.substr(0, stem.rfind('.'));
+    log().info(kCategory, "Saved '" + objectName + "' as the prefab " + path
+                              + "; this object is now a copy that follows it. Drag the prefab into a scene for "
+                                "more copies, or make them in a game with game.spawn(\"" + stem + "\", x, y).");
+}
+
+void EditorApp::applyToPrefab(EntityId id)
+{
+    const Entity* copy = m_document->scene().find(id);
+    if (copy == nullptr || !copy->isPrefabCopy() || !m_assetDb) {
+        return;
+    }
+    const AssetId asset = copy->prefabLink().prefab;
+    const AssetRecord* record = m_assetDb->find(asset);
+    const auto oldText = record != nullptr && record->type == AssetType::Prefab ? m_assetDb->readText(asset) : std::nullopt;
+    if (!oldText || !copy->prefabLink().kept.empty()) {
+        showMessage("The Prefab Is Missing", "This copy's prefab file is not in the project, so there is nothing to "
+                                             "apply it to. Choose Unlink to keep the object as an ordinary one.");
+        return;
+    }
+    const std::string name = copy->name();
+    const std::string path = record->path;
+    const std::string newText = prefabTextFromCopy(m_document->scene(), id, *oldText, m_registry);
+    if (newText == *oldText) {
+        log().info(kCategory, "'" + name + "' is as its prefab " + path + " has it: nothing to apply.");
+        return;
+    }
+    // The scene as it will be is worked out first, so that a failure leaves
+    // the file and the scene alone.
     std::string error;
-    if (const auto prefab = m_assetDb->createTextAsset("prefabs", name, PrefabFormat::kExtension, text, &error)) {
-        log().info(kCategory, "Saved '" + object->name() + "' as the prefab " + m_assetDb->find(*prefab)->path
-                                  + ". Drag it into a scene, or copy it in a game with game.spawn(\"" + name + "\", x, y).");
-        refreshAssets();
-    } else {
-        showMessage("Could Not Save the Prefab", error);
+    std::optional<Scene> after =
+        sceneAfterApply(m_document->scene(), id, asset, *oldText, newText, m_registry, prefabTexts(), error);
+    if (!after) {
+        showMessage("Could Not Apply to the Prefab", error);
+        return;
+    }
+    std::size_t others = 0;
+    after->forEach([&](const Entity& e, int) {
+        others += e.id() != id && e.prefabLink().prefab == asset ? 1u : 0u;
+    });
+    if (const Status status = m_assetDb->writeText(asset, newText); !status.ok) {
+        showMessage("Could Not Apply to the Prefab", status.message);
+        return;
+    }
+    // The scene is a new one (every copy was made again from the new
+    // prefab), so its undo history starts afresh.
+    const std::filesystem::path scenePath = m_document->path();
+    setDocument(std::make_unique<SceneDocument>(std::move(*after), scenePath));
+    m_document->markDirty();
+    select(id);
+    refreshAssets();
+    log().info(kCategory, "Applied '" + name + "' to the prefab " + path + ". "
+                              + (others == 0 ? std::string("No other copy is in this scene.")
+                                             : std::to_string(others) + (others == 1 ? " other copy" : " other copies")
+                                                   + " in this scene follow" + (others == 1 ? "s" : "") + ".")
+                              + " Copies in other scenes follow when those scenes are opened. "
+                                "(This scene's undo history starts afresh.)");
+}
+
+void EditorApp::resetToPrefab(EntityId id)
+{
+    const Entity* copy = m_document->scene().find(id);
+    if (copy == nullptr || !copy->isPrefabCopy() || !m_assetDb) {
+        return;
+    }
+    const AssetRecord* record = m_assetDb->find(copy->prefabLink().prefab);
+    SceneLoadResult prefab = record != nullptr && record->type == AssetType::Prefab
+                                 ? loadPrefabFile(m_assetDb->absolutePath(*record), m_registry)
+                                 : SceneLoadResult{};
+    if (!prefab.ok()) {
+        showMessage("The Prefab Is Missing", "This copy's prefab file cannot be read, so there is nothing to reset it to.");
+        return;
+    }
+    // (New IDs come from a scene; a scratch copy keeps the open one untouched until the command runs.)
+    Scene scratch(m_document->scene());
+    EntitySnapshot fresh = copyReset(scratch, id, *prefab.scene);
+    if (execute(std::make_unique<ReplaceObject>(id, std::move(fresh), "Reset to Prefab"))) {
+        endEdit();
+        select(id);
+    }
+}
+
+void EditorApp::unlinkFromPrefab(EntityId id)
+{
+    const Scene& scene = m_document->scene();
+    const Entity* copy = scene.find(id);
+    if (copy == nullptr || !copy->isPrefabCopy()) {
+        return;
+    }
+    std::vector<std::pair<EntityId, PrefabLink>> none{{id, PrefabLink{}}};
+    for (const auto& [member, inPrefab] : prefabCopyMembers(scene, id)) {
+        if (member != id) {
+            none.emplace_back(member, PrefabLink{});
+        }
+    }
+    // (A stand-in for a missing prefab has stand-ins inside it, too.)
+    for (const EntityId child : copy->children()) {
+        const Entity* c = scene.find(child);
+        if (c != nullptr && !c->prefabLink().none()
+            && std::none_of(none.begin(), none.end(), [child](const auto& l) { return l.first == child; })) {
+            none.emplace_back(child, PrefabLink{});
+        }
+    }
+    if (execute(std::make_unique<SetPrefabLinks>(std::move(none), "Unlink from Prefab"))) {
+        endEdit();
     }
 }
 

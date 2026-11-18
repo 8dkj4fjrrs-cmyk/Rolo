@@ -258,6 +258,9 @@ public:
     bool restore(const EntitySnapshot& snapshot, EntityId parent, std::size_t index);
     /// A copy of `snapshot` with fresh IDs (for duplicating).
     EntitySnapshot withNewIds(const EntitySnapshot& snapshot);
+    /// The same, with the IDs in `ids` (old to new) for the objects it
+    /// names, and new ones for the rest.
+    EntitySnapshot withIds(const EntitySnapshot& snapshot, const std::unordered_map<EntityId, EntityId>& ids);
 
     // --- Geometry --------------------------------------------------------------------------
     /// The entity's transform in world coordinates (parents included).

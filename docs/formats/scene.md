@@ -2,7 +2,8 @@
 
 Rolo saves projects and scenes as UTF-8 JSON text. The files are meant to
 be readable, to diff cleanly in version control, and to keep working when
-Rolo changes. This page describes format **version 1** of each.
+Rolo changes. This page describes format **version 1** of each, and
+**version 2** of scenes, which adds [linked copies of prefabs](#a-linked-copy-of-a-prefab).
 
 Code: `engine/scene` (`SceneFile.hpp`, `Project.hpp`). Design reasons:
 [ADR 0005](../adr/0005-scenes-and-serialization.md).
@@ -300,6 +301,57 @@ is, under another format name and without the scene's `name` and
   upgrade steps are applied to both kinds of file.
 - The IDs are the object's own. Putting a prefab into a scene, in the
   editor or with `game.spawn`, gives the copy new IDs.
+- A prefab file holds no linked copies: one inside the object is written
+  into it in full.
+
+### A linked copy of a prefab
+
+*Scene format version 2* ([ADR 0035](../adr/0035-linked-copies-of-prefabs.md)).
+An object placed from a prefab in the editor is written in the scene's
+`entities` as a link and what the copy changed, in place of the objects
+themselves:
+
+```json
+{
+  "id": "9f1fcc32c40069a8",
+  "prefab": "8a506a6de0387cc9",
+  "parent": "504c010000000001",
+  "name": "Red Cloud",
+  "components": [
+    { "type": "rolo.Transform", "position": [640, 360] },
+    { "type": "rolo.Shape", "color": "#ff0000ff" },
+    { "type": "rolo.Script", "values": { "$changed": { "speed": 50 } } }
+  ],
+  "removedComponents": ["rolo.Collider"],
+  "objects": [
+    { "from": "504c010000000003", "id": "4372aa708148f43a", "active": false }
+  ],
+  "removed": ["504c010000000004"]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id`, `parent` | as for any entity: the copy's top object |
+| `prefab` | the prefab file's asset ID |
+| `name`, `active` | only if the copy's differ from the prefab's |
+| `components` | per component, only the keys whose values differ. A component the prefab does not have is written whole. `"$unset": ["key"]` lists keys the prefab has and the copy has not. Named values (a Script's `values`) are compared name by name: `{ "$changed": { name: value }, "$unset": [names] }` |
+| `removedComponents` | types of components the prefab has and the copy has not |
+| `objects` | the objects inside, one entry each: `from` is the object's ID in the prefab file, `id` its ID in this scene, then `name`, `active`, `components`, `removedComponents` as above |
+| `removed` | IDs (in the prefab file) of objects the copy does not have. What is inside a removed object is gone with it |
+
+- Objects the copy has that the prefab has not are ordinary entities
+  further down the list, with a `parent` that is one of the copy's IDs.
+- **Reading:** the prefab's entities are taken, given this scene's IDs,
+  and the changes laid over them; from then on they are ordinary
+  objects. An object of the prefab without an entry in `objects` (the
+  prefab gained it since) gets an ID worked out from the copy's `id` and
+  its own, the same on every reading.
+- **If the prefab cannot be read,** the copy is read as an empty
+  stand-in (with a warning) and written back exactly as it was.
+- **Version:** a scene is written as version 2 only if it holds a linked
+  copy; otherwise as version 1, which older Rolo reads. A version 1 file
+  is a valid version 2 file, so its upgrade step changes nothing.
 
 ## Asset IDs (`.meta` files)
 

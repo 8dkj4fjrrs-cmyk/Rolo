@@ -104,6 +104,13 @@ public:
     virtual void createEntity(NewEntityKind kind, bool asChildOfSelection) = 0;
     virtual void deleteSelection() = 0;
     virtual void duplicateSelection() = 0;
+    /// Linked copies of prefabs (ADR 0035), for the copy whose top object is `id`:
+    /// makes the prefab what this copy is now (every other copy follows);
+    virtual void applyToPrefab(EntityId id) = 0;
+    /// gives the copy back as the prefab has it, where it stands;
+    virtual void resetToPrefab(EntityId id) = 0;
+    /// makes it an ordinary object.
+    virtual void unlinkFromPrefab(EntityId id) = 0;
     virtual void renameSelection() = 0;
     virtual void openScene(const std::filesystem::path& path) = 0;
     virtual void newScene() = 0;

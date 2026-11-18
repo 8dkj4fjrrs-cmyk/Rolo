@@ -158,6 +158,9 @@ void HierarchyPanel::rebuild()
         item.label = e.name().empty() ? "(unnamed)" : e.name();
         item.hasChildren = !e.children().empty();
         item.dimmed = !on;
+        if (e.isPrefabCopy()) {
+            item.icon = ui::Icon::Layers;   // a linked copy of a prefab
+        }
         items.push_back(std::move(item));
     });
     m_tree->setEmptyText(m_filter.empty() ? "The scene is empty." : "No objects match “" + m_filter + "”.");

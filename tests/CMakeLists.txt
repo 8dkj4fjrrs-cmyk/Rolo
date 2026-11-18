@@ -31,6 +31,7 @@ add_executable(rolo_tests
     ui/test_ui_widgets.cpp
     ui/test_ui_inspector.cpp
     editor/test_commands.cpp
+    editor/test_prefabs.cpp
     editor/test_resources.cpp
     editor/test_export.cpp
     editor/test_android_export.cpp

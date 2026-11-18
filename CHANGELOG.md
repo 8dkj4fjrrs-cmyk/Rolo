@@ -5,6 +5,16 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Prefabs, step 2: copies follow their prefab**
+  ([ADR 0035](docs/adr/0035-linked-copies-of-prefabs.md)). An object
+  placed from a prefab is a linked copy; its Inspector has **Apply to
+  Prefab** (every other copy follows, keeping its own changes),
+  **Reset** and **Unlink**. Scene files hold a linked copy as a link and
+  its differences (scene format version 2, written only for scenes that
+  have one; version 1 files open unchanged).
+- Changed: **Edit › Save as Prefab** always makes a new prefab file and
+  links the object to it; it no longer replaces a prefab of the same
+  name.
 - **Script properties can be colours, points and other objects**
   ([ADR 0034](docs/adr/0034-more-kinds-of-property.md)):
   `tint = color("#ffb84d")`, `goal = vector.create(300, 120)` and

@@ -80,10 +80,13 @@ public:
     void createEntity(NewEntityKind kind, bool asChildOfSelection) override;
     void deleteSelection() override;
     void duplicateSelection() override;
-    /// Writes the selected object (and what is inside it) as a prefab file
-    /// in the project's "prefabs" folder, named after the object; a prefab
-    /// of that name there is replaced (ADR 0033).
+    /// Writes the selected object (and what is inside it) as a new prefab
+    /// file in the project's "prefabs" folder, named after the object, and
+    /// makes the object a linked copy of it (ADR 0033, ADR 0035).
     void savePrefabFromSelection();
+    void applyToPrefab(EntityId id) override;
+    void resetToPrefab(EntityId id) override;
+    void unlinkFromPrefab(EntityId id) override;
     /// The project's prefabs, for reading and writing scenes with linked copies.
     PrefabTexts prefabTexts() const { return m_assetDb ? prefabTextsOf(*m_assetDb) : PrefabTexts{}; }
     void renameSelection() override;

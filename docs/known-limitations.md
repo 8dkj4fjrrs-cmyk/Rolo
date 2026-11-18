@@ -138,11 +138,14 @@ Please report what you find.
 - Scenes cannot be renamed, and folders cannot be created, in the editor.
   Use your file manager; the editor notices.
 - One object can be selected at a time.
-- [Prefabs](editor.md#prefabs-an-object-kept-as-a-file) (objects kept as
-  files) are patterns to copy: what is placed in a scene from one does
-  **not** follow the prefab when it changes later. A prefab cannot be
-  opened on its own (change a copy and save it again), and saving over
-  one of the same name does not ask and cannot be undone.
+- [Prefabs](editor.md#prefabs-an-object-kept-as-a-file): copies follow
+  their prefab, but the Inspector does not show which fields are a
+  copy's own, and one field cannot be reset alone. A prefab cannot hold
+  a linked copy of another prefab (it is written into it in full), and
+  cannot be opened on its own (change a copy and Apply). Apply to Prefab
+  cannot be undone and clears the open scene's undo history. Inside a
+  copy, the prefab's objects come before the ones you added. Exporting
+  warns about a scene whose prefab is missing but does not refuse it.
 - Dialogue is edited as forms in the Inspector, with one-line text fields.
   There is no visual dialogue graph.
 - No timeline animation: flipbook clips only (see the [roadmap](roadmap.md)).

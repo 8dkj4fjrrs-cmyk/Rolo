@@ -95,6 +95,7 @@ std::string InspectorPanel::signature() const
         return sig + "none";
     }
     sig += e->id().toString();
+    sig += e->isPrefabCopy() ? "|copy" + e->prefabLink().prefab.toString() + e->prefabLink().kept.substr(0, 1) : std::string();
     for (const auto& c : e->components()) {
         sig += "|" + componentTypeId(*c);
     }
@@ -391,6 +392,33 @@ void InspectorPanel::buildEntity(ui::Column& content, const Entity& entity)
             name.setText(e->name());
         }
     });
+
+    // A linked copy of a prefab says so, and offers what can be done with the link.
+    if (entity.isPrefabCopy()) {
+        const AssetDatabase* db = m_editor.assets();
+        const AssetRecord* prefab = db != nullptr ? db->find(entity.prefabLink().prefab) : nullptr;
+        const bool missing = prefab == nullptr || !entity.prefabLink().kept.empty();
+        auto& section = content.emplace<ui::Section>("Prefab");
+        auto& about = section.body().emplace<ui::Label>(
+            missing ? std::string("A copy of a prefab that is not in the project. It is kept as it was in the scene "
+                                  "file; put the prefab file back and open the scene again, or Unlink to make this "
+                                  "an ordinary object.")
+                    : "A copy of " + prefab->path + ". It follows the prefab in everything you have not changed here.",
+            ui::Label::Style::Small);
+        about.setWrap(true);
+        if (missing) {
+            about.setColor(ui::Color::hex(0xF2B45A));
+        }
+        auto& buttons = section.body().emplace<ui::Row>(6.0f, ui::Insets{0.0f, 6.0f, 0.0f, 4.0f});
+        if (!missing) {
+            buttons.emplace<ui::Button>("Apply to Prefab", [this, id] { m_editor.applyToPrefab(id); })
+                .setTooltip("Makes the prefab what this copy is now. Every other copy follows, keeping its own changes");
+            buttons.emplace<ui::Button>("Reset", [this, id] { m_editor.resetToPrefab(id); })
+                .setTooltip("Drops this copy's own changes: it becomes what the prefab is, where it stands");
+        }
+        buttons.emplace<ui::Button>("Unlink", [this, id] { m_editor.unlinkFromPrefab(id); })
+            .setTooltip("Makes this an ordinary object that no longer follows the prefab");
+    }
 
     for (const auto& component : entity.components()) {
         buildComponent(content, entity, *component);
@@ -1331,7 +1359,7 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
             auto& how = content.emplace<ui::Label>(
                 "Drag it into the Scene view to put a copy into the scene. A script makes copies while the game "
                 "runs with game.spawn(\"" + stem + "\", x, y). To change the prefab, change a copy in a scene and "
-                "choose Edit › Save as Prefab again: copies already placed stay as they are.",
+                "click Apply to Prefab in its Inspector: every copy follows, keeping its own changes.",
                 ui::Label::Style::Small);
             how.setWrap(true);
         } else {
