@@ -301,3 +301,266 @@ TEST_CASE("Prefab files that are not prefabs are refused, saying why", "[scene][
     const std::string noFormat = "{\"format\": 3, \"version\": 1, \"entities\": []}";
     CHECK_FALSE(parsePrefab(noFormat, registry()).ok());
 }
+
+// --- Linked copies of prefabs (ADR 0035) --------------------------------------------------------------
+
+namespace {
+
+const AssetId kBulletPrefab{0xB0B0};
+
+// A project's prefabs for the reader and writer: here, one text that tests change.
+struct OnePrefab {
+    std::string text;
+    bool there = true;
+    PrefabTexts texts()
+    {
+        return [this](AssetId id) -> std::optional<std::string> {
+            return there && id == kBulletPrefab ? std::optional<std::string>(text) : std::nullopt;
+        };
+    }
+};
+
+// The prefab used below: Bullet (a Shape) with a Glow and a Trail inside.
+Scene bulletWorkshop(EntityId& bullet, EntityId& glow, EntityId& trail)
+{
+    Scene workshop("Workshop", EntityIdGenerator(77));
+    bullet = workshop.create("Bullet")->id();
+    workshop.addComponent(bullet, std::make_unique<Shape>());
+    workshop.setProperty(bullet, "rolo.Shape", "size", Vec2{8.0f, 4.0f});
+    glow = workshop.create("Glow", bullet)->id();
+    workshop.addComponent(glow, std::make_unique<Shape>());
+    trail = workshop.create("Trail", bullet)->id();
+    return workshop;
+}
+
+// Puts a linked copy of the prefab text into the scene, as the editor does.
+EntityId placeLinked(Scene& scene, const std::string& prefabText)
+{
+    const SceneLoadResult prefab = parsePrefab(prefabText, registry());
+    REQUIRE(prefab.ok());
+    const EntitySnapshot copy = linkedCopyOf(scene, *prefab.scene, kBulletPrefab);
+    REQUIRE(scene.restore(copy, EntityId{}, scene.roots().size()));
+    return copy.rootId();
+}
+
+const Entity* childNamed(const Scene& scene, EntityId parent, const std::string& name)
+{
+    for (const EntityId id : scene.find(parent)->children()) {
+        if (scene.find(id)->name() == name) {
+            return scene.find(id);
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
+TEST_CASE("A linked copy of a prefab is written as a link and read back whole", "[scene][file][linked]")
+{
+    EntityId bullet, glow, trail;
+    const Scene workshop = bulletWorkshop(bullet, glow, trail);
+    OnePrefab prefabs{serializePrefab(workshop, bullet)};
+
+    Scene scene("Level", EntityIdGenerator(5));
+    scene.create("Floor");
+    const EntityId copy = placeLinked(scene, prefabs.text);
+    CHECK(scene.find(copy)->isPrefabCopy());
+    CHECK(scene.find(copy)->prefabLink().source == bullet);
+    CHECK(copy != bullet);
+
+    const std::string text = serializeScene(scene, prefabs.texts());
+    CHECK(text.find("\"version\": 2") != std::string::npos);
+    CHECK(text.find("\"prefab\": \"" + kBulletPrefab.toString() + "\"") != std::string::npos);
+    CHECK(text.find("\"from\": \"" + glow.toString() + "\"") != std::string::npos);
+    // Nothing of the prefab's own is repeated in the scene.
+    CHECK(text.find("Glow") == std::string::npos);
+    CHECK(text.find("rolo.Shape") == std::string::npos);
+    CHECK(text.find("\"components\": [") == text.rfind("\"components\": ["));   // only the Floor's
+
+    const SceneLoadResult back = parseScene(text, registry(), prefabs.texts());
+    REQUIRE(back.ok());
+    CHECK(back.warningCount() == 0);
+    REQUIRE(back.scene->size() == 4);
+    const Entity* root = back.scene->find(copy);
+    REQUIRE(root != nullptr);
+    CHECK(root->name() == "Bullet");
+    CHECK(root->prefabLink().prefab == kBulletPrefab);
+    CHECK(root->get<Shape>()->size == Vec2{8.0f, 4.0f});
+    REQUIRE(root->children().size() == 2);
+    // The same IDs as before: other objects and saved games refer to them.
+    CHECK(root->children() == scene.find(copy)->children());
+    CHECK(back.scene->find(root->children()[0])->prefabLink().source == glow);
+    CHECK(serializeScene(*back.scene, prefabs.texts()) == text);
+
+    // A scene without linked copies is a version 1 file still.
+    Scene plain("Plain", EntityIdGenerator(6));
+    plain.create("Floor");
+    CHECK(serializeScene(plain, prefabs.texts()).find("\"version\": 1") != std::string::npos);
+    // Written without the project's prefabs at hand, a copy is written in full, as ordinary objects.
+    const std::string full = serializeScene(scene);
+    CHECK(full.find("\"version\": 1") != std::string::npos);
+    CHECK(full.find("Glow") != std::string::npos);
+    CHECK(full.find("\"prefab\"") == std::string::npos);
+}
+
+TEST_CASE("A linked copy keeps its own changes and follows the prefab in everything else", "[scene][file][linked]")
+{
+    EntityId bullet, glow, trail;
+    Scene workshop = bulletWorkshop(bullet, glow, trail);
+    OnePrefab prefabs{serializePrefab(workshop, bullet)};
+
+    Scene scene("Level", EntityIdGenerator(5));
+    const EntityId copy = placeLinked(scene, prefabs.text);
+    const EntityId copyGlow = childNamed(scene, copy, "Glow")->id();
+    const EntityId copyTrail = childNamed(scene, copy, "Trail")->id();
+    // The copy's own: a place, a name, a colour, a component more and one less, something inside, something gone.
+    scene.setProperty(copy, "rolo.Transform", "position", Vec2{40.0f, 8.0f});
+    scene.rename(copy, "Red Bullet");
+    scene.setProperty(copy, "rolo.Shape", "color", Color{255, 0, 0, 255});
+    scene.addComponent(copy, std::make_unique<Collider>());
+    scene.setActive(copyGlow, false);
+    scene.removeComponent(copyGlow, "rolo.Shape");
+    const EntityId spark = scene.create("Spark", copyGlow)->id();
+    scene.remove(copyTrail);
+
+    const std::string text = serializeScene(scene, prefabs.texts());
+    CHECK(text.find("\"removed\"") != std::string::npos);
+    CHECK(text.find("\"removedComponents\"") != std::string::npos);
+    CHECK(text.find("\"filled\"") == std::string::npos);   // what the Shape has from the prefab is not written
+
+    {
+        const SceneLoadResult back = parseScene(text, registry(), prefabs.texts());
+        REQUIRE(back.ok());
+        CHECK(back.warningCount() == 0);
+        CHECK(serializeScene(*back.scene, prefabs.texts()) == text);
+        CHECK(back.scene->size() == 3);
+    }
+
+    // The prefab changes: bigger, the Glow renamed and moved, the Trail too, and a Flash more.
+    workshop.setProperty(bullet, "rolo.Shape", "size", Vec2{16.0f, 8.0f});
+    workshop.setProperty(bullet, "rolo.Shape", "color", Color{0, 255, 0, 255});
+    workshop.setProperty(bullet, "rolo.Transform", "position", Vec2{-5.0f, -5.0f});
+    workshop.rename(glow, "Halo");
+    workshop.setProperty(glow, "rolo.Transform", "position", Vec2{1.0f, 2.0f});
+    const EntityId flash = workshop.create("Flash", bullet)->id();
+    prefabs.text = serializePrefab(workshop, bullet);
+
+    const SceneLoadResult now = parseScene(text, registry(), prefabs.texts());
+    REQUIRE(now.ok());
+    const Scene& s = *now.scene;
+    const Entity* root = s.find(copy);
+    REQUIRE(root != nullptr);
+    CHECK(root->name() == "Red Bullet");                                    // its own
+    CHECK(root->transform().position == Vec2{40.0f, 8.0f});                 // its own
+    CHECK(root->get<Shape>()->color == Color{255, 0, 0, 255});              // its own
+    CHECK(root->get<Shape>()->size == Vec2{16.0f, 8.0f});                   // follows the prefab
+    CHECK(root->get<Collider>() != nullptr);                                // its own
+    const Entity* halo = s.find(copyGlow);
+    REQUIRE(halo != nullptr);
+    CHECK(halo->name() == "Halo");                                          // follows
+    CHECK(halo->transform().position == Vec2{1.0f, 2.0f});                  // follows
+    CHECK_FALSE(halo->isActive());                                          // its own
+    CHECK(halo->get<Shape>() == nullptr);                                   // its own
+    REQUIRE(s.find(spark) != nullptr);
+    CHECK(s.find(spark)->parent() == copyGlow);                             // what the copy put inside stays
+    CHECK(s.find(spark)->prefabLink().none());
+    CHECK(childNamed(s, copy, "Trail") == nullptr);                         // gone stays gone
+    const Entity* newFlash = childNamed(s, copy, "Flash");
+    REQUIRE(newFlash != nullptr);                                           // what the prefab gained arrives
+    CHECK(newFlash->prefabLink().source == flash);
+    // ...with the same ID every time the scene is read, until it is saved.
+    const SceneLoadResult again = parseScene(text, registry(), prefabs.texts());
+    CHECK(childNamed(*again.scene, copy, "Flash")->id() == newFlash->id());
+    CHECK(newFlash->id() != flash);
+
+    // Saved again and read again: the same scene.
+    const std::string saved = serializeScene(s, prefabs.texts());
+    const SceneLoadResult reread = parseScene(saved, registry(), prefabs.texts());
+    REQUIRE(reread.ok());
+    CHECK(serializeScene(*reread.scene, prefabs.texts()) == saved);
+    CHECK(childNamed(*reread.scene, copy, "Flash")->id() == newFlash->id());
+
+    // The prefab loses the Glow that the copy had put a Spark into: the Spark goes to the copy's top object.
+    workshop.remove(glow);
+    prefabs.text = serializePrefab(workshop, bullet);
+    const SceneLoadResult without = parseScene(text, registry(), prefabs.texts());
+    REQUIRE(without.ok());
+    CHECK(without.scene->find(copyGlow) == nullptr);
+    REQUIRE(without.scene->find(spark) != nullptr);
+    CHECK(without.scene->find(spark)->parent() == copy);
+}
+
+TEST_CASE("A copy whose prefab is missing is kept as it was, and comes back with the prefab", "[scene][file][linked]")
+{
+    EntityId bullet, glow, trail;
+    const Scene workshop = bulletWorkshop(bullet, glow, trail);
+    OnePrefab prefabs{serializePrefab(workshop, bullet)};
+    Scene scene("Level", EntityIdGenerator(5));
+    const EntityId copy = placeLinked(scene, prefabs.text);
+    scene.setProperty(copy, "rolo.Transform", "position", Vec2{40.0f, 8.0f});
+    const EntityId copyGlow = childNamed(scene, copy, "Glow")->id();
+    const EntityId spark = scene.create("Spark", copyGlow)->id();
+    const std::string text = serializeScene(scene, prefabs.texts());
+
+    prefabs.there = false;   // the prefab file was deleted
+    const SceneLoadResult missing = parseScene(text, registry(), prefabs.texts());
+    REQUIRE(missing.ok());   // the scene still opens
+    CHECK(mentions(missing, "copy of a prefab that could not be read"));
+    const Entity* standIn = missing.scene->find(copy);
+    REQUIRE(standIn != nullptr);
+    CHECK(standIn->transform().position == Vec2{40.0f, 8.0f});   // it stands where the copy stood
+    CHECK(missing.scene->find(spark) != nullptr);
+    // Saved like that, the file says what it said.
+    CHECK(serializeScene(*missing.scene, prefabs.texts()) == text);
+    // Read with no way to read prefabs at all (a tool that gives none): the same.
+    const SceneLoadResult blind = parseScene(text, registry());
+    REQUIRE(blind.ok());
+    CHECK(serializeScene(*blind.scene) == text);
+
+    prefabs.there = true;    // and it is back
+    const SceneLoadResult back = parseScene(serializeScene(*missing.scene, prefabs.texts()), registry(), prefabs.texts());
+    REQUIRE(back.ok());
+    CHECK(back.warningCount() == 0);
+    CHECK(back.scene->size() == 4);
+    CHECK(back.scene->find(copy)->get<Shape>() != nullptr);
+    CHECK(back.scene->find(spark)->parent() == copyGlow);
+
+    // A damaged prefab file is a missing one.
+    prefabs.text = "{ not json";
+    CHECK(mentions(parseScene(text, registry(), prefabs.texts()), "it is not a prefab file"));
+}
+
+TEST_CASE("Copies of a linked copy are linked copies, and older scene files still open", "[scene][file][linked]")
+{
+    EntityId bullet, glow, trail;
+    const Scene workshop = bulletWorkshop(bullet, glow, trail);
+    OnePrefab prefabs{serializePrefab(workshop, bullet)};
+    Scene scene("Level", EntityIdGenerator(5));
+    const EntityId first = placeLinked(scene, prefabs.text);
+    // Duplicate, as the editor does it.
+    const EntitySnapshot twin = scene.withNewIds(scene.capture(first));
+    REQUIRE(scene.restore(twin, EntityId{}, 1));
+    scene.setProperty(twin.rootId(), "rolo.Transform", "position", Vec2{9.0f, 9.0f});
+
+    const std::string text = serializeScene(scene, prefabs.texts());
+    const SceneLoadResult back = parseScene(text, registry(), prefabs.texts());
+    REQUIRE(back.ok());
+    CHECK(back.scene->size() == 6);
+    CHECK(back.scene->find(first)->isPrefabCopy());
+    CHECK(back.scene->find(twin.rootId())->isPrefabCopy());
+    CHECK(back.scene->find(twin.rootId())->transform().position == Vec2{9.0f, 9.0f});
+    CHECK(text.find("Glow") == std::string::npos);
+
+    // A version 1 file (before linked copies) reads as it always did, and is written as version 1.
+    const std::string old = "{\"format\": \"rolo.scene\", \"version\": 1, \"name\": \"Old\", \"entities\": ["
+                            "{\"id\": \"00000000000000a1\", \"name\": \"Rock\", \"active\": true, \"components\": []}]}";
+    const SceneLoadResult oldScene = parseScene(old, registry(), prefabs.texts());
+    REQUIRE(oldScene.ok());
+    CHECK(oldScene.warningCount() == 0);
+    CHECK(oldScene.scene->size() == 1);
+    CHECK(serializeScene(*oldScene.scene, prefabs.texts()).find("\"version\": 1") != std::string::npos);
+    // A file from a newer Rolo is refused.
+    std::string newer = old;
+    newer.replace(newer.find("\"version\": 1"), 12, "\"version\": 3");
+    CHECK(mentions(parseScene(newer, registry()), "newer version of Rolo"));
+}

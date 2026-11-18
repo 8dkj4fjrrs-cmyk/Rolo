@@ -63,7 +63,7 @@ ProjectCheck checkProject(const std::filesystem::path& folder, const ComponentRe
     for (const AssetRecord* scene : scenes) {
         SceneLoadResult loaded = scene->type == AssetType::Prefab
                                      ? loadPrefabFile(assets.absolutePath(*scene), registry)
-                                     : loadSceneFile(assets.absolutePath(*scene), registry);
+                                     : loadSceneFile(assets.absolutePath(*scene), registry, prefabTextsOf(assets));
         for (FileIssue& issue : loaded.issues) {
             if (issue.where.empty()) {
                 issue.where = scene->path;
@@ -122,7 +122,7 @@ std::vector<std::string> moduleComponentsUsed(const std::filesystem::path& folde
     for (const AssetRecord* scene : scenes) {
         const SceneLoadResult loaded = scene->type == AssetType::Prefab
                                            ? loadPrefabFile(assets.absolutePath(*scene), registry)
-                                           : loadSceneFile(assets.absolutePath(*scene), registry);
+                                           : loadSceneFile(assets.absolutePath(*scene), registry, prefabTextsOf(assets));
         if (!loaded.ok()) {
             continue;
         }

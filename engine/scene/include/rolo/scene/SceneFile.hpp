@@ -29,6 +29,7 @@
 #include "rolo/scene/Scene.hpp"
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -59,7 +60,7 @@ struct SceneLoadResult {
 
 namespace SceneFormat {
 inline constexpr std::string_view kName = "rolo.scene";
-inline constexpr int kVersion = 1;
+inline constexpr int kVersion = 2;
 inline constexpr std::string_view kExtension = ".lscene";
 } // namespace SceneFormat
 
@@ -79,15 +80,23 @@ inline constexpr int kVersion = SceneFormat::kVersion;
 inline constexpr std::string_view kExtension = ".lprefab";
 } // namespace PrefabFormat
 
+/// How the reader and writer get at prefab files: the text of the prefab
+/// with that ID, or nothing if the project has none (or it cannot be read).
+/// Scenes with linked copies (ADR 0035) need it; rolo/assets gives one for a
+/// project (prefabTextsOf). Without one, a scene's linked copies are read as
+/// stand-ins and written out as ordinary objects.
+using PrefabTexts = std::function<std::optional<std::string>(AssetId)>;
+
 /// Reads a scene from JSON text.
-SceneLoadResult parseScene(std::string_view json, const ComponentRegistry& registry);
+SceneLoadResult parseScene(std::string_view json, const ComponentRegistry& registry, const PrefabTexts& prefabs = {});
 /// Writes a scene as JSON text (2-space indented, short lists on one line,
 /// stable order, ends with a newline).
-std::string serializeScene(const Scene& scene);
+std::string serializeScene(const Scene& scene, const PrefabTexts& prefabs = {});
 
-SceneLoadResult loadSceneFile(const std::filesystem::path& path, const ComponentRegistry& registry);
+SceneLoadResult loadSceneFile(const std::filesystem::path& path, const ComponentRegistry& registry,
+                              const PrefabTexts& prefabs = {});
 /// Saves atomically (never leaves a half-written file).
-Status saveSceneFile(const std::filesystem::path& path, const Scene& scene);
+Status saveSceneFile(const std::filesystem::path& path, const Scene& scene, const PrefabTexts& prefabs = {});
 
 /// Reads a prefab: the result is a scene holding just the prefab's object
 /// (scene.roots().front()) and what is inside it.
@@ -96,6 +105,12 @@ SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const Componen
 /// Writes the object `root` of `scene`, with everything inside it, as a
 /// prefab file's text. Empty if there is no such object.
 std::string serializePrefab(const Scene& scene, EntityId root);
+
+/// The object of a prefab (`prefab`: as parsePrefab gives it; `asset`: the
+/// prefab file's ID) as a linked copy to put into `scene` with
+/// Scene::restore: new IDs, and each object marked with where it comes
+/// from (PrefabLink). Empty if `prefab` does not hold exactly one object.
+EntitySnapshot linkedCopyOf(Scene& scene, const Scene& prefab, AssetId asset);
 
 /// Checks a scene in memory: the tree is consistent, every entity has a
 /// Transform, numbers are finite. Returns the problems found (empty = fine).

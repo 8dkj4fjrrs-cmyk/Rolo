@@ -84,6 +84,8 @@ public:
     /// in the project's "prefabs" folder, named after the object; a prefab
     /// of that name there is replaced (ADR 0033).
     void savePrefabFromSelection();
+    /// The project's prefabs, for reading and writing scenes with linked copies.
+    PrefabTexts prefabTexts() const { return m_assetDb ? prefabTextsOf(*m_assetDb) : PrefabTexts{}; }
     void renameSelection() override;
     void openScene(const std::filesystem::path& path) override;
     void newScene() override;

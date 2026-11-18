@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace rolo {
@@ -267,10 +269,320 @@ std::optional<PropertyValue> fromJson(const PropertyInfo& info, const Json& j, s
 
 // When the scene format changes, version N files are upgraded step by step
 // before reading: kUpgrades[N - 1] turns a version N document into version N + 1.
-// Version 1 is the first format, so there is nothing to upgrade yet.
+//
+// 1 -> 2 (ADR 0035): version 2 adds linked copies of prefabs (entities with
+// a "prefab"). A version 1 file has none and is a valid version 2 file as
+// it stands, so the step changes nothing.
 using Upgrade = void (*)(Json& document);
-constexpr Upgrade kUpgrades[] = {nullptr};
-static_assert(std::size(kUpgrades) == SceneFormat::kVersion, "one upgrade step per older version");
+constexpr Upgrade kUpgrades[] = {[](Json&) {}};
+static_assert(std::size(kUpgrades) == SceneFormat::kVersion - 1, "one upgrade step per older version");
+
+// --- Linked copies of prefabs (ADR 0035) ---------------------------------------------------------
+//
+// In a scene file, an object placed from a prefab is written as a link and
+// what the copy changed:
+//
+//   { "id": "...", "prefab": "<asset id>", "parent": "...",
+//     "name": "Coin 3",                                   only if changed
+//     "active": false,                                    only if changed
+//     "components": [ { "type": "rolo.Transform", "position": [40, 8] } ],
+//                                                         only the changed keys of a component; a
+//                                                         component the prefab lacks is written whole;
+//                                                         "$unset": [keys] for keys the copy has not
+//     "removedComponents": [ "rolo.Collider" ],
+//     "objects": [ { "from": "<id in the prefab>", "id": "<id in this scene>", ...as above } ],
+//                                                         the objects inside, by which of the
+//                                                         prefab's each is
+//     "removed": [ "<id in the prefab>" ] }               prefab objects this copy does not have
+//
+// Reading turns each such entry back into ordinary entities *as JSON*,
+// before anything else is read: the prefab's entities, with this scene's
+// IDs, and the changes laid over them. Everything after that (and the whole
+// engine) sees ordinary objects, which carry "prefab" / "from" marks so
+// that writing can find the link again.
+
+// The entities of a prefab file, upgraded to the current format: first the
+// object, then what is inside it. Nothing, with `why`, if it cannot be used.
+std::optional<Json> prefabEntities(const PrefabTexts& prefabs, AssetId id, std::string& why)
+{
+    if (!prefabs) {
+        why = "prefabs cannot be read here";
+        return std::nullopt;
+    }
+    const std::optional<std::string> text = prefabs(id);
+    if (!text) {
+        why = "the project has no such prefab (was it deleted?)";
+        return std::nullopt;
+    }
+    Json document = Json::parse(*text, nullptr, false);
+    if (!document.is_object() || !document.contains("format") || !document["format"].is_string()
+        || !isFormatName(document["format"].get<std::string>(), PrefabFormat::kName)) {
+        why = "it is not a prefab file";
+        return std::nullopt;
+    }
+    const int version = document.contains("version") && document["version"].is_number_integer()
+                            ? document["version"].get<int>()
+                            : 0;
+    if (version < 1 || version > SceneFormat::kVersion) {
+        why = version < 1 ? "it has no format version" : "it was saved by a newer version of Rolo";
+        return std::nullopt;
+    }
+    for (int v = version; v < SceneFormat::kVersion; ++v) {
+        kUpgrades[v - 1](document);
+    }
+    if (!document.contains("entities") || !document["entities"].is_array() || document["entities"].empty()) {
+        why = "it holds no object";
+        return std::nullopt;
+    }
+    for (const Json& e : document["entities"]) {
+        if (!e.is_object() || !e.contains("id") || !e["id"].is_string()) {
+            why = "it is damaged";
+            return std::nullopt;
+        }
+    }
+    return std::move(document["entities"]);
+}
+
+std::string textOf(const Json& j, const char* key)
+{
+    return j.is_object() && j.contains(key) && j[key].is_string() ? j[key].get<std::string>() : std::string();
+}
+
+// The ID an object of a linked copy gets when the scene file does not say:
+// always the same for the same copy and the same object of the prefab, so
+// that an object a prefab gained later has one ID every time the scene is
+// read (saved games and other objects refer to objects by ID).
+std::string derivedId(const std::string& copyRoot, const std::string& prefabObject)
+{
+    const std::uint64_t a = EntityId::parse(copyRoot).value_or(EntityId{}).value();
+    const std::uint64_t b = EntityId::parse(prefabObject).value_or(EntityId{}).value();
+    std::uint64_t x = a ^ (b * 0x9E3779B97F4A7C15ull + 0x7F4A7C15ull);
+    x ^= x >> 30;
+    x *= 0xBF58476D1CE4E5B9ull;
+    x ^= x >> 27;
+    x *= 0x94D049BB133111EBull;
+    x ^= x >> 31;
+    return EntityId(x == 0 ? 1 : x).toString();
+}
+
+Json* componentOfType(Json& entity, const std::string& type)
+{
+    if (entity.contains("components") && entity["components"].is_array()) {
+        for (Json& c : entity["components"]) {
+            if (textOf(c, "type") == type) {
+                return &c;
+            }
+        }
+    }
+    return nullptr;
+}
+
+// Named values in a component (a Script's properties) may point at objects
+// of the prefab by ID: in the copy they point at the copy's objects.
+void pointInsideTheCopy(Json& entity, const std::unordered_map<std::string, std::string>& ids)
+{
+    if (!entity.contains("components") || !entity["components"].is_array()) {
+        return;
+    }
+    for (Json& component : entity["components"]) {
+        if (!component.is_object()) {
+            continue;
+        }
+        for (auto& [key, value] : component.items()) {
+            if (!value.is_object()) {
+                continue;
+            }
+            for (auto& [name, held] : value.items()) {
+                if (held.is_string()) {
+                    if (const auto mapped = ids.find(held.get<std::string>()); mapped != ids.end()) {
+                        held = mapped->second;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Lays what a copy changed (`changes`: the entry itself for the top object,
+// or one of its "objects") over an entity taken from the prefab.
+void applyChanges(Json& entity, const Json& changes)
+{
+    if (changes.contains("name") && changes["name"].is_string()) {
+        entity["name"] = changes["name"];
+    }
+    if (changes.contains("active") && changes["active"].is_boolean()) {
+        entity["active"] = changes["active"];
+    }
+    if (changes.contains("removedComponents") && changes["removedComponents"].is_array()
+        && entity.contains("components") && entity["components"].is_array()) {
+        for (const Json& type : changes["removedComponents"]) {
+            Json& list = entity["components"];
+            for (auto it = list.begin(); it != list.end();) {
+                it = type.is_string() && textOf(*it, "type") == type.get<std::string>() ? list.erase(it) : it + 1;
+            }
+        }
+    }
+    if (changes.contains("components") && changes["components"].is_array()) {
+        if (!entity.contains("components") || !entity["components"].is_array()) {
+            entity["components"] = Json::array();
+        }
+        for (const Json& changed : changes["components"]) {
+            const std::string type = textOf(changed, "type");
+            Json* target = type.empty() ? nullptr : componentOfType(entity, type);
+            if (target == nullptr) {
+                Json whole = changed;   // a component the prefab has not: the copy's own
+                if (whole.is_object()) {
+                    whole.erase("$unset");
+                }
+                entity["components"].push_back(std::move(whole));
+                continue;
+            }
+            for (const auto& [key, value] : changed.items()) {
+                if (key == "$unset") {
+                    if (value.is_array()) {
+                        for (const Json& gone : value) {
+                            if (gone.is_string()) {
+                                target->erase(gone.get<std::string>());
+                            }
+                        }
+                    }
+                } else if (key != "type") {
+                    (*target)[key] = value;
+                }
+            }
+        }
+    }
+}
+
+// The scene's "entities" with every linked copy turned into ordinary
+// entities (see above).
+Json expandLinkedCopies(const Json& entities, const PrefabTexts& prefabs, Issues& issues)
+{
+    Json out = Json::array();
+    // Objects a copy had and its prefab has no longer: what was put inside
+    // them goes to the copy's top object rather than being lost.
+    std::unordered_map<std::string, std::string> lostParents;
+    for (const Json& e : entities) {
+        if (!e.is_object() || !e.contains("prefab")) {
+            if (e.is_object()) {
+                if (const auto lost = lostParents.find(textOf(e, "parent")); lost != lostParents.end()) {
+                    Json moved = e;
+                    moved["parent"] = lost->second;
+                    out.push_back(std::move(moved));
+                    continue;
+                }
+            }
+            out.push_back(e);
+            continue;
+        }
+        const std::string rootId = textOf(e, "id");
+        const std::string where = describeEntity(textOf(e, "name"), rootId);
+        const std::optional<AssetId> asset = AssetId::parse(textOf(e, "prefab"));
+        std::string why = "its \"prefab\" is not the ID of a prefab";
+        const std::optional<Json> prefab = asset ? prefabEntities(prefabs, *asset, why) : std::nullopt;
+        const Json* objects = e.contains("objects") && e["objects"].is_array() ? &e["objects"] : nullptr;
+
+        if (!prefab) {
+            // A stand-in, and the entry kept as it is (PrefabLink::kept).
+            Json standIn;
+            standIn["id"] = rootId;
+            if (e.contains("parent")) {
+                standIn["parent"] = e["parent"];
+            }
+            standIn["name"] = e.contains("name") && e["name"].is_string() ? e["name"].get<std::string>()
+                                                                          : std::string("Missing prefab");
+            standIn["components"] = e.contains("components") && e["components"].is_array() ? e["components"]
+                                                                                           : Json::array();
+            if (asset) {
+                standIn["prefab"] = e["prefab"];
+            }
+            standIn["kept"] = e.dump();
+            out.push_back(std::move(standIn));
+            if (objects != nullptr) {
+                for (const Json& o : *objects) {
+                    if (!textOf(o, "id").empty() && !textOf(o, "from").empty()) {
+                        // Things may be inside it: it must exist for them to be read.
+                        out.push_back({{"id", o["id"]},
+                                       {"parent", rootId},
+                                       {"name", textOf(o, "name").empty() ? "(from the missing prefab)" : textOf(o, "name")},
+                                       {"from", o["from"]}});
+                    }
+                }
+            }
+            issues.warning(where, "This is a copy of a prefab that could not be read (" + why
+                                      + "). It is shown as an empty object and kept in the scene file as it "
+                                        "was, so nothing is lost: put the prefab back and open the scene again.");
+            continue;
+        }
+
+        // Which ID each object of the prefab has in this scene.
+        const std::string prefabRoot = textOf(prefab->front(), "id");
+        std::unordered_map<std::string, std::string> ids{{prefabRoot, rootId}};
+        std::unordered_map<std::string, const Json*> changesOf;
+        std::unordered_set<std::string> inPrefab;
+        for (const Json& p : *prefab) {
+            inPrefab.insert(textOf(p, "id"));
+        }
+        if (objects != nullptr) {
+            for (const Json& o : *objects) {
+                const std::string from = textOf(o, "from");
+                const std::string id = textOf(o, "id");
+                if (from.empty() || id.empty()) {
+                    continue;
+                }
+                if (inPrefab.count(from) == 0 || from == prefabRoot) {
+                    lostParents[id] = rootId;   // the prefab has it no longer
+                    continue;
+                }
+                ids[from] = id;
+                changesOf[from] = &o;
+            }
+        }
+        std::unordered_set<std::string> gone;
+        if (e.contains("removed") && e["removed"].is_array()) {
+            for (const Json& r : e["removed"]) {
+                if (r.is_string()) {
+                    gone.insert(r.get<std::string>());
+                }
+            }
+        }
+        for (const Json& p : *prefab) {
+            const std::string id = textOf(p, "id");
+            if (id != prefabRoot && ids.count(id) == 0) {
+                ids[id] = derivedId(rootId, id);
+            }
+        }
+        for (const Json& p : *prefab) {
+            const std::string id = textOf(p, "id");
+            const bool top = id == prefabRoot;
+            if (!top && (gone.count(id) != 0 || gone.count(textOf(p, "parent")) != 0 || ids.count(textOf(p, "parent")) == 0)) {
+                gone.insert(id);   // removed, or inside something removed
+                lostParents[ids[id]] = rootId;
+                continue;
+            }
+            Json made = p;
+            made["id"] = ids[id];
+            made["from"] = id;
+            made.erase("parent");
+            if (top) {
+                made["prefab"] = e["prefab"];
+                if (e.contains("parent")) {
+                    made["parent"] = e["parent"];
+                }
+            } else {
+                made["parent"] = ids[textOf(p, "parent")];
+            }
+            pointInsideTheCopy(made, ids);
+            if (top) {
+                applyChanges(made, e);
+            } else if (const auto changes = changesOf.find(id); changes != changesOf.end()) {
+                applyChanges(made, *changes->second);
+            }
+            out.push_back(std::move(made));
+        }
+    }
+    return out;
+}
 
 // --- Line and column for parse errors ------------------------------------------------------------
 
@@ -409,7 +721,8 @@ struct FileKind {
 constexpr FileKind kSceneKind{SceneFormat::kName, "scene", false};
 constexpr FileKind kPrefabKind{PrefabFormat::kName, "prefab", true};
 
-SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& registry, const FileKind& kind)
+SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& registry, const FileKind& kind,
+                              const PrefabTexts& prefabs = {})
 {
     const std::string word = kind.word;
     SceneLoadResult result;
@@ -473,8 +786,12 @@ SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& re
         }
     }
 
+    // Linked copies of prefabs become ordinary entities first (scenes only:
+    // a prefab file holds none).
+    const Json entities = kind.prefab ? document["entities"] : expandLinkedCopies(document["entities"], prefabs, issues);
+
     std::size_t index = 0;
-    for (const Json& e : document["entities"]) {
+    for (const Json& e : entities) {
         ++index;
         const std::string fallbackWhere = "entity #" + std::to_string(index);
         if (!e.is_object()) {
@@ -525,8 +842,20 @@ SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& re
                 }
             }
         }
+        if (!kind.prefab) {
+            // Marks left by expandLinkedCopies: where the object came from.
+            PrefabLink link;
+            link.prefab = AssetId::parse(textOf(e, "prefab")).value_or(AssetId{});
+            link.source = EntityId::parse(textOf(e, "from")).value_or(EntityId{});
+            link.kept = textOf(e, "kept");
+            if (!link.none()) {
+                scene.setPrefabLink(entity->id(), std::move(link));
+            }
+        }
         for (const auto& [key, value] : e.items()) {
-            if (key != "id" && key != "parent" && key != "name" && key != "active" && key != "components") {
+            const bool known = key == "id" || key == "parent" || key == "name" || key == "active" || key == "components"
+                               || (!kind.prefab && (key == "prefab" || key == "from" || key == "kept"));
+            if (!known) {
                 issues.warning(where, "Unknown field \"" + key + "\" was ignored.");
             }
         }
@@ -557,7 +886,8 @@ SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& re
     return result;
 }
 
-SceneLoadResult loadFile(const std::filesystem::path& path, const ComponentRegistry& registry, const FileKind& kind)
+SceneLoadResult loadFile(const std::filesystem::path& path, const ComponentRegistry& registry, const FileKind& kind,
+                         const PrefabTexts& prefabs = {})
 {
     const auto text = readTextFile(path);
     if (!text) {
@@ -565,16 +895,16 @@ SceneLoadResult loadFile(const std::filesystem::path& path, const ComponentRegis
         result.issues.push_back({FileIssue::Severity::Error, path.string(), "The file could not be read."});
         return result;
     }
-    return parseDocument(*text, registry, kind);
+    return parseDocument(*text, registry, kind, prefabs);
 }
 
-std::string serializeDocument(const Scene& scene, const FileKind& kind);
+std::string serializeDocument(const Scene& scene, const FileKind& kind, const PrefabTexts& prefabs = {});
 
 } // namespace
 
-SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& registry)
+SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& registry, const PrefabTexts& prefabs)
 {
-    return parseDocument(text, registry, kSceneKind);
+    return parseDocument(text, registry, kSceneKind, prefabs);
 }
 
 SceneLoadResult parsePrefab(std::string_view text, const ComponentRegistry& registry)
@@ -582,9 +912,10 @@ SceneLoadResult parsePrefab(std::string_view text, const ComponentRegistry& regi
     return parseDocument(text, registry, kPrefabKind);
 }
 
-SceneLoadResult loadSceneFile(const std::filesystem::path& path, const ComponentRegistry& registry)
+SceneLoadResult loadSceneFile(const std::filesystem::path& path, const ComponentRegistry& registry,
+                              const PrefabTexts& prefabs)
 {
-    return loadFile(path, registry, kSceneKind);
+    return loadFile(path, registry, kSceneKind, prefabs);
 }
 
 SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const ComponentRegistry& registry)
@@ -594,9 +925,9 @@ SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const Componen
 
 // --- Writing ---------------------------------------------------------------------------------------
 
-std::string serializeScene(const Scene& scene)
+std::string serializeScene(const Scene& scene, const PrefabTexts& prefabs)
 {
-    return serializeDocument(scene, kSceneKind);
+    return serializeDocument(scene, kSceneKind, prefabs);
 }
 
 std::string serializePrefab(const Scene& scene, EntityId root)
@@ -613,13 +944,226 @@ std::string serializePrefab(const Scene& scene, EntityId root)
     return serializeDocument(alone, kPrefabKind);
 }
 
+EntitySnapshot linkedCopyOf(Scene& scene, const Scene& prefab, AssetId asset)
+{
+    if (prefab.roots().size() != 1 || asset.isNull()) {
+        return {};
+    }
+    EntitySnapshot taken = prefab.capture(prefab.roots().front());
+    for (std::size_t i = 0; i < taken.items.size(); ++i) {
+        PrefabLink link;
+        link.source = taken.items[i].id;
+        if (i == 0) {
+            link.prefab = asset;
+        }
+        taken.items[i].link = std::move(link);
+    }
+    return scene.withNewIds(taken);
+}
+
 namespace {
 
-std::string serializeDocument(const Scene& scene, const FileKind& kind)
+// One object as it is written when it is an ordinary one.
+Json entityJson(const Entity& e)
+{
+    Json entity;
+    entity["id"] = e.id().toString();
+    if (!e.parent().isNull()) {
+        entity["parent"] = e.parent().toString();
+    }
+    entity["name"] = e.name();
+    entity["active"] = e.isActive();
+    Json components = Json::array();
+    for (const auto& c : e.components()) {
+        if (const auto* unknown = dynamic_cast<const UnknownComponent*>(c.get())) {
+            components.push_back(Json::parse(unknown->json()));
+            continue;
+        }
+        Json component;
+        component["type"] = c->type().id;
+        for (const PropertyInfo& p : c->type().properties) {
+            if (p.options.data && std::get<std::string>(p.get(*c)).empty()) {
+                continue;   // no values: nothing to write (a missing key reads as none)
+            }
+            component[p.key] = toJson(p, p.get(*c));
+        }
+        if (const std::string data = c->saveData(); !data.empty()) {
+            component["data"] = Json::parse(data);
+        }
+        components.push_back(std::move(component));
+    }
+    entity["components"] = std::move(components);
+    return entity;
+}
+
+// What an object of a linked copy (`object`, written out as `mine`) has
+// that the prefab's object (`theirs`, with this scene's IDs in it) has
+// not: added to `changes`.
+void writeChanges(const Entity& object, const Json& mine, const Json& theirs, Json& changes)
+{
+    if (mine["name"] != theirs.value("name", Json(""))) {
+        changes["name"] = mine["name"];
+    }
+    const bool theirActive = theirs.contains("active") && theirs["active"].is_boolean() ? theirs["active"].get<bool>() : true;
+    if (mine["active"].get<bool>() != theirActive) {
+        changes["active"] = mine["active"];
+    }
+    Json changed = Json::array();
+    std::unordered_set<std::string> have;
+    for (const Json& component : mine["components"]) {
+        const std::string type = textOf(component, "type");
+        have.insert(type);
+        const Json* same = nullptr;
+        if (theirs.contains("components") && theirs["components"].is_array()) {
+            for (const Json& c : theirs["components"]) {
+                if (textOf(c, "type") == type) {
+                    same = &c;
+                    break;
+                }
+            }
+        }
+        if (same == nullptr) {
+            changed.push_back(component);   // the copy's own component
+            continue;
+        }
+        // Key by key. The prefab's value is read and written the way this
+        // object's is before comparing (0.5 against 0.50000001, a choice by
+        // an older name), so that only real differences count.
+        const Component* held = object.component(type);
+        Json difference;
+        difference["type"] = type;
+        Json unset = Json::array();
+        for (const auto& [key, value] : component.items()) {
+            if (key == "type") {
+                continue;
+            }
+            if (!same->contains(key)) {
+                difference[key] = value;
+                continue;
+            }
+            Json other = (*same)[key];
+            if (const PropertyInfo* info = held != nullptr ? held->type().findProperty(key) : nullptr) {
+                std::string expected;
+                if (const auto parsed = fromJson(*info, other, expected)) {
+                    other = toJson(*info, info->coerce(*parsed).value_or(*parsed));
+                }
+            }
+            if (other != value) {
+                difference[key] = value;
+            }
+        }
+        for (const auto& [key, value] : same->items()) {
+            if (key != "type" && !component.contains(key)) {
+                unset.push_back(key);
+            }
+        }
+        if (!unset.empty()) {
+            difference["$unset"] = std::move(unset);
+        }
+        if (difference.size() > 1) {
+            changed.push_back(std::move(difference));
+        }
+    }
+    if (!changed.empty()) {
+        changes["components"] = std::move(changed);
+    }
+    Json removed = Json::array();
+    if (theirs.contains("components") && theirs["components"].is_array()) {
+        for (const Json& c : theirs["components"]) {
+            if (const std::string type = textOf(c, "type"); !type.empty() && have.count(type) == 0) {
+                removed.push_back(type);
+            }
+        }
+    }
+    if (!removed.empty()) {
+        changes["removedComponents"] = std::move(removed);
+    }
+}
+
+// The entry for the linked copy whose top object is `root`, and which
+// objects it covers (they are not written again as ordinary ones).
+// Nothing if the prefab cannot be read: the copy is then written out as
+// ordinary objects, which keeps everything but the link.
+std::optional<Json> linkedCopyJson(const Scene& scene, const Entity& root, const PrefabTexts& prefabs,
+                                   std::unordered_set<EntityId>& covered)
+{
+    std::string why;
+    const std::optional<Json> prefab = prefabEntities(prefabs, root.prefabLink().prefab, why);
+    if (!prefab) {
+        return std::nullopt;
+    }
+    // Which object of the scene is which object of the prefab: by the mark
+    // each carries, and only where it still sits where the prefab has it.
+    const std::string prefabRoot = textOf(prefab->front(), "id");
+    std::unordered_map<std::string, const Entity*> memberOf{{prefabRoot, &root}};
+    std::unordered_map<std::string, std::string> ids{{prefabRoot, root.id().toString()}};
+    Json removed = Json::array();
+    for (const Json& p : *prefab) {
+        const std::string id = textOf(p, "id");
+        if (id == prefabRoot) {
+            continue;
+        }
+        const auto parent = memberOf.find(textOf(p, "parent"));
+        if (parent == memberOf.end()) {
+            continue;   // inside something this copy has not: gone with it
+        }
+        const Entity* found = nullptr;
+        for (const EntityId child : parent->second->children()) {
+            const Entity* c = scene.find(child);
+            if (c != nullptr && c->prefabLink().source.toString() == id && covered.count(c->id()) == 0) {
+                found = c;
+                break;
+            }
+        }
+        if (found == nullptr) {
+            removed.push_back(id);
+            continue;
+        }
+        memberOf[id] = found;
+        ids[id] = found->id().toString();
+        covered.insert(found->id());
+    }
+
+    Json entry;
+    entry["id"] = root.id().toString();
+    if (!root.parent().isNull()) {
+        entry["parent"] = root.parent().toString();
+    }
+    entry["prefab"] = root.prefabLink().prefab.toString();
+    Json objects = Json::array();
+    for (const Json& p : *prefab) {
+        const std::string id = textOf(p, "id");
+        const auto member = memberOf.find(id);
+        if (member == memberOf.end()) {
+            continue;
+        }
+        Json theirs = p;
+        pointInsideTheCopy(theirs, ids);
+        const Json mine = entityJson(*member->second);
+        if (id == prefabRoot) {
+            writeChanges(*member->second, mine, theirs, entry);
+        } else {
+            Json object;
+            object["from"] = id;
+            object["id"] = ids[id];
+            writeChanges(*member->second, mine, theirs, object);
+            objects.push_back(std::move(object));
+        }
+    }
+    if (!objects.empty()) {
+        entry["objects"] = std::move(objects);
+    }
+    if (!removed.empty()) {
+        entry["removed"] = std::move(removed);
+    }
+    return entry;
+}
+
+std::string serializeDocument(const Scene& scene, const FileKind& kind, const PrefabTexts& prefabs)
 {
     Json document;
     document["format"] = kind.format;
-    document["version"] = SceneFormat::kVersion;
+    document["version"] = 1;   // (2 below, if the scene needs it)
     if (!kind.prefab) {
         document["name"] = scene.name();
         // Written only when changed, so scenes without physics stay as they were.
@@ -628,45 +1172,56 @@ std::string serializeDocument(const Scene& scene, const FileKind& kind)
         }
     }
     Json entities = Json::array();
+    std::unordered_set<EntityId> covered;   // written inside a linked copy's entry
+    bool linkedCopies = false;
     scene.forEach([&](const Entity& e, int) {
-        Json entity;
-        entity["id"] = e.id().toString();
-        if (!e.parent().isNull()) {
-            entity["parent"] = e.parent().toString();
+        if (covered.count(e.id()) != 0) {
+            return;
         }
-        entity["name"] = e.name();
-        entity["active"] = e.isActive();
-        Json components = Json::array();
-        for (const auto& c : e.components()) {
-            if (const auto* unknown = dynamic_cast<const UnknownComponent*>(c.get())) {
-                components.push_back(Json::parse(unknown->json()));
-                continue;
-            }
-            Json component;
-            component["type"] = c->type().id;
-            for (const PropertyInfo& p : c->type().properties) {
-                if (p.options.data && std::get<std::string>(p.get(*c)).empty()) {
-                    continue;   // no values: nothing to write (a missing key reads as none)
+        const PrefabLink& link = e.prefabLink();
+        if (!kind.prefab && !link.kept.empty()) {
+            // A stand-in for a copy whose prefab could not be read: back
+            // into the file as it came, with its own stand-ins inside.
+            Json kept = Json::parse(link.kept, nullptr, false);
+            if (kept.is_object()) {
+                kept.erase("parent");
+                if (!e.parent().isNull()) {
+                    kept["parent"] = e.parent().toString();
                 }
-                component[p.key] = toJson(p, p.get(*c));
+                for (const EntityId child : e.children()) {
+                    const Entity* c = scene.find(child);
+                    if (c != nullptr && !c->prefabLink().source.isNull() && c->components().size() <= 1) {
+                        covered.insert(child);
+                    }
+                }
+                entities.push_back(std::move(kept));
+                linkedCopies = true;
+                return;
             }
-            if (const std::string data = c->saveData(); !data.empty()) {
-                component["data"] = Json::parse(data);
-            }
-            components.push_back(std::move(component));
         }
-        entity["components"] = std::move(components);
-        entities.push_back(std::move(entity));
+        if (!kind.prefab && prefabs && e.isPrefabCopy()) {
+            if (auto entry = linkedCopyJson(scene, e, prefabs, covered)) {
+                entities.push_back(std::move(*entry));
+                linkedCopies = true;
+                return;
+            }
+        }
+        entities.push_back(entityJson(e));
     });
+    // Version 2 only where it is needed: a scene without linked copies is a
+    // version 1 file still, and stays readable by older Rolo.
+    if (linkedCopies) {
+        document["version"] = 2;
+    }
     document["entities"] = std::move(entities);
     return pretty(document);
 }
 
 } // namespace
 
-Status saveSceneFile(const std::filesystem::path& path, const Scene& scene)
+Status saveSceneFile(const std::filesystem::path& path, const Scene& scene, const PrefabTexts& prefabs)
 {
-    return writeTextFileAtomically(path, serializeScene(scene));
+    return writeTextFileAtomically(path, serializeScene(scene, prefabs));
 }
 
 // --- Validation -------------------------------------------------------------------------------------

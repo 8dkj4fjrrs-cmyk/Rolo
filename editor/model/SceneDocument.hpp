@@ -23,7 +23,7 @@ public:
 
     /// Opens a scene file. Problems found while reading go into `issues`.
     static std::optional<SceneDocument> open(const std::filesystem::path& path, const ComponentRegistry& registry,
-                                             std::vector<FileIssue>& issues);
+                                             std::vector<FileIssue>& issues, const PrefabTexts& prefabs = {});
 
     const Scene& scene() const noexcept { return *m_scene; }
     /// Shared with the runtime, which draws it. Change it only through execute().
@@ -43,9 +43,11 @@ public:
     const CommandStack& history() const noexcept { return m_history; }
 
     /// Saves to path() (which must be set).
-    Status save();
+    /// `prefabs`: the project's prefabs, so that linked copies are written
+    /// as links (EditorApp gives it; without it they are written in full).
+    Status save(const PrefabTexts& prefabs = {});
     /// Saves to a new path and keeps editing there.
-    Status saveAs(const std::filesystem::path& path);
+    Status saveAs(const std::filesystem::path& path, const PrefabTexts& prefabs = {});
 
 private:
     std::shared_ptr<Scene> m_scene;

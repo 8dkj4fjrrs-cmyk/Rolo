@@ -46,9 +46,9 @@ namespace {
 
 // Reads a scene file, reporting what it finds wrong to the log.
 std::optional<rolo::Scene> loadScene(const std::filesystem::path& path, const rolo::ComponentRegistry& registry,
-                                        const rolo::Logger& log)
+                                        const rolo::Logger& log, const rolo::PrefabTexts& prefabs)
 {
-    rolo::SceneLoadResult loaded = rolo::loadSceneFile(path, registry);
+    rolo::SceneLoadResult loaded = rolo::loadSceneFile(path, registry, prefabs);
     for (const rolo::FileIssue& issue : loaded.issues) {
         if (issue.isError()) {
             log.error("scene", issue.toString());
@@ -262,14 +262,6 @@ int Player::run()
     rolo::registerGameModules(registry, engine->logger());
 
     std::optional<rolo::Scene> firstScene;
-    if (!scenePath.empty()) {
-        firstScene = loadScene(scenePath, registry, engine->logger());
-        if (!firstScene) {
-            engine->logger().error("player", "Could not open the scene " + scenePath.string() + ".");
-            return 1;
-        }
-        engine->logger().info("player", "Playing scene '" + firstScene->name() + "' (" + scenePath.string() + ")");
-    }
 
     // The project's images, tilesets and scenes: from --project, or the
     // project folder the scene file is in (searching upwards for project.rolo).
@@ -298,6 +290,23 @@ int Player::run()
         for (const rolo::FileIssue& issue : assets->refresh()) {
             engine->logger().warning("assets", issue.where + ": " + issue.message);
         }
+    }
+    // The project's prefabs, for scenes with linked copies of them (ADR 0035).
+    // (Asked for through the pointer each time: scenes are read later too.)
+    const rolo::PrefabTexts prefabs = [this](rolo::AssetId id) -> std::optional<std::string> {
+        return assets ? rolo::prefabTextsOf(*assets)(id) : std::nullopt;
+    };
+    // The first scene is read once the project's files are known: it may
+    // hold copies of the project's prefabs.
+    if (!scenePath.empty()) {
+        firstScene = loadScene(scenePath, registry, engine->logger(), prefabs);
+        if (!firstScene) {
+            engine->logger().error("player", "Could not open the scene " + scenePath.string() + ".");
+            return 1;
+        }
+        engine->logger().info("player", "Playing scene '" + firstScene->name() + "' (" + scenePath.string() + ")");
+    }
+    if (assets) {
         if (firstScene) {
             for (const rolo::FileIssue& issue : rolo::checkAssetReferences(*firstScene, *assets)) {
                 engine->logger().warning("assets", issue.where + ": " + issue.message);
@@ -348,7 +357,8 @@ int Player::run()
     setup.saves = saveFolder.empty() ? nullptr : saves;
     setup.gameName = title;
     setup.sound = audio.get();
-    setup.loadScene = [&](rolo::AssetId id, std::string& error) -> std::optional<rolo::Scene> {
+    // (`prefabs` by value: on the web and Android this function returns while the game goes on.)
+    setup.loadScene = [&, prefabs](rolo::AssetId id, std::string& error) -> std::optional<rolo::Scene> {
         const rolo::AssetRecord* record = assets != nullptr ? assets->find(id) : nullptr;
         if (record != nullptr && record->type == rolo::AssetType::Prefab) {
             // A prefab (game.spawn): read as a scene holding its one object.
@@ -363,7 +373,7 @@ int Player::run()
             error = "it is not a scene of this project";
             return std::nullopt;
         }
-        auto scene = loadScene(assets->absolutePath(*record), registry, engine->logger());
+        auto scene = loadScene(assets->absolutePath(*record), registry, engine->logger(), prefabs);
         if (!scene) {
             error = record->path + " could not be read";
         }

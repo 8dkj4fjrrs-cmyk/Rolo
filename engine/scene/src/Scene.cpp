@@ -62,6 +62,7 @@ Scene::Scene(const Scene& other)
         copy->m_active = entity->m_active;
         copy->m_parent = entity->m_parent;
         copy->m_children = entity->m_children;
+        copy->m_link = entity->m_link;
         for (const auto& c : entity->m_components) {
             copy->m_components.push_back(c->clone());
         }
@@ -461,6 +462,7 @@ void Scene::captureInto(const Entity& entity, EntitySnapshot& out) const
     item.parent = entity.m_parent;
     item.name = entity.m_name;
     item.active = entity.m_active;
+    item.link = entity.m_link;
     for (const auto& c : entity.m_components) {
         item.components.push_back(c->clone());
     }
@@ -470,6 +472,19 @@ void Scene::captureInto(const Entity& entity, EntitySnapshot& out) const
             captureInto(*c, out);
         }
     }
+}
+
+bool Scene::setPrefabLink(EntityId id, PrefabLink link)
+{
+    Entity* e = findMutable(id);
+    if (e == nullptr) {
+        return false;
+    }
+    if (e->m_link != link) {
+        e->m_link = std::move(link);
+        ++m_revision;   // the scene is saved differently; nothing is drawn differently
+    }
+    return true;
 }
 
 EntitySnapshot Scene::capture(EntityId id) const
@@ -498,6 +513,7 @@ bool Scene::restore(const EntitySnapshot& snapshot, EntityId parent, std::size_t
         entity->m_id = item.id;
         entity->m_name = item.name;
         entity->m_active = item.active;
+        entity->m_link = item.link;
         entity->m_parent = i == 0 ? parent : item.parent;
         for (const auto& c : item.components) {
             entity->m_components.push_back(c->clone());
@@ -539,6 +555,7 @@ EntitySnapshot Scene::withNewIds(const EntitySnapshot& snapshot)
         c.parent = parent != remap.end() ? parent->second : item.parent;
         c.name = item.name;
         c.active = item.active;
+        c.link = item.link;   // a copy of a linked copy follows the same prefab
         for (const auto& comp : item.components) {
             c.components.push_back(comp->clone());
             // Named values (a Script's properties) may point at other

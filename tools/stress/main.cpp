@@ -100,7 +100,7 @@ std::optional<Result> run(const Options& o, const std::string& name, rolo::Asset
         std::cerr << "No scene scenes/" << name << ".lscene in " << o.project.string() << "\n";
         return std::nullopt;
     }
-    rolo::SceneLoadResult loaded = rolo::loadSceneFile(assets.absolutePath(*record), registry);
+    rolo::SceneLoadResult loaded = rolo::loadSceneFile(assets.absolutePath(*record), registry, rolo::prefabTextsOf(assets));
     if (!loaded.ok()) {
         std::cerr << "Could not read scenes/" << name << ".lscene\n";
         return std::nullopt;

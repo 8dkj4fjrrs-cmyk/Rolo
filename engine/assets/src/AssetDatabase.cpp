@@ -665,6 +665,17 @@ Status AssetDatabase::writeText(AssetId id, std::string_view text)
     return Status::success();
 }
 
+PrefabTexts prefabTextsOf(const AssetDatabase& assets)
+{
+    return [&assets](AssetId id) -> std::optional<std::string> {
+        const AssetRecord* record = assets.find(id);
+        if (record == nullptr || record->type != AssetType::Prefab) {
+            return std::nullopt;
+        }
+        return readTextFile(assets.absolutePath(*record));
+    };
+}
+
 std::optional<std::string> AssetDatabase::readText(AssetId id) const
 {
     const AssetRecord* record = find(id);

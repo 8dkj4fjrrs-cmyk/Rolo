@@ -169,6 +169,11 @@ private:
     EntityIdGenerator m_ids;
 };
 
+/// How scene files get at the project's prefabs (linked copies, ADR 0035):
+/// pass it to loadSceneFile / saveSceneFile. It reads from `assets` each
+/// time it is asked, so `assets` must outlive it.
+PrefabTexts prefabTextsOf(const AssetDatabase& assets);
+
 /// Checks that every asset a scene refers to exists and has the right type.
 /// Problems are warnings: the scene still opens (with placeholders).
 std::vector<FileIssue> checkAssetReferences(const Scene& scene, const AssetDatabase& assets);

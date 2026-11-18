@@ -24,6 +24,26 @@
 
 namespace rolo {
 
+/// What ties an object to a prefab file (ADR 0035). An object placed from a
+/// prefab is a *linked copy*: its scene file holds only the link and what
+/// the copy changed, and the object is built from the prefab whenever the
+/// scene is read. In memory it is an ordinary object that remembers this.
+struct PrefabLink {
+    /// On the copy's top object only: the prefab file it follows.
+    AssetId prefab;
+    /// On every object that came from the prefab, the top one too: which
+    /// object of the prefab file it is.
+    EntityId source;
+    /// On the top object, only when the prefab could not be read: the copy
+    /// exactly as the scene file has it. The object is then a stand-in, and
+    /// this text is written back unchanged, so that nothing is lost while
+    /// the prefab is missing.
+    std::string kept;
+
+    bool none() const noexcept { return prefab.isNull() && source.isNull() && kept.empty(); }
+    friend bool operator==(const PrefabLink&, const PrefabLink&) = default;
+};
+
 class Entity {
 public:
     EntityId id() const noexcept { return m_id; }
@@ -59,6 +79,11 @@ public:
 
     const Transform& transform() const { return *get<Transform>(); }
 
+    /// Its tie to a prefab file, if it has one (see PrefabLink).
+    const PrefabLink& prefabLink() const noexcept { return m_link; }
+    /// True for the top object of a linked copy.
+    bool isPrefabCopy() const noexcept { return !m_link.prefab.isNull(); }
+
 private:
     friend class Scene;
     EntityId m_id;
@@ -67,6 +92,7 @@ private:
     EntityId m_parent;
     std::vector<EntityId> m_children;
     std::vector<std::unique_ptr<Component>> m_components;
+    PrefabLink m_link;
 };
 
 /// A copy of an entity and everything inside it, detached from any scene.
@@ -79,6 +105,7 @@ struct EntitySnapshot {
         std::string name;
         bool active = true;
         std::vector<std::unique_ptr<Component>> components;
+        PrefabLink link;
     };
     std::vector<Item> items;   // depth-first: the entity, then its descendants
     std::size_t index = 0;     // position of the entity among its siblings
@@ -178,6 +205,9 @@ public:
     bool remove(EntityId id);
     bool rename(EntityId id, std::string name);
     bool setActive(EntityId id, bool active);
+    /// Ties an object to a prefab file, or (with an empty link) unties it.
+    /// It changes nothing about the object itself: only how it is saved.
+    bool setPrefabLink(EntityId id, PrefabLink link);
     /// Moves an entity to a new parent and position. Refuses to move an entity
     /// inside itself.
     bool move(EntityId id, EntityId newParent, std::size_t index);

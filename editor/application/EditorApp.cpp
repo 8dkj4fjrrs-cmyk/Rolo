@@ -754,7 +754,7 @@ std::optional<Scene> EditorApp::loadSceneForGame(AssetId id, std::string& error)
     if (!m_document->isUntitled() && std::filesystem::equivalent(path, m_document->path(), ec)) {
         return m_document->scene();
     }
-    SceneLoadResult loaded = loadSceneFile(path, m_registry);
+    SceneLoadResult loaded = loadSceneFile(path, m_registry, prefabTexts());
     reportIssues(path, loaded.issues);
     if (!loaded.ok()) {
         error = record->path + " could not be read";
@@ -972,7 +972,7 @@ void EditorApp::openScene(const std::filesystem::path& path)
     }
     confirmDiscard("opening another scene", [this, path] {
         std::vector<FileIssue> issues;
-        auto opened = SceneDocument::open(path, m_registry, issues);
+        auto opened = SceneDocument::open(path, m_registry, issues, prefabTexts());
         reportIssues(path, issues);
         if (!opened) {
             showMessage("Could Not Open Scene", "The scene " + path.filename().string()
@@ -1001,7 +1001,7 @@ void EditorApp::reloadScene()
     const std::filesystem::path path = m_document->path();
     const auto reload = [this, path] {
         std::vector<FileIssue> issues;
-        auto opened = SceneDocument::open(path, m_registry, issues);
+        auto opened = SceneDocument::open(path, m_registry, issues, prefabTexts());
         reportIssues(path, issues);
         if (opened) {
             const std::uint64_t keep = m_state.selectedNodeId;
@@ -1028,7 +1028,7 @@ void EditorApp::saveScene(std::function<void()> then)
         saveSceneAs(std::move(then));
         return;
     }
-    if (const Status status = m_document->save(); !status) {
+    if (const Status status = m_document->save(prefabTexts()); !status) {
         log().error(kCategory, "Could not save the scene: " + status.message);
         showMessage("Could Not Save", status.message);
         return;
@@ -1089,7 +1089,7 @@ void EditorApp::saveSceneAs(std::function<void()> then)
             error.setText("A scene called “" + text + "” already exists. Choose another name.");
             return;
         }
-        if (const Status status = m_document->saveAs(path); !status) {
+        if (const Status status = m_document->saveAs(path, prefabTexts()); !status) {
             error.setText(status.message);
             return;
         }
@@ -1164,7 +1164,7 @@ bool EditorApp::openProjectFolder(const std::filesystem::path& folder, bool repo
         scene = m_state.lastScene;
     }
     std::vector<FileIssue> issues;
-    auto opened = SceneDocument::open(scene, m_registry, issues);
+    auto opened = SceneDocument::open(scene, m_registry, issues, prefabTexts());
     reportIssues(scene, issues);
     if (opened) {
         setDocument(std::make_unique<SceneDocument>(std::move(*opened)));
@@ -1335,7 +1335,7 @@ void EditorApp::showNewProjectDialog(bool keepCurrentScene, std::function<void()
         if (keep) {
             // The current scene replaces the project's first scene.
             const std::filesystem::path path = m_project->absolute(m_project->settings().startScene);
-            if (const Status s = keep->saveAs(path); !s) {
+            if (const Status s = keep->saveAs(path, prefabTexts()); !s) {
                 log().error(kCategory, "Could not save the scene into the new project: " + s.message);
             }
             setDocument(std::move(keep));
