@@ -119,7 +119,8 @@ end)                                                print(other:name())
 
 There are three kinds so far: `game.event("name")` (your own, sent with
 `game.emit`), `input.pressed("jump")` / `input.released("jump")`, and
-`obj:collided()`. Each has `:connect(f)`, `:once(f)` and `:wait()`, and
+`obj:collided()`, and a few more (`obj:separated()`,
+`obj:animationFinished()`, `obj:destroyed()`). Each has `:connect(f)`, `:once(f)` and `:wait()`, and
 `connect` gives back a connection to `:disconnect()`. Connect inside
 `start`, not at the top of the file: a connection belongs to an object,
 and goes when the object does. For everything else, ask in `update`
@@ -191,6 +192,9 @@ takes `x, y` takes one vector as well.
 | Roblox | Rolo |
 |---|---|
 | `part.Touched:Connect(function(hit) ... end)` | for solid things with physics: `function collide(self, other) ... end`, or `obj:collided():connect(function(other) ... end)` for any object (a Collider on both, a Rigid Body on at least one). For areas you walk into (a coin, a checkpoint: a Collider that is not solid): `if self.object:isTouching(other) then` in `update` |
+| `part.TouchEnded:Connect(function(hit) ... end)` | `obj:separated():connect(function(other) ... end)` |
+| `track.Stopped:Wait()`, `track.Ended` (an animation finishing) | `obj:animationFinished():wait()`, or `:connect(function(clip) ... end)`, for a clip that does not loop |
+| `instance.Destroying:Connect(...)` | `obj:destroyed():connect(function() ... end)`, from another object's script |
 | `workspace:GetPartsInPart(part)` | `obj:overlapping()` |
 | `part.CanCollide = false` | a Collider that is not **Solid** |
 | `part.Anchored = true` | no Rigid Body, or one whose Type is **Static** |
@@ -288,10 +292,11 @@ So you do not go looking:
 - **3D.**
 - **Building objects from nothing** (`Instance.new`): copy one made in
   the editor instead (`game.spawn`). Copies are not kept in saved games.
-- **Most of Roblox's events**: Rolo has three kinds to connect to (game
-  events, keys and actions, collisions). No `Changed`, no
-  `ChildAdded`, no events that carry your own values. Also no
-  `task.cancel` or `task.defer`.
+- **Most of Roblox's events**: Rolo has a handful to connect to (game
+  events, keys and actions, touching beginning and ending, an animation
+  finishing, an object being destroyed). No `Changed`, no `ChildAdded`,
+  no events that carry your own values. Also no `task.cancel` or
+  `task.defer`.
 - **GUI buttons and layouts**, **tweens**, **particles**, **lighting**.
 - **A marketplace** of models and scripts, and **Team Create**. A Rolo
   project is a folder of plain files, which works well with Git.

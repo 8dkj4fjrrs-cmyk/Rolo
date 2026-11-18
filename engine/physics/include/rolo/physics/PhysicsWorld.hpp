@@ -116,6 +116,9 @@ public:
     std::vector<BodyContact> contacts(BodyHandle body) const;
     /// Pairs of bodies that started touching during the last step().
     const std::vector<BodyHit>& hits() const noexcept { return m_hits; }
+    /// Pairs of bodies that stopped touching during the last step(). (Not
+    /// those where one of the two was removed.)
+    const std::vector<BodyHit>& parts() const noexcept { return m_parts; }
 
     std::size_t bodyCount() const noexcept;
 
@@ -123,6 +126,7 @@ private:
     struct Impl;
     std::unique_ptr<Impl> m;
     std::vector<BodyHit> m_hits;
+    std::vector<BodyHit> m_parts;
 };
 
 } // namespace rolo

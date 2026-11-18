@@ -112,11 +112,40 @@ switched off (rest) and destroyed (gone); `:Connect`, `wait` in `update`,
 in a connected function. The script tests also pass under the address
 sanitizer.
 
+## Added 2026-11-18: three more events
+
+| | happens when | brings |
+|---|---|---|
+| `obj:separated()` | physics makes that object stop touching another | the other object |
+| `obj:animationFinished()` | its clip, one that does not loop, has played to its end | the clip's name |
+| `obj:destroyed()` | that object is gone from the game | nothing |
+
+Each is one more `ScriptSignal` kind looked at in
+`ScriptHost::runConnections`, as the first three are:
+
+- **Separated** reads the pairs whose touch ended in the last physics
+  step (`PhysicsWorld::parts`, from Box2D's end-touch events). A touch
+  that ends because one of the two was destroyed is not reported: Box2D
+  can no longer say whose shape it was. `destroyed()` is for that.
+- **AnimationFinished** has no list to read: "finished" is a state
+  (`Game::isAnimationFinished`). The connection remembers whether it was
+  finished when last looked at (`Connection::was`) and fires on becoming
+  so. A clip that is finished stays finished until it is played again
+  from its start (`obj:play(clip, true)`).
+- **Destroyed** fires when the object is no longer in the scene, once;
+  the connection is then dropped, having nothing more to hear. An object
+  cannot hear its own destruction, because its connections go with it.
+
+Tested (`[more]`): touching ending, connected and waited for, with
+physics; an object destroyed, connected and waited for, heard once; a
+clip finishing, not heard for a looping clip, heard again when played
+again.
+
 ## Not done
 
 - Events of one's own with values (`BindableEvent`): game events have a
   name only.
-- More events: an animation finishing, touching ending, an object being
-  destroyed, a variable changing, the scene changing.
+- More events: a variable changing, the scene changing, an overlap (not a
+  physics touch) beginning or ending.
 - `wait` with a time limit.
 - Events kept for an object that was switched off.

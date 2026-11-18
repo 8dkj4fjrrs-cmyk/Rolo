@@ -152,7 +152,9 @@ In order:
    colours, points and other objects. ~~Copies that follow their
    prefab~~ **done** ([ADR 0035](adr/0035-linked-copies-of-prefabs.md)):
    Apply to Prefab, Reset, Unlink, and a copy's own fields marked in
-   the Inspector. Next: more events, prefabs inside prefabs.
+   the Inspector. ~~More events~~ **done**: touching ending, an
+   animation finishing, an object destroyed. Next: prefabs inside
+   prefabs.
 
 Alongside: the editor polish below. Later: 3D.
 

@@ -632,16 +632,17 @@ std::optional<std::string> ScriptHost::runConnections(Script& script)
     // they may connect and disconnect, which changes the list.
     struct Firing {
         std::uint64_t connection;
-        EntityId other;   // Collided: who was touched
+        EntityId other;      // Collided, Separated: the other object
+        std::string text;    // AnimationFinished: the clip's name
     };
     std::vector<Firing> firings;
     const Input& input = std::as_const(m_game).input();
-    for (const Script::Connection& c : script.m_connections) {
+    for (Script::Connection& c : script.m_connections) {
         const ScriptSignal& s = c.signal;
         switch (s.kind) {
         case ScriptSignal::GameEvent:
             if (m_game.wasEmitted(s.name)) {
-                firings.push_back({c.id, {}});
+                firings.push_back({c.id, {}, {}});
             }
             break;
         case ScriptSignal::Pressed:
@@ -664,7 +665,7 @@ std::optional<std::string> ScriptHost::runConnections(Script& script)
                 }
             }
             if (happened) {
-                firings.push_back({c.id, {}});
+                firings.push_back({c.id, {}, {}});
             }
             break;
         }
@@ -672,10 +673,35 @@ std::optional<std::string> ScriptHost::runConnections(Script& script)
             // What began to touch in the last physics step (the frame before).
             for (const auto& [a, b] : m_game.m_physics->hits()) {
                 if (a.value() == s.subject) {
-                    firings.push_back({c.id, b});
+                    firings.push_back({c.id, b, {}});
                 } else if (b.value() == s.subject) {
-                    firings.push_back({c.id, a});
+                    firings.push_back({c.id, a, {}});
                 }
+            }
+            break;
+        case ScriptSignal::Separated:
+            // ...and what stopped touching.
+            for (const auto& [a, b] : m_game.m_physics->parts()) {
+                if (a.value() == s.subject) {
+                    firings.push_back({c.id, b, {}});
+                } else if (b.value() == s.subject) {
+                    firings.push_back({c.id, a, {}});
+                }
+            }
+            break;
+        case ScriptSignal::AnimationFinished: {
+            // A clip that does not loop has reached its end: said once,
+            // when it gets there, and again if it is played again.
+            const bool finished = m_game.isAnimationFinished(EntityId{s.subject});
+            if (finished && !c.was) {
+                firings.push_back({c.id, {}, m_game.currentClip(EntityId{s.subject})});
+            }
+            c.was = finished;
+            break;
+        }
+        case ScriptSignal::Destroyed:
+            if (!std::as_const(m_game).scene().contains(EntityId{s.subject})) {
+                firings.push_back({c.id, {}, {}});
             }
             break;
         default:
@@ -690,9 +716,25 @@ std::optional<std::string> ScriptHost::runConnections(Script& script)
             continue;   // disconnected meanwhile, or it was for once
         }
         const Script::Connection connection = *found;
-        if (connection.once) {
+        // (An object is destroyed once: that connection has nothing more to hear.)
+        const bool last = connection.once || connection.signal.kind == ScriptSignal::Destroyed;
+        if (last) {
             list.erase(found);
         }
+        // What the event brings: pushed on the stack `to`, returns how many values.
+        const auto bring = [&](lua_State* to) {
+            switch (connection.signal.kind) {
+            case ScriptSignal::Collided:
+            case ScriptSignal::Separated:
+                pushObjectForScripts(to, firing.other);
+                return 1;
+            case ScriptSignal::AnimationFinished:
+                lua_pushlstring(to, firing.text.data(), firing.text.size());
+                return 1;
+            default:
+                return 0;
+            }
+        };
         std::optional<std::string> error;
         if (connection.waits) {
             // A task waits here: it goes on, and wait() gives it what the event brings.
@@ -705,21 +747,11 @@ std::optional<std::string> ScriptHost::runConnections(Script& script)
             lua_getref(m_L, thread);
             lua_State* const T = lua_tothread(m_L, -1);
             lua_pop(m_L, 1);
-            int given = 0;
-            if (connection.signal.kind == ScriptSignal::Collided) {
-                pushObjectForScripts(T, firing.other);
-                given = 1;
-            }
-            error = resumeTask(script, thread, given);
+            error = resumeTask(script, thread, bring(T));
         } else {
             lua_getref(m_L, connection.function);
-            int arguments = 0;
-            if (connection.signal.kind == ScriptSignal::Collided) {
-                pushObjectForScripts(m_L, firing.other);
-                arguments = 1;
-            }
-            error = beginTask(script, m_L, arguments, 0.0);
-            if (connection.once) {
+            error = beginTask(script, m_L, bring(m_L), 0.0);
+            if (last) {
                 lua_unref(m_L, connection.function);
             }
         }

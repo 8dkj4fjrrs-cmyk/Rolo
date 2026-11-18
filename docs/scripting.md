@@ -140,6 +140,9 @@ What can be listened to:
 | `game.event("gate_open")` | that game event was sent, by `game.emit` or a Trigger. It is heard in the next frame | nothing |
 | `input.pressed("jump")`, `input.released("jump")` | an action, key or button goes down or up (the names of [`input`](#input)) | nothing |
 | `obj:collided()` | physics makes that object begin to touch another (what [`collide`](#physics) is told, but for any object) | the other object |
+| `obj:separated()` | physics makes that object stop touching another. (Not when one of the two is destroyed) | the other object |
+| `obj:animationFinished()` | its clip, one that does not loop, has played to its end. Once each time: play it again from its start (`obj:play(clip, true)`) to hear it again | the clip's name |
+| `obj:destroyed()` | that object is gone from the game. Once. An object cannot hear its own going: its connections go with it | nothing |
 
 And what to do with it:
 
@@ -157,6 +160,16 @@ function start(self)
         print(other:name() .. " hit the coin")
         self.object:destroy()
     end)
+end
+```
+
+```lua
+function start(self)
+    -- A chest: play the opening once, wait for it to end, then hand over the coin.
+    input.pressed("interact"):wait()
+    self.object:play("open", true)
+    self.object:animationFinished():wait()
+    game.spawn("Coin", self.object:position())
 end
 ```
 
@@ -375,7 +388,9 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `obj:stopAnimation()` | stops on the clip's first frame |
 | `obj:clip()` | the clip it plays |
 | `obj:isAnimationPlaying()`, `obj:isAnimationFinished()` | animation state (finished: a clip that does not loop has reached its end) |
-| `obj:collided()` | the [event](#events) of physics making it begin to touch another: `obj:collided():connect(function(other) ... end)` |
+| `obj:collided()`, `obj:separated()` | the [events](#events) of physics making it begin and stop touching another: `obj:collided():connect(function(other) ... end)` |
+| `obj:animationFinished()` | the [event](#events) of its clip (one that does not loop) reaching its end: `obj:play("open", true)`, then `obj:animationFinished():wait()` |
+| `obj:destroyed()` | the [event](#events) of it being destroyed: `boss:destroyed():connect(function() game.emit("victory") end)` |
 | `obj:overlapping()` | a list of the objects whose Colliders overlap its Collider |
 | `obj:isTouching(other)` | true if their Colliders overlap |
 | `obj:text()`, `obj:setText("Score: 3")` | the text of a Text component; `{variable}` and `{button:jump}` in it are filled in, as in the editor |

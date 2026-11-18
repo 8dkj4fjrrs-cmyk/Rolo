@@ -5,6 +5,10 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Three more events for scripts** (ADR 0032): `obj:separated()`
+  (touching ended), `obj:animationFinished()` (a clip that does not loop
+  reached its end) and `obj:destroyed()`, each with `connect`, `once`
+  and `wait`.
 - **Prefabs, step 2: copies follow their prefab**
   ([ADR 0035](docs/adr/0035-linked-copies-of-prefabs.md)). An object
   placed from a prefab is a linked copy; its Inspector has **Apply to

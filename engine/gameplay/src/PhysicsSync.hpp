@@ -48,6 +48,8 @@ public:
     void step(Scene& scene, float dt);
     /// Pairs of objects that started touching in the last step().
     const std::vector<std::pair<EntityId, EntityId>>& hits() const noexcept { return m_hits; }
+    /// Pairs of objects that stopped touching in the last step().
+    const std::vector<std::pair<EntityId, EntityId>>& parts() const noexcept { return m_parts; }
 
     bool isRunning() const noexcept { return m_world != nullptr; }
     PhysicsWorld* world() noexcept { return m_world.get(); }
@@ -74,6 +76,7 @@ private:
     std::map<EntityId, Tracked> m_bodies;
     float m_accumulator = 0.0f;
     std::vector<std::pair<EntityId, EntityId>> m_hits;
+    std::vector<std::pair<EntityId, EntityId>> m_parts;
 };
 
 } // namespace rolo

@@ -125,9 +125,9 @@ Please report what you find.
   - waiting (`task.wait`) works in `start` and in tasks, not in `update`
     or `collide`; a task cannot be stopped from outside;
   - [events](scripting.md#events) to connect to and wait for are game
-    events (a name, no values), keys and actions, and collisions
-    beginning; nothing yet for an animation finishing, touching ending
-    or an object being destroyed. An object that is switched off misses
+    events (a name, no values), keys and actions, touching beginning
+    and ending (with physics; not overlaps), an animation finishing and
+    an object being destroyed. An object that is switched off misses
     what happens meanwhile;
   - an object cannot be moved to another parent from a script;
   - scripts make objects by copying one that is in the scene

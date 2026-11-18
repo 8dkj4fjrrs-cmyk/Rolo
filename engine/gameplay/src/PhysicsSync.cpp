@@ -235,6 +235,7 @@ void PhysicsSync::sync(Scene& scene)
 void PhysicsSync::step(Scene& scene, float dt)
 {
     m_hits.clear();
+    m_parts.clear();
     if (!m_world) {
         return;
     }
@@ -256,6 +257,11 @@ void PhysicsSync::step(Scene& scene, float dt)
         for (const BodyHit& hit : m_world->hits()) {
             if (hit.a != 0 && hit.b != 0) {
                 m_hits.emplace_back(EntityId{hit.a}, EntityId{hit.b});
+            }
+        }
+        for (const BodyHit& part : m_world->parts()) {
+            if (part.a != 0 && part.b != 0) {
+                m_parts.emplace_back(EntityId{part.a}, EntityId{part.b});
             }
         }
         m_accumulator -= kStep;

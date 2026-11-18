@@ -982,6 +982,20 @@ int objectCollided(lua_State* L)
     return pushSignal(L, std::move(signal));
 }
 
+// obj:separated(): physics makes the object stop touching another. Brings
+// the other object. (Not when one of the two is destroyed: obj:destroyed().)
+// obj:animationFinished(): its clip, one that does not loop, has played to
+// its end. Brings the clip's name.
+// obj:destroyed(): the object is gone from the game. Brings nothing, and
+// happens once.
+template <int Kind> int objectSignal(lua_State* L)
+{
+    ScriptSignal signal;
+    signal.kind = Kind;
+    signal.subject = objectEntity(L, 1).id().value();
+    return pushSignal(L, std::move(signal));
+}
+
 struct ConnectionHandle {
     std::uint64_t owner = 0;   // the object whose script connected
     std::uint64_t id = 0;
@@ -1012,6 +1026,9 @@ int signalToString(lua_State* L)
     case ScriptSignal::GameEvent: pushText(L, "event \"" + signal.name + "\""); break;
     case ScriptSignal::Pressed: pushText(L, "event: pressed"); break;
     case ScriptSignal::Released: pushText(L, "event: released"); break;
+    case ScriptSignal::Separated: pushText(L, "event: separated"); break;
+    case ScriptSignal::AnimationFinished: pushText(L, "event: animation finished"); break;
+    case ScriptSignal::Destroyed: pushText(L, "event: destroyed"); break;
     default: pushText(L, "event: collided"); break;
     }
     return 1;
@@ -1612,6 +1629,9 @@ void openScriptApi(ScriptHost& host)
         {"isOnGround", guarded<objectIsOnGround>},
         {"contacts", guarded<objectContacts>},
         {"collided", guarded<objectCollided>},
+        {"separated", guarded<objectSignal<ScriptSignal::Separated>>},
+        {"animationFinished", guarded<objectSignal<ScriptSignal::AnimationFinished>>},
+        {"destroyed", guarded<objectSignal<ScriptSignal::Destroyed>>},
         {"color", guarded<objectColor>},
         {"setColor", guarded<objectSetColor>},
         {nullptr, nullptr},

@@ -1842,3 +1842,112 @@ TEST_CASE("A scene's linked copies of a prefab play as ordinary objects, each wi
     CHECK(p.printed[0] == "scripts/tank.lua: Tank at 0 speed 10 own turret: true");
     CHECK(p.printed[1] == "scripts/tank.lua: Fast Tank at 300 speed 50 own turret: true");
 }
+
+// --- More events: touching ending, an animation finishing, an object destroyed (ADR 0032) -----------------
+
+TEST_CASE("A script hears objects stop touching, and objects being destroyed", "[gameplay][script][event][more]")
+{
+    ScriptProject p;
+    const AssetId watcher = p.write("scripts/watcher.lua", R"(
+        function start(self)
+            local crate = game.find("Crate")
+            print(tostring(crate:separated()), tostring(crate:destroyed()), tostring(crate:animationFinished()))
+            crate:separated():connect(function(other) print("crate left " .. other:name()) end)
+            crate:destroyed():connect(function() print("crate is gone", crate:isValid()) end)
+            crate:collided():wait()
+            print("landed")
+            task.wait(0.1)
+            crate:setPosition(0, 400)            -- lifted off the floor
+            crate:separated():wait()
+            print("waited for it to leave")
+            task.wait(0.1)
+            crate:destroy()
+            crate:destroyed():wait()
+            print("waited for it to go")
+        end
+    )");
+    Scene scene;
+    const auto solid = [&scene](const std::string& name, Vec2 at, Vec2 size, bool body) {
+        const EntityId id = scene.create(name)->id();
+        scene.setProperty(id, "rolo.Transform", "position", at);
+        auto collider = std::make_unique<Collider>();
+        collider->size = size;
+        scene.addComponent(id, std::move(collider));
+        if (body) {
+            scene.addComponent(id, std::make_unique<RigidBody>());
+        }
+        return id;
+    };
+    solid("Floor", {0.0f, -50.0f}, {2000.0f, 100.0f}, false);
+    solid("Crate", {0.0f, 60.0f}, {20.0f, 20.0f}, true);
+    addScripted(scene, "Watcher", watcher);
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 150);
+    CHECK(p.problems.empty());
+    REQUIRE(p.printed.size() == 6);
+    CHECK(p.printed[0] == "scripts/watcher.lua: event: separated\tevent: destroyed\tevent: animation finished");
+    CHECK(p.printed[1] == "scripts/watcher.lua: landed");
+    CHECK(p.printed[2] == "scripts/watcher.lua: crate left Floor");
+    CHECK(p.printed[3] == "scripts/watcher.lua: waited for it to leave");
+    CHECK(p.printed[4] == "scripts/watcher.lua: crate is gone\tfalse");   // once, though it stays gone
+    CHECK(p.printed[5] == "scripts/watcher.lua: waited for it to go");
+    // An event of an object that is no more cannot be asked for.
+    const AssetId late = p.write("scripts/late.lua", R"(
+        function start(self)
+            local ghost = game.spawn(self.object)
+            ghost:destroy()
+            task.wait(0.05)
+            print(pcall(function() return ghost:destroyed() end))
+        end
+    )");
+    Scene second;
+    addScripted(second, "Late", late);
+    game.start(second);
+    frames(game, 10);
+    CHECK_THAT(p.printed.back(), ContainsSubstring("false"));
+}
+
+TEST_CASE("A script hears a clip that does not loop reach its end", "[gameplay][script][event][more]")
+{
+    ScriptProject p;
+    const AssetId image = *p.assets.import(std::filesystem::path(ROLO_TEST_DATA_DIR) / "tiles_16px.png");
+    const AssetId set = *p.assets.createAnimationSet(image, {16, 16}, "Hero");
+    AnimationSet clips = *p.assets.find(set)->animation;
+    clips.clips = {AnimationClip{"walk", {0, 1, 2}, 10.0f, true}, AnimationClip{"attack", {3, 4}, 10.0f, false}};
+    REQUIRE(p.assets.writeText(set, serializeAnimationSet(clips)));
+    const AssetId hero = p.write("scripts/hero.lua", R"(
+        function start(self)
+            local count = 0
+            self.object:animationFinished():connect(function(clip)
+                count += 1
+                print("finished " .. clip .. " " .. count)
+            end)
+            task.wait(0.3)                                   -- walking loops: nothing is heard
+            print("attacks")
+            self.object:play("attack")
+            local clip = self.object:animationFinished():wait()
+            print("waited for " .. clip)
+            task.wait(0.3)                                   -- finished stays finished: said once
+            self.object:play("attack", true)                 -- played again from its start: said again
+            self.object:animationFinished():wait()
+            print("and again")
+        end
+    )");
+    Scene scene;
+    const EntityId id = addScripted(scene, "Hero", hero);
+    auto animator = std::make_unique<Animator>();
+    animator->animations = set;
+    animator->clip = "walk";
+    scene.addComponent(id, std::move(animator));
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 90);
+    CHECK(p.problems.empty());
+    REQUIRE(p.printed.size() == 5);
+    CHECK(p.printed[0] == "scripts/hero.lua: attacks");
+    CHECK(p.printed[1] == "scripts/hero.lua: finished attack 1");
+    CHECK(p.printed[2] == "scripts/hero.lua: waited for attack");
+    CHECK(p.printed[3] == "scripts/hero.lua: finished attack 2");
+    CHECK(p.printed[4] == "scripts/hero.lua: and again");
+}

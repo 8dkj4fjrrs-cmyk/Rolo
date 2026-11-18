@@ -191,6 +191,7 @@ void PhysicsWorld::addShape(BodyHandle body, const ShapeSettings& s)
 void PhysicsWorld::step(float seconds)
 {
     m_hits.clear();
+    m_parts.clear();
     if (!(seconds > 0.0f)) {
         return;
     }
@@ -204,6 +205,17 @@ void PhysicsWorld::step(float seconds)
         const BodyHandle a{b2StoreBodyId(b2Shape_GetBody(e.shapeIdA))};
         const BodyHandle b{b2StoreBodyId(b2Shape_GetBody(e.shapeIdB))};
         m_hits.push_back({user(a), user(b)});
+    }
+    for (int i = 0; i < events.endCount; ++i) {
+        // (A shape that was destroyed ends its touches too, but is no
+        // longer there to ask whose it was.)
+        const b2ContactEndTouchEvent& e = events.endEvents[i];
+        if (!b2Shape_IsValid(e.shapeIdA) || !b2Shape_IsValid(e.shapeIdB)) {
+            continue;
+        }
+        const BodyHandle a{b2StoreBodyId(b2Shape_GetBody(e.shapeIdA))};
+        const BodyHandle b{b2StoreBodyId(b2Shape_GetBody(e.shapeIdB))};
+        m_parts.push_back({user(a), user(b)});
     }
 }
 

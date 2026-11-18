@@ -51,10 +51,10 @@ class ScriptHost;
 /// or obj:collided. (Plain numbers, so that this header needs no others;
 /// the script host knows what they mean.)
 struct ScriptSignal {
-    enum Kind { GameEvent, Pressed, Released, Collided };
+    enum Kind { GameEvent, Pressed, Released, Collided, Separated, AnimationFinished, Destroyed };
     int kind = GameEvent;
     std::string name;            // the game event, or the action
-    std::uint64_t subject = 0;   // Collided: the object that is touched
+    std::uint64_t subject = 0;   // Collided and after: the object it is about
     int keys[2] = {0, 0};        // Pressed, Released: keys (Key), 0 for none
     int mouse = -1;              // ...or a mouse button (MouseButton)
     int padButton = -1;          // ...or a gamepad button (GamepadButton)
@@ -103,6 +103,7 @@ struct Script : BehaviourBase<Script> {
         int function = -2;      // the function to begin, in the state's registry; for `waits`: the task's thread (the task owns it)
         bool once = false;      // gone after the first time
         bool waits = false;     // a task waits here (signal:wait)
+        bool was = false;       // AnimationFinished: it was finished when last looked at (it fires on becoming so)
     };
     std::vector<Connection> m_connections;
 };
