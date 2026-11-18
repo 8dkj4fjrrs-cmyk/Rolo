@@ -12,6 +12,8 @@ All notable changes to Rolo Engine. Versions follow the milestones in
   **Reset** and **Unlink**. Scene files hold a linked copy as a link and
   its differences (scene format version 2, written only for scenes that
   have one; version 1 files open unchanged).
+- The Inspector marks the fields that are a prefab copy's own (their
+  names in orange); a click on a marked name puts the prefab's value back.
 - Changed: **Edit › Save as Prefab** always makes a new prefab file and
   links the object to it; it no longer replaces a prefab of the same
   name.

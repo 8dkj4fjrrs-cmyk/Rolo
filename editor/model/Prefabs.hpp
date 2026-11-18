@@ -11,9 +11,14 @@
 
 #include "rolo/scene/SceneFile.hpp"
 
+#include "rolo/scene/Values.hpp"
+
+#include <map>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace rolo::editor {
 
@@ -52,5 +57,55 @@ std::optional<Scene> sceneAfterApply(const Scene& scene, EntityId applied, Asset
 /// dropped, but it stays where it stands, and it and the objects it keeps
 /// have the IDs they had. Empty if `root` is not a linked copy.
 EntitySnapshot copyReset(Scene& scene, EntityId root, const Scene& prefab);
+
+/// The top object of the linked copy that `object` is one of the prefab's
+/// objects of (itself, if it is a copy's top object). Null if it is not
+/// part of a linked copy: an ordinary object, or one put into a copy here.
+EntityId copyRootOf(const Scene& scene, EntityId object);
+
+/// What one object of a linked copy has of its own, for the Inspector to
+/// show and to put back one by one.
+struct CopyDifferences {
+    EntityId root;       // the copy's top object
+    AssetId prefab;      // the prefab file it follows
+    bool top = false;    // the object is that top object
+
+    /// Properties whose value differs: (component type, property key) and
+    /// the prefab's value, which putting the field back sets. Where the top
+    /// object stands is always its own and is not listed.
+    std::map<std::pair<std::string, std::string>, PropertyValue> fields;
+    /// Named values (a Script's properties) that differ, by name, and the
+    /// prefab's value: none if the prefab gives that name no value of its
+    /// own. `valuesIn` is the component and property that hold them.
+    std::map<std::string, std::optional<DataValue>> values;
+    std::pair<std::string, std::string> valuesIn;
+    /// Component types the object has and the prefab's has not, and the
+    /// other way round; and components whose other data differs (a
+    /// Tilemap's tiles), which can only be put back with the whole copy.
+    std::vector<std::string> added;
+    std::vector<std::string> removed;
+    std::vector<std::string> changedData;
+    /// The prefab's name and on/off, where the object's differ.
+    std::optional<std::string> name;
+    std::optional<bool> active;
+
+    bool none() const
+    {
+        return fields.empty() && values.empty() && added.empty() && removed.empty() && changedData.empty() && !name
+               && !active;
+    }
+    /// In a few words, for the Inspector: "2 fields, 1 component added".
+    std::string summary() const;
+};
+
+/// What `object` has of its own compared with `prefab` (the copy's prefab,
+/// as parsePrefab gives it). Nothing if `object` is not one of a linked
+/// copy's objects from the prefab, or the prefab has no such object now.
+std::optional<CopyDifferences> differencesFromPrefab(const Scene& scene, EntityId object, const Scene& prefab);
+
+/// `values` (named values as text) with `name` put back to what the prefab
+/// has (`theirs`; none: no value of its own).
+std::string valuesWithNamePutBack(const std::string& values, const std::string& name,
+                                  const std::optional<DataValue>& theirs);
 
 } // namespace rolo::editor

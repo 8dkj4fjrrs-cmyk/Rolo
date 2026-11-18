@@ -183,4 +183,140 @@ EntitySnapshot copyReset(Scene& scene, EntityId root, const Scene& prefab)
     return fresh;
 }
 
+EntityId copyRootOf(const Scene& scene, EntityId object)
+{
+    for (const Entity* e = scene.find(object); e != nullptr; e = scene.find(e->parent())) {
+        if (e->isPrefabCopy()) {
+            // The nearest copy above it decides: inside a copy, an object
+            // is the prefab's or it was put there in this scene.
+            return prefabCopyMembers(scene, e->id()).count(object) != 0 ? e->id() : EntityId{};
+        }
+    }
+    return {};
+}
+
+std::string CopyDifferences::summary() const
+{
+    std::vector<std::string> parts;
+    const auto count = [&parts](std::size_t n, const char* one, const char* many) {
+        if (n > 0) {
+            parts.push_back(std::to_string(n) + " " + (n == 1 ? one : many));
+        }
+    };
+    count(fields.size() + values.size(), "field", "fields");
+    count(added.size(), "component added", "components added");
+    count(removed.size(), "component removed", "components removed");
+    count(changedData.size(), "component's contents", "components' contents");
+    if (name) {
+        parts.emplace_back("its name");
+    }
+    if (active) {
+        parts.emplace_back("on / off");
+    }
+    std::string text;
+    for (std::size_t i = 0; i < parts.size(); ++i) {
+        text += (i == 0 ? "" : ", ") + parts[i];
+    }
+    return text;
+}
+
+std::optional<CopyDifferences> differencesFromPrefab(const Scene& scene, EntityId object, const Scene& prefab)
+{
+    const EntityId root = copyRootOf(scene, object);
+    const Entity* mine = scene.find(object);
+    if (root.isNull() || mine == nullptr) {
+        return std::nullopt;
+    }
+    const std::unordered_map<EntityId, EntityId> members = prefabCopyMembers(scene, root);
+    const Entity* theirs = prefab.find(members.at(object));
+    if (theirs == nullptr) {
+        return std::nullopt;
+    }
+    CopyDifferences d;
+    d.root = root;
+    d.prefab = scene.find(root)->prefabLink().prefab;
+    d.top = root == object;
+    if (mine->name() != theirs->name()) {
+        d.name = theirs->name();
+    }
+    if (mine->isActive() != theirs->isActive()) {
+        d.active = theirs->isActive();
+    }
+    // A value of the prefab's that points at one of its objects points, in
+    // this copy, at the copy's object.
+    std::unordered_map<std::string, std::string> here;
+    for (const auto& [id, inPrefab] : members) {
+        here[inPrefab.toString()] = id.toString();
+    }
+    for (const auto& component : mine->components()) {
+        const std::string& type = component->type().id;
+        const Component* other = theirs->component(type);
+        if (other == nullptr) {
+            d.added.push_back(type);
+            continue;
+        }
+        for (const PropertyInfo& info : component->type().properties) {
+            if (!info.get) {
+                continue;
+            }
+            const PropertyValue value = info.get(*component);
+            const PropertyValue theirValue = info.get(*other);
+            if (info.options.data) {
+                const DataValues own = parseDataValues(std::get<std::string>(value));
+                DataValues prefabs = parseDataValues(std::get<std::string>(theirValue));
+                for (auto& [name, held] : prefabs) {
+                    if (const std::string* text = std::get_if<std::string>(&held)) {
+                        if (const auto mapped = here.find(*text); mapped != here.end()) {
+                            held = mapped->second;
+                        }
+                    }
+                }
+                for (const auto& [name, held] : own) {
+                    const auto same = prefabs.find(name);
+                    if (same == prefabs.end()) {
+                        d.values[name] = std::nullopt;
+                    } else if (same->second != held) {
+                        d.values[name] = same->second;
+                    }
+                }
+                for (const auto& [name, held] : prefabs) {
+                    if (own.count(name) == 0) {
+                        d.values[name] = held;
+                    }
+                }
+                d.valuesIn = {type, info.key};
+                continue;
+            }
+            if (value == theirValue) {
+                continue;
+            }
+            if (d.top && type == Transform::componentType().id && info.key == "position") {
+                continue;   // where a copy stands is always its own
+            }
+            d.fields[{type, info.key}] = theirValue;
+        }
+        if (component->saveData() != other->saveData()) {
+            d.changedData.push_back(type);
+        }
+    }
+    for (const auto& component : theirs->components()) {
+        if (mine->component(component->type().id) == nullptr) {
+            d.removed.push_back(component->type().id);
+        }
+    }
+    return d;
+}
+
+std::string valuesWithNamePutBack(const std::string& values, const std::string& name,
+                                  const std::optional<DataValue>& theirs)
+{
+    DataValues all = parseDataValues(values);
+    if (theirs) {
+        all[name] = *theirs;
+    } else {
+        all.erase(name);
+    }
+    return writeDataValues(all);
+}
+
 } // namespace rolo::editor

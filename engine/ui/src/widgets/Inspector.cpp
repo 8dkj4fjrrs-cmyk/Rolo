@@ -185,8 +185,37 @@ void PropertyField::paint(Context& ctx, DrawList& draw)
     const Theme& t = ctx.theme();
     const Rect b = bounds();
     const float width = labelWidth(b.width) - 8.0f;
-    draw.textEllipsized(t.font, t.fontSize, {b.x, textTop(ctx, t.font, t.fontSize, b)}, t.textDim, m_label, width);
+    if (m_marked) {
+        // A bar in the margin left of the label, and the label in the accent colour.
+        draw.fillRect({b.x - 8.0f, b.y + 4.0f, 2.0f, b.height - 8.0f}, t.accent);
+    }
+    draw.textEllipsized(t.font, t.fontSize, {b.x, textTop(ctx, t.font, t.fontSize, b)}, m_marked ? t.accent : t.textDim,
+                        m_label, width);
     paintChildren(ctx, draw);
+}
+
+Rect PropertyField::labelRect() const
+{
+    const Rect b = bounds();
+    return {b.x - 8.0f, b.y, labelWidth(b.width), b.height};
+}
+
+bool PropertyField::onPointerDown(Context&, const PointerEvent& event)
+{
+    m_labelPressed = m_marked && m_onLabelClick && event.button == MouseButton::Left
+                     && labelRect().contains(event.position);
+    return m_labelPressed;
+}
+
+bool PropertyField::onPointerUp(Context&, const PointerEvent& event)
+{
+    const bool click = m_labelPressed && m_marked && labelRect().contains(event.position);
+    m_labelPressed = false;
+    if (click && m_onLabelClick) {
+        const auto action = m_onLabelClick;   // (the action may rebuild the panel this row is in)
+        action();
+    }
+    return click;
 }
 
 // ---------------------------------------------------------------------------

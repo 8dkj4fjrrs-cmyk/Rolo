@@ -215,3 +215,81 @@ TEST_CASE("Resetting a copy gives it back as the prefab has it, where it stands;
     // An object that is not a linked copy has nothing to be reset to.
     CHECK(copyReset(scratch, document.scene().roots()[0], *prefab.scene).empty());
 }
+
+TEST_CASE("What a copy has of its own is found field by field, and can be put back", "[editor][prefabs][own]")
+{
+    Scene workshop("Workshop", EntityIdGenerator(11));
+    const EntityId coin = workshop.create("Coin")->id();
+    workshop.addComponent(coin, std::make_unique<Shape>());
+    workshop.addComponent(coin, std::make_unique<Collider>());
+    const EntityId shine = workshop.create("Shine", coin)->id();
+    workshop.addComponent(shine, std::make_unique<Shape>());
+    Prefabs project{serializePrefab(workshop, coin)};
+    const SceneLoadResult prefab = parsePrefab(project.text, registry());
+    REQUIRE(prefab.ok());
+
+    Scene made("Level", EntityIdGenerator(5));
+    const EntityId plain = made.create("Floor")->id();
+    const EntityId copy = place(made, project, {50.0f, 60.0f});
+    const EntityId copyShine = childNamed(made, copy, "Shine")->id();
+    const EntityId extra = made.create("Extra", copy)->id();
+    SceneDocument document{std::move(made)};
+
+    // Fresh from the prefab, a copy has nothing of its own: where it stands does not count.
+    {
+        const auto d = differencesFromPrefab(document.scene(), copy, *prefab.scene);
+        REQUIRE(d);
+        CHECK(d->none());
+        CHECK(d->top);
+        CHECK(d->root == copy);
+        CHECK(d->prefab == kPrefab);
+        CHECK(d->summary().empty());
+    }
+    CHECK(copyRootOf(document.scene(), copyShine) == copy);
+    CHECK(copyRootOf(document.scene(), extra).isNull());   // put into the copy here: not the prefab's
+    CHECK(copyRootOf(document.scene(), plain).isNull());
+    CHECK_FALSE(differencesFromPrefab(document.scene(), extra, *prefab.scene));
+    CHECK_FALSE(differencesFromPrefab(document.scene(), plain, *prefab.scene));
+
+    // The copy changes: a colour, a size, a name, a component more and one less; its Shine moves and is switched off.
+    REQUIRE(document.execute(std::make_unique<SetProperty>(copy, "rolo.Shape", "color", PropertyValue(Color{255, 0, 0, 255}), "Color")));
+    REQUIRE(document.execute(std::make_unique<SetProperty>(copy, "rolo.Shape", "size", PropertyValue(Vec2{9.0f, 9.0f}), "Size")));
+    REQUIRE(document.execute(std::make_unique<RenameEntity>(copy, "Red Coin")));
+    {
+        Scene& s = const_cast<Scene&>(document.scene());   // (set up directly: these have commands of their own in the editor)
+        s.removeComponent(copy, "rolo.Collider");
+        s.addComponent(copy, std::make_unique<RigidBody>());
+        s.setProperty(copyShine, "rolo.Transform", "position", Vec2{3.0f, 4.0f});
+        s.setActive(copyShine, false);
+    }
+    const auto d = differencesFromPrefab(document.scene(), copy, *prefab.scene);
+    REQUIRE(d);
+    CHECK(d->fields.size() == 2);
+    CHECK(std::get<Color>(d->fields.at({"rolo.Shape", "color"})) == Shape().color);
+    CHECK(d->fields.count({"rolo.Shape", "size"}) == 1);
+    CHECK(d->fields.count({"rolo.Transform", "position"}) == 0);
+    CHECK(d->added == std::vector<std::string>{"rolo.RigidBody"});
+    CHECK(d->removed == std::vector<std::string>{"rolo.Collider"});
+    CHECK(d->name == std::optional<std::string>("Coin"));
+    CHECK(d->summary() == "2 fields, 1 component added, 1 component removed, its name");
+
+    const auto inside = differencesFromPrefab(document.scene(), copyShine, *prefab.scene);
+    REQUIRE(inside);
+    CHECK_FALSE(inside->top);
+    CHECK(inside->root == copy);
+    CHECK(inside->fields.count({"rolo.Transform", "position"}) == 1);   // inside a copy, a place is a field like any other
+    CHECK(inside->active == std::optional<bool>(true));
+    CHECK(inside->summary() == "1 field, on / off");
+
+    // Putting one field back is an ordinary change of that property, to the prefab's value: undoable.
+    REQUIRE(document.execute(std::make_unique<SetProperty>(copy, "rolo.Shape", "color", d->fields.at({"rolo.Shape", "color"}), "Reset Color")));
+    const auto after = differencesFromPrefab(document.scene(), copy, *prefab.scene);
+    CHECK(after->fields.size() == 1);
+    CHECK(after->fields.count({"rolo.Shape", "size"}) == 1);
+    document.undo();
+    CHECK(differencesFromPrefab(document.scene(), copy, *prefab.scene)->fields.size() == 2);
+
+    // Named values, name by name.
+    CHECK(valuesWithNamePutBack("{\"speed\":50,\"label\":\"x\"}", "speed", DataValue(20.0)) == "{\"label\":\"x\",\"speed\":20}");
+    CHECK(valuesWithNamePutBack("{\"speed\":50}", "speed", std::nullopt).empty());
+}

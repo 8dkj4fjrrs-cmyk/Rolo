@@ -139,8 +139,10 @@ Please report what you find.
   Use your file manager; the editor notices.
 - One object can be selected at a time.
 - [Prefabs](editor.md#prefabs-an-object-kept-as-a-file): copies follow
-  their prefab, but the Inspector does not show which fields are a
-  copy's own, and one field cannot be reset alone. A prefab cannot hold
+  their prefab, and the Inspector marks the fields that are a copy's
+  own; a component the copy added or removed, a changed name and a
+  Tilemap's changed tiles are counted there but can only be put back
+  with **Reset** (the whole copy). A prefab cannot hold
   a linked copy of another prefab (it is written into it in full), and
   cannot be opened on its own (change a copy and Apply). Apply to Prefab
   cannot be undone and clears the open scene's undo history. Inside a

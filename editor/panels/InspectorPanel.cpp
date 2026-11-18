@@ -96,6 +96,7 @@ std::string InspectorPanel::signature() const
     }
     sig += e->id().toString();
     sig += e->isPrefabCopy() ? "|copy" + e->prefabLink().prefab.toString() + e->prefabLink().kept.substr(0, 1) : std::string();
+    sig += "|in" + copyRootOf(scene, e->id()).toString();   // (...or it stops being part of a copy)
     for (const auto& c : e->components()) {
         sig += "|" + componentTypeId(*c);
     }
@@ -394,30 +395,55 @@ void InspectorPanel::buildEntity(ui::Column& content, const Entity& entity)
     });
 
     // A linked copy of a prefab says so, and offers what can be done with the link.
-    if (entity.isPrefabCopy()) {
+    const EntityId copyRoot = copyRootOf(m_editor.document().scene(), id);
+    if (entity.isPrefabCopy() || !copyRoot.isNull()) {
+        const Scene& scene = m_editor.document().scene();
+        const Entity& top = entity.isPrefabCopy() ? entity : *scene.find(copyRoot);
         const AssetDatabase* db = m_editor.assets();
-        const AssetRecord* prefab = db != nullptr ? db->find(entity.prefabLink().prefab) : nullptr;
-        const bool missing = prefab == nullptr || !entity.prefabLink().kept.empty();
+        const AssetRecord* prefab = db != nullptr ? db->find(top.prefabLink().prefab) : nullptr;
+        const bool missing = prefab == nullptr || !top.prefabLink().kept.empty();
         auto& section = content.emplace<ui::Section>("Prefab");
         auto& about = section.body().emplace<ui::Label>(
             missing ? std::string("A copy of a prefab that is not in the project. It is kept as it was in the scene "
                                   "file; put the prefab file back and open the scene again, or Unlink to make this "
                                   "an ordinary object.")
-                    : "A copy of " + prefab->path + ". It follows the prefab in everything you have not changed here.",
+            : entity.isPrefabCopy()
+                ? "A copy of " + prefab->path + ". It follows the prefab in everything you have not changed here."
+                : "One of the objects of '" + top.name() + "', a copy of " + prefab->path + ".",
             ui::Label::Style::Small);
         about.setWrap(true);
         if (missing) {
             about.setColor(ui::Color::hex(0xF2B45A));
+        } else {
+            // What this object has of its own, kept up to date as it is changed.
+            auto& own = section.body().emplace<ui::Label>("", ui::Label::Style::Small);
+            own.setWrap(true);
+            m_refresh.push_back([this, id, &own] {
+                const CopyDifferences* d = ownDifferences(id);
+                const std::string text =
+                    d == nullptr || d->none()
+                        ? std::string("Nothing here differs from the prefab.")
+                        : "Its own here: " + d->summary()
+                              + (d->fields.empty() && d->values.empty()
+                                     ? std::string(".")
+                                     : std::string(". Its own fields have their names in orange: click a name to put "
+                                                   "the prefab's value back."));
+                if (own.text() != text) {
+                    own.setText(text);
+                }
+            });
         }
-        auto& buttons = section.body().emplace<ui::Row>(6.0f, ui::Insets{0.0f, 6.0f, 0.0f, 4.0f});
-        if (!missing) {
-            buttons.emplace<ui::Button>("Apply to Prefab", [this, id] { m_editor.applyToPrefab(id); })
-                .setTooltip("Makes the prefab what this copy is now. Every other copy follows, keeping its own changes");
-            buttons.emplace<ui::Button>("Reset", [this, id] { m_editor.resetToPrefab(id); })
-                .setTooltip("Drops this copy's own changes: it becomes what the prefab is, where it stands");
+        if (entity.isPrefabCopy()) {
+            auto& buttons = section.body().emplace<ui::Row>(6.0f, ui::Insets{0.0f, 6.0f, 0.0f, 4.0f});
+            if (!missing) {
+                buttons.emplace<ui::Button>("Apply to Prefab", [this, id] { m_editor.applyToPrefab(id); })
+                    .setTooltip("Makes the prefab what this copy is now. Every other copy follows, keeping its own changes");
+                buttons.emplace<ui::Button>("Reset", [this, id] { m_editor.resetToPrefab(id); })
+                    .setTooltip("Drops all of this copy's own changes: it becomes what the prefab is, where it stands");
+            }
+            buttons.emplace<ui::Button>("Unlink", [this, id] { m_editor.unlinkFromPrefab(id); })
+                .setTooltip("Makes this an ordinary object that no longer follows the prefab");
         }
-        buttons.emplace<ui::Button>("Unlink", [this, id] { m_editor.unlinkFromPrefab(id); })
-            .setTooltip("Makes this an ordinary object that no longer follows the prefab");
     }
 
     for (const auto& component : entity.components()) {
@@ -642,12 +668,13 @@ void InspectorPanel::addPropertyEditor(ui::Section& section, EntityId id, const 
     }
     const std::string key = info.key;
     const std::string label = info.label;
-    addPropertyRow(
+    ui::PropertyField& row = addPropertyRow(
         section, id, typeId, info,
         [this, id, typeId, key] { return currentValue(m_editor.document().scene(), id, typeId, key); },
         [this, id, typeId, key, label](PropertyValue value) {
             m_editor.execute(std::make_unique<SetProperty>(id, typeId, key, std::move(value), label));
         });
+    markOwn(row, id, typeId, key, label, info.options.help, false);
 }
 
 namespace {
@@ -711,7 +738,9 @@ void InspectorPanel::buildScriptProperties(ui::Section& section, EntityId id, co
                 ids->push_back(chosen);
             }
             auto& row = section.body().emplace<ui::PropertyField>(label);
-            row.setTooltip("self." + property.name + " in the script: another object of this scene, or nil for None.");
+            const std::string help = "self." + property.name + " in the script: another object of this scene, or nil for None.";
+            row.setTooltip(help);
+            markOwn(row, id, typeId, property.name, label, help, true);
             auto& field = row.addValue(std::make_unique<ui::ChoiceField>(std::move(names)));
             field.setOnChoose([this, ids, store](int index) {
                 if (index >= 0 && index < static_cast<int>(ids->size())) {
@@ -757,7 +786,7 @@ void InspectorPanel::buildScriptProperties(ui::Section& section, EntityId id, co
         }
         info.options.help = "self." + property.name + " in the script. The script gives it " + given
                             + "; this object can have its own.";
-        addPropertyRow(
+        ui::PropertyField& propertyRow = addPropertyRow(
             section, id, typeId, info,
             [property, valuesNow]() -> std::optional<PropertyValue> {
                 const DataValue value = scriptPropertyValue(property, valuesNow());
@@ -791,15 +820,97 @@ void InspectorPanel::buildScriptProperties(ui::Section& section, EntityId id, co
                 }
                 store(wanted);
             });
+        markOwn(propertyRow, id, typeId, property.name, label, info.options.help, true);
     }
     for (const std::string& problem : declared.problems) {
         section.body().emplace<ui::Label>("In the script, " + problem, ui::Label::Style::Faint).setWrap(true);
     }
 }
 
-void InspectorPanel::addPropertyRow(ui::Section& section, EntityId id, const std::string& typeId, const PropertyInfo& info,
-                                    std::function<std::optional<PropertyValue>()> get,
-                                    std::function<void(PropertyValue)> set)
+const CopyDifferences* InspectorPanel::ownDifferences(EntityId id)
+{
+    const Scene& scene = m_editor.document().scene();
+    const AssetDatabase* db = m_editor.assets();
+    if (db == nullptr) {
+        return nullptr;
+    }
+    if (m_own.known && m_own.id == id && m_own.sceneRevision == scene.revision()
+        && m_own.assetRevision == db->revision() && m_own.generation == m_editor.documentGeneration()) {
+        return m_own.value ? &*m_own.value : nullptr;
+    }
+    m_own.known = true;
+    m_own.id = id;
+    m_own.sceneRevision = scene.revision();
+    m_own.assetRevision = db->revision();
+    m_own.generation = m_editor.documentGeneration();
+    m_own.value.reset();
+    const Entity* root = scene.find(copyRootOf(scene, id));
+    if (root == nullptr || !root->prefabLink().kept.empty()) {
+        return nullptr;
+    }
+    // The prefab is read again only when a file of the project changed.
+    const AssetId asset = root->prefabLink().prefab;
+    if (m_ownPrefab.id != asset || m_ownPrefab.assetRevision != db->revision()) {
+        m_ownPrefab.id = asset;
+        m_ownPrefab.assetRevision = db->revision();
+        m_ownPrefab.scene.reset();
+        const AssetRecord* record = db->find(asset);
+        if (record != nullptr && record->type == AssetType::Prefab) {
+            SceneLoadResult prefab = loadPrefabFile(db->absolutePath(*record), m_editor.registry());
+            if (prefab.ok()) {
+                m_ownPrefab.scene = std::move(*prefab.scene);
+            }
+        }
+    }
+    if (m_ownPrefab.scene) {
+        m_own.value = differencesFromPrefab(scene, id, *m_ownPrefab.scene);
+    }
+    return m_own.value ? &*m_own.value : nullptr;
+}
+
+void InspectorPanel::markOwn(ui::PropertyField& row, EntityId id, const std::string& typeId, const std::string& key,
+                             const std::string& label, const std::string& help, bool named)
+{
+    m_refresh.push_back([this, &row, id, typeId, key, help, named] {
+        const CopyDifferences* d = ownDifferences(id);
+        const bool own = d != nullptr && (named ? d->values.count(key) != 0 : d->fields.count({typeId, key}) != 0);
+        if (own != row.isMarked()) {
+            row.setMarked(own);
+            row.setTooltip(own ? (help.empty() ? std::string() : help + " ")
+                                     + "This copy's own: the prefab has another value. Click the name to put the "
+                                       "prefab's back."
+                               : help);
+        }
+    });
+    row.setOnLabelClick([this, id, typeId, key, label, named] {
+        const CopyDifferences* d = ownDifferences(id);
+        if (d == nullptr) {
+            return;
+        }
+        if (named) {
+            const auto theirs = d->values.find(key);
+            const auto now = currentValue(m_editor.document().scene(), id, d->valuesIn.first, d->valuesIn.second);
+            if (theirs == d->values.end() || !now || !std::holds_alternative<std::string>(*now)) {
+                return;
+            }
+            m_editor.execute(std::make_unique<SetProperty>(
+                id, d->valuesIn.first, d->valuesIn.second,
+                PropertyValue(valuesWithNamePutBack(std::get<std::string>(*now), key, theirs->second)), "Reset " + label));
+        } else {
+            const auto theirs = d->fields.find({typeId, key});
+            if (theirs == d->fields.end()) {
+                return;
+            }
+            m_editor.execute(std::make_unique<SetProperty>(id, typeId, key, theirs->second, "Reset " + label));
+        }
+        m_editor.endEdit();
+    });
+}
+
+ui::PropertyField& InspectorPanel::addPropertyRow(ui::Section& section, EntityId id, const std::string& typeId,
+                                                  const PropertyInfo& info,
+                                                  std::function<std::optional<PropertyValue>()> get,
+                                                  std::function<void(PropertyValue)> set)
 {
     auto& row = section.body().emplace<ui::PropertyField>(info.label);
     if (!info.options.help.empty()) {
@@ -1019,6 +1130,7 @@ void InspectorPanel::addPropertyRow(ui::Section& section, EntityId id, const std
         break;
     }
     }
+    return row;
 }
 
 // --- Menus -------------------------------------------------------------------------------------

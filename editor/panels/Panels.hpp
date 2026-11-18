@@ -13,6 +13,7 @@
 
 #include "../model/ConsoleLog.hpp"
 #include "../model/EditorState.hpp"
+#include "../model/Prefabs.hpp"
 #include "../model/RoloResources.hpp"
 #include "../model/SceneDocument.hpp"
 
@@ -387,8 +388,30 @@ private:
     /// page is rebuilt, so keyboard focus can come back to it.
     ui::Widget& keyed(std::string key, ui::Widget& widget);
     void buildScriptProperties(ui::Section& section, EntityId id, const Script& script);
-    void addPropertyRow(ui::Section& section, EntityId id, const std::string& typeId, const PropertyInfo& info,
-                        std::function<std::optional<PropertyValue>()> get, std::function<void(PropertyValue)> set);
+    ui::PropertyField& addPropertyRow(ui::Section& section, EntityId id, const std::string& typeId,
+                                      const PropertyInfo& info, std::function<std::optional<PropertyValue>()> get,
+                                      std::function<void(PropertyValue)> set);
+    // Linked copies of prefabs (ADR 0035): what the shown object has of its
+    // own, worked out once for each state of the scene.
+    const CopyDifferences* ownDifferences(EntityId id);
+    /// Marks `row` while the property it shows is the copy's own, and lets a
+    /// click on its name put the prefab's value back. `named`: `key` is a
+    /// name among a Script's values, not a property of the component.
+    void markOwn(ui::PropertyField& row, EntityId id, const std::string& typeId, const std::string& key,
+                 const std::string& label, const std::string& help, bool named);
+    struct {
+        bool known = false;
+        EntityId id;
+        std::uint64_t sceneRevision = 0;
+        std::uint64_t assetRevision = 0;
+        std::uint64_t generation = 0;   // which document (another scene may have the same revision)
+        std::optional<CopyDifferences> value;
+    } m_own;
+    struct {
+        AssetId id;
+        std::uint64_t assetRevision = 0;
+        std::optional<Scene> scene;   // the prefab, read; none if it cannot be
+    } m_ownPrefab;
     void addPropertyEditor(ui::Section& section, EntityId id, const std::string& typeId, const PropertyInfo& info);
     void openComponentMenu(ui::Section& section, EntityId id, const std::string& typeId);
     void openAddComponentMenu(ui::Button& button, EntityId id);

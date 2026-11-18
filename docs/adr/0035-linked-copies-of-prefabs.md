@@ -112,9 +112,32 @@ was, read it against the prefab as it is.
   Scene view with a real mouse, a web or Android game with linked
   copies (they read scenes by the same code).
 
+## Added the same day: a copy's own fields in the Inspector
+
+The Inspector marks what the selected object of a copy has of its own:
+the name of each such field is drawn in the accent colour behind a small
+bar, and the Prefab section sums it up ("Its own here: 2 fields, 1
+component added"). A click on a marked name puts the prefab's value back
+for that field; it is an ordinary `SetProperty`, so it is undone like any
+change. A Script's properties are marked one by one.
+
+- `differencesFromPrefab` (`editor/model/Prefabs.*`) compares the object
+  with the prefab's, read as a scene: properties by value, named values
+  by name. It runs when the scene or the project's files have changed,
+  for the one object shown; the prefab is read again only when a file
+  changed.
+- `ui::PropertyField::setMarked` / `setOnLabelClick` are the widget's
+  part; they know nothing of prefabs.
+- Where the top object stands is not marked: it is always the copy's own.
+- Tested: `[own]` and `[inspector]` tests; and by hand in the editor on a
+  virtual screen (Linux): a copy's own colour marked, a click on its name
+  putting the prefab's back, and undo.
+
 ## Not done
 
-- **Showing which fields are a copy's own**, and resetting one field.
+- **Putting back one by one** a component the copy added or removed, its
+  name, or a component's other contents (a Tilemap's tiles): they are
+  counted in the Inspector, and Reset puts the whole copy back.
 - **Prefabs inside prefabs** that stay linked.
 - **Opening a prefab on its own** to edit it.
 - **Undo for Apply to Prefab:** it rewrites the prefab file and rebuilds

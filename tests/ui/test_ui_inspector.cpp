@@ -102,3 +102,30 @@ TEST_CASE("An empty state paints its message within the panel", "[ui][inspector]
         CHECK(cmd.clip.right() <= 220.0f);
     }
 }
+
+TEST_CASE("A marked property row's label can be clicked; an unmarked one's cannot", "[ui][inspector]")
+{
+    InspectorHarness h;
+    int clicks = 0;
+    h.field->setOnLabelClick([&clicks] { ++clicks; });
+    const Rect label = h.field->labelRect();
+    const Vec2 onLabel{label.x + 20.0f, label.y + label.height * 0.5f};
+
+    h.click(onLabel);
+    CHECK(clicks == 0);   // not marked: the label is only a label
+
+    h.field->setMarked(true);
+    h.ctx.render();
+    h.click(onLabel);
+    CHECK(clicks == 1);
+    // A click on the value is the value's, not the label's.
+    const Rect value = h.x->bounds();
+    h.click({value.x + value.width * 0.5f, value.y + value.height * 0.5f});
+    CHECK(clicks == 1);
+    // Pressed on the label and let go elsewhere: no click.
+    h.ctx.pointerMove(onLabel);
+    h.ctx.pointerButton(MouseButton::Left, true, {});
+    h.ctx.pointerMove({onLabel.x, onLabel.y + 200.0f});
+    h.ctx.pointerButton(MouseButton::Left, false, {});
+    CHECK(clicks == 1);
+}

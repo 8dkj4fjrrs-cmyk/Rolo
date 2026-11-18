@@ -137,6 +137,13 @@ it, change a property, add or remove a component, put objects inside it.
 Those changes are that copy's own. In everything else it goes on
 following the prefab.
 
+**Seeing what a copy has of its own.** Select a copy, or an object
+inside one: the **Prefab** section says what differs ("Its own here: 2
+fields, 1 component added"), and every field that is the copy's own has
+its **name in orange** with a small bar beside it. **Click an orange
+name** to put the prefab's value back for that one field (undoable).
+Where a copy stands is always its own and is not marked.
+
 **Changing the prefab.** Select a copy, make it what the prefab should
 be, and click **Apply to Prefab** in the **Prefab** section of its
 Inspector. Every other copy follows and keeps its own changes: make the

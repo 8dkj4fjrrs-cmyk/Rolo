@@ -151,8 +151,8 @@ In order:
    property~~ **done** ([ADR 0034](adr/0034-more-kinds-of-property.md)):
    colours, points and other objects. ~~Copies that follow their
    prefab~~ **done** ([ADR 0035](adr/0035-linked-copies-of-prefabs.md)):
-   Apply to Prefab, Reset, Unlink. Next: more events, showing a copy's
-   own fields, prefabs inside prefabs.
+   Apply to Prefab, Reset, Unlink, and a copy's own fields marked in
+   the Inspector. Next: more events, prefabs inside prefabs.
 
 Alongside: the editor polish below. Later: 3D.
 

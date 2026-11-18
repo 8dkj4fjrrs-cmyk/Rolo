@@ -59,6 +59,16 @@ public:
 
     void setLabel(std::string label) { m_label = std::move(label); }
 
+    /// Marks the row: its label is drawn in the accent colour behind a small
+    /// bar. (The editor marks what a copy of a prefab has of its own.) A
+    /// marked row's label can be clicked: see setOnLabelClick.
+    void setMarked(bool marked) { m_marked = marked; }
+    bool isMarked() const noexcept { return m_marked; }
+    /// What a click on a marked row's label does (e.g. put the value back).
+    void setOnLabelClick(std::function<void()> action) { m_onLabelClick = std::move(action); }
+    /// The part of the row the label is in.
+    Rect labelRect() const;
+
     template <class T>
     T& addValue(std::unique_ptr<T> value)
     {
@@ -68,12 +78,17 @@ public:
     Size measure(Context& ctx, Size available) override;
     void arrange(Context& ctx, Rect rect) override;
     void paint(Context& ctx, DrawList& draw) override;
+    bool onPointerDown(Context& ctx, const PointerEvent& event) override;
+    bool onPointerUp(Context& ctx, const PointerEvent& event) override;
 
     /// Width of the label column for a row of this width.
     static float labelWidth(float rowWidth);
 
 private:
     std::string m_label;
+    bool m_marked = false;
+    bool m_labelPressed = false;
+    std::function<void()> m_onLabelClick;
 };
 
 /// A titled, collapsible group of rows.
