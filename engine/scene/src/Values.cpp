@@ -23,6 +23,8 @@ DataValues parseDataValues(std::string_view text)
             values[name] = value.get<double>();
         } else if (value.is_string()) {
             values[name] = value.get<std::string>();
+        } else if (value.is_array() && value.size() == 2 && value[0].is_number() && value[1].is_number()) {
+            values[name] = Vec2{value[0].get<float>(), value[1].get<float>()};
         }
     }
     return values;
@@ -44,6 +46,17 @@ std::string writeDataValues(const DataValues& values)
             } else {
                 j[name] = std::isfinite(*d) ? *d : 0.0;
             }
+        } else if (const Vec2* point = std::get_if<Vec2>(&value)) {
+            const auto tidy = [](float f) -> nlohmann::json {
+                if (!std::isfinite(f)) {
+                    return 0;
+                }
+                if (f == std::floor(f) && std::fabs(f) < 1.0e9f) {
+                    return static_cast<long long>(f);
+                }
+                return static_cast<double>(f);
+            };
+            j[name] = nlohmann::json::array({tidy(point->x), tidy(point->y)});
         } else {
             j[name] = std::get<std::string>(value);
         }

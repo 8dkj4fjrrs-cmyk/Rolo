@@ -173,6 +173,9 @@ objects: `local x, y = obj:position()`.
 | `textLabel.Text = "Score: 3"` | `obj:setText("Score: 3")` on an object with a Text |
 | a ModuleScript and `require(script.Parent.Maths)` | any script file and `require("maths")` |
 | Attributes (`:GetAttribute("Speed")`) | **properties**: the script lists them (`properties = { speed = 90 }`), the Inspector shows a field for each on every object with the script, and the script reads `self.speed` ([scripting guide](scripting.md#properties-settings-in-the-inspector)) |
+| a `Color3` attribute, `part.Color = ...` | `tint = color("#ffb84d")` in `properties`; colours are texts: `obj:setColor("#ff0000")`, `obj:color()` |
+| a `Vector3` attribute | `goal = vector.create(300, 120)` in `properties`: an X and a Y in the Inspector |
+| an `ObjectValue` pointing at another Instance | `door = object()` in `properties`: pick the object in the Inspector, use `self.door` (`nil` for none) |
 
 Positions are in **points**, not studs: one point is one pixel of the
 game's size (1280 × 720 unless you change it). There is an `x` and a `y`;

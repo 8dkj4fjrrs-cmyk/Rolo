@@ -203,10 +203,47 @@ end
   speed gets 100.
 - (Roblox calls these Attributes; Godot and Unity "exported variables".)
 
-Write the values out plainly: a number, a text in quotes, or `true` /
-`false`. The editor reads the list from the script's text without
-running it, so it cannot show a calculation (`speed = 2 * 45`); it says
-so under the Script. And no `local` in front of `properties`.
+A property can also be a colour, a point, or another object:
+
+```lua
+properties = {
+    tint = color("#ffb84d"),           -- a colour: a swatch to pick from
+    goal = vector.create(300, 120),    -- a point: an X and a Y field
+    door = object(),                   -- another object: a list of the scene's objects
+}
+
+function start(self)
+    self.object:setColor(self.tint)
+    if self.door then                  -- nil until one is chosen
+        self.door:setActive(false)
+    end
+end
+
+function update(self, dt)
+    local at = vector.create(self.object:position())
+    self.object:setPosition(at + (self.goal - at) * dt)   -- glides to the goal
+end
+```
+
+| Written | In the Inspector | In the script |
+|---|---|---|
+| `color("#ffb84d")` | a colour | a text, `"#ffb84dff"` (the last two digits say how solid: `ff` fully, `00` see-through). Use it with `obj:setColor` |
+| `vector.create(300, 120)` | a point, X and Y | a vector: `self.goal.x`, `self.goal.y`, and every function that takes `x, y` takes it whole |
+| `object()` | **None**, or one of the scene's objects | that object, or `nil` for None. No more `game.find("Door")` with the name typed twice |
+
+- When an object is copied (Duplicate, a prefab, `game.spawn`), a
+  property that points at something **inside** it points inside the
+  copy: a tank's `turret` is each tank's own. One that points elsewhere
+  still points there.
+- `game.spawn("Tank", x, y, { target = flag, goal = vector.create(1, 2) })`
+  gives a copy its own.
+
+Write the values out plainly: a number, a text in quotes, `true` /
+`false`, or one of the three forms above with plain values in it. The
+editor reads the list from the script's text without running it, so it
+cannot show a calculation (`speed = 2 * 45`) or a looked-up object
+(`door = game.find("Door")`); it says so under the Script. And no
+`local` in front of `properties`.
 
 The Platformer Starter's `scripts/lift.lua` and `scripts/player.lua` use
 them.
@@ -343,6 +380,7 @@ Using one after it was destroyed (or after the scene changed) is an error;
 | `obj:isTouching(other)` | true if their Colliders overlap |
 | `obj:text()`, `obj:setText("Score: 3")` | the text of a Text component; `{variable}` and `{button:jump}` in it are filled in, as in the editor |
 | `obj:setFlipX(true/false)` | mirrors its Sprite left to right |
+| `obj:color()`, `obj:setColor("#ff0000")` | the colour of its Sprite (which tints the picture), Shape or Text, as a text: `"#rrggbb"`, or `"#rrggbbaa"` with how solid it is (`"#ffffff80"` is half see-through) |
 | `obj:playSound()` | plays its Sound component (as music, if the Sound is set to Music). Returns a handle for `audio.stop`, or `nil` |
 | `obj:stopSound()` | stops what its Sound component plays |
 
@@ -354,7 +392,8 @@ Using one after it was destroyed (or after the scene changed) is an error;
 |---|---|
 | `game.find("Name")` | the first object with that name, or `nil` |
 | `game.spawn("Bullet", x, y)` | makes a copy of the object with that name (or of an object: `game.spawn(obj)`), puts it at `x, y` (without them: where the original is) and **switches it on**. Returns the copy. Keep the original switched off in the scene as the pattern, or as a [prefab](editor.md#prefabs-an-object-kept-as-a-file): if the scene has no object of that name, the prefab file of that name is used (`"Bullet"`, or its path, `"prefabs/Bullet.lprefab"`) |
-| `game.spawn("Bullet", x, y, { speed = 400 })` | ...and gives the copy its own values for its script's [properties](#properties-settings-in-the-inspector) |
+| `game.spawn("Bullet", x, y, { speed = 400 })` | ...and gives the copy its own values for its script's [properties](#properties-settings-in-the-inspector) (numbers, texts, `true`/`false`, vectors, objects) |
+| `color("#ffb84d")`, `object()` | for a script's `properties` list: a colour, and another object chosen in the Inspector. (`color` checks the text and gives it back as `"#rrggbbaa"`) |
 | `game.player()` | the player (the object with the Interactor), or `nil` |
 | `game.time()` | seconds since the game started |
 | `game.get("gems")` | a game variable's value (variables are made in a `.lvars` file) |

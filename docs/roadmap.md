@@ -147,9 +147,10 @@ In order:
    **done** ([ADR 0032](adr/0032-events-in-scripts.md)): `connect`,
    `once` and `wait` on game events, keys and collisions. ~~Prefabs~~
    **step 1 done** ([ADR 0033](adr/0033-prefabs.md)): an object kept as
-   a file, placed in scenes and spawned by scripts. Next: placed copies
-   that follow their prefab (step 2), more kinds of property, more
-   events.
+   a file, placed in scenes and spawned by scripts. ~~More kinds of
+   property~~ **done** ([ADR 0034](adr/0034-more-kinds-of-property.md)):
+   colours, points and other objects. Next: placed copies that follow
+   their prefab (prefabs, step 2), more events.
 
 Alongside: the editor polish below. Later: 3D.
 

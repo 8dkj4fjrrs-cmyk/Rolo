@@ -787,11 +787,15 @@ void ScriptHost::ensureSelf(Script& script, EntityId object, const File& file)
     lua_pushstring(m_L, "properties");
     lua_rawget(m_L, -2);
     if (lua_istable(m_L, -1)) {
+        const int properties = lua_gettop(m_L);
         lua_pushnil(m_L);
         while (lua_next(m_L, -2) != 0) {
             // stack: ..., properties, name, value
+            // (A colour is a text here. object() is left out: self has nil
+            // for it until the Inspector names an object, below.)
             const int kind = lua_type(m_L, -1);
-            if (lua_type(m_L, -2) == LUA_TSTRING && (kind == LUA_TNUMBER || kind == LUA_TSTRING || kind == LUA_TBOOLEAN)) {
+            if (lua_type(m_L, -2) == LUA_TSTRING
+                && (kind == LUA_TNUMBER || kind == LUA_TSTRING || kind == LUA_TBOOLEAN || kind == LUA_TVECTOR)) {
                 lua_pushvalue(m_L, -2);
                 lua_pushvalue(m_L, -2);
                 lua_rawset(m_L, self);
@@ -804,8 +808,9 @@ void ScriptHost::ensureSelf(Script& script, EntityId object, const File& file)
         if (!script.values.empty()) {
             for (const auto& [name, value] : parseDataValues(script.values)) {
                 lua_pushlstring(m_L, name.data(), name.size());
-                lua_rawget(m_L, self);
+                lua_rawget(m_L, properties);
                 const int declared = lua_type(m_L, -1);
+                const bool anObject = isObjectForScripts(m_L, -1);
                 lua_pop(m_L, 1);
                 lua_pushlstring(m_L, name.data(), name.size());
                 if (const bool* flag = std::get_if<bool>(&value); flag != nullptr && declared == LUA_TBOOLEAN) {
@@ -814,6 +819,14 @@ void ScriptHost::ensureSelf(Script& script, EntityId object, const File& file)
                     lua_pushnumber(m_L, *number);
                 } else if (const std::string* text = std::get_if<std::string>(&value); text != nullptr && declared == LUA_TSTRING) {
                     lua_pushlstring(m_L, text->data(), text->size());
+                } else if (const Vec2* point = std::get_if<Vec2>(&value); point != nullptr && declared == LUA_TVECTOR) {
+                    lua_pushvector(m_L, point->x, point->y, 0.0f);
+                } else if (const std::string* id = std::get_if<std::string>(&value);
+                           id != nullptr && anObject && EntityId::parse(*id)
+                           && std::as_const(m_game).scene().contains(*EntityId::parse(*id))) {
+                    // Another object, chosen in the Inspector. (One that is
+                    // not in this scene, deleted since, stays nil.)
+                    pushObjectForScripts(m_L, *EntityId::parse(*id));
                 } else {
                     lua_pop(m_L, 1);   // the name: not a property of this script (any more)
                     continue;

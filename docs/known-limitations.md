@@ -115,8 +115,11 @@ Please report what you find.
 - Luau scripts, for now:
   - one Script per object (share code with `require`);
   - [properties](scripting.md#properties-settings-in-the-inspector)
-    (per-object settings in the Inspector) are numbers, texts and tick
-    boxes only: no colours, points, objects or files yet;
+    (per-object settings in the Inspector) are numbers, texts, tick
+    boxes, colours, points and other objects of the scene: no files
+    (an image, a sound), lists or sliders yet. Another object is chosen
+    from one long list of the scene's objects, and Check Content does
+    not notice one that was deleted since (the script gets `nil`);
   - edits are picked up when Play is pressed again, not while playing;
   - no debugger: use `print`, which writes to the Console.
   - waiting (`task.wait`) works in `start` and in tasks, not in `update`

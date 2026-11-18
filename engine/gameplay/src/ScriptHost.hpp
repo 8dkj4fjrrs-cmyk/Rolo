@@ -226,5 +226,8 @@ class ScriptHost {
 void openScriptApi(ScriptHost& host);
 /// Pushes an object handle (nil for a null ID) (ScriptApi.cpp).
 void pushObjectForScripts(lua_State* L, EntityId id);
+/// Whether the value at `index` is an object as scripts see it (what
+/// object() in a `properties` table stands for too).
+bool isObjectForScripts(lua_State* L, int index);
 
 } // namespace rolo

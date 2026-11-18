@@ -841,6 +841,8 @@ TEST_CASE("Property names become labels, and an object's own values are kept apa
     CHECK(values == onlyLabel);
     CHECK(withScriptPropertyValue(values, label, DataValue(std::string("Lift"))).empty());
     CHECK(writeDataValues(parseDataValues(R"({"a":1.5,"b":true,"c":[1],"d":null})")) == R"({"a":1.5,"b":true})");
+    const std::string points = "{\"at\":[3,-4.5],\"bad\":[1,2,3],\"worse\":[\"x\",1]}";
+    CHECK(writeDataValues(parseDataValues(points)) == "{\"at\":[3,-4.5]}");
 }
 
 TEST_CASE("self starts with the script's properties, and with the object's own where it has them",
@@ -1061,7 +1063,7 @@ TEST_CASE("Spawning says plainly what is wrong, and stops a script that never st
     REQUIRE(p.printed.size() == 3);
     CHECK_THAT(p.printed[0], ContainsSubstring("false") && ContainsSubstring("no object called \"Nobody\""));
     CHECK_THAT(p.printed[1], ContainsSubstring("has no Script"));
-    CHECK_THAT(p.printed[2], ContainsSubstring("'speed' must be a number, a text or true / false"));
+    CHECK_THAT(p.printed[2], ContainsSubstring("'speed' must be a number, a text, true / false, a vector or an object"));
     CHECK(game.scene().size() == 4);   // nothing was made by the three that failed
     CHECK(p.problems.empty());
 
@@ -1634,4 +1636,135 @@ TEST_CASE("An object of the scene comes before a prefab of the same name, and br
     CHECK_THAT(p.printed[2], ContainsSubstring("false") && ContainsSubstring("several prefabs are called")
                                  && ContainsSubstring("write the path"));
     CHECK(p.problems.empty());
+}
+
+// --- More kinds of property: colours, points, other objects (ADR 0034) ------------------------------------
+
+TEST_CASE("A script's properties can be colours, points and other objects", "[gameplay][script][properties][kinds]")
+{
+    const ScriptProperties found = readScriptProperties(
+        "properties = {\n"
+        "  tint = color(\"#FFB84D\"),\n"
+        "  faint = color(\"00000080\"),\n"
+        "  goal = vector.create(300, -120.5),\n"
+        "  door = object(),\n"
+        "  speed = 90,\n"
+        "}\n");
+    CHECK(found.problems.empty());
+    REQUIRE(found.list.size() == 5);
+    using Kind = ScriptProperty::Kind;
+    CHECK(found.list[0].kind == Kind::Color);
+    CHECK(std::get<std::string>(found.list[0].value) == Color{0xFF, 0xB8, 0x4D, 0xFF}.toHex());
+    CHECK(std::get<std::string>(found.list[1].value) == Color{0, 0, 0, 0x80}.toHex());
+    CHECK(found.list[2].kind == Kind::Point);
+    CHECK(std::get<Vec2>(found.list[2].value) == Vec2{300.0f, -120.5f});
+    CHECK(found.list[3].kind == Kind::Object);
+    CHECK(std::get<std::string>(found.list[3].value).empty());
+    CHECK(found.list[4].kind == Kind::Number);
+
+    // An object's own values: kept only where they are of the kind, and differ.
+    const ScriptProperty& tint = found.list[0];
+    const ScriptProperty& goal = found.list[2];
+    const ScriptProperty& door = found.list[3];
+    std::string values;
+    values = withScriptPropertyValue(values, tint, DataValue(std::string("#ff0000")));
+    values = withScriptPropertyValue(values, goal, DataValue(Vec2{10.0f, 2.5f}));
+    values = withScriptPropertyValue(values, door, DataValue(std::string("00000000000000a7")));
+    const std::string expected = "{\"door\":\"00000000000000a7\",\"goal\":[10,2.5],\"tint\":\"" + Color{255, 0, 0, 255}.toHex() + "\"}";
+    CHECK(values == expected);
+    CHECK(std::get<Vec2>(scriptPropertyValue(goal, values)) == Vec2{10.0f, 2.5f});
+    CHECK(std::get<std::string>(scriptPropertyValue(door, values)) == "00000000000000a7");
+    // Not a colour, not an ID, not a point: the script's value serves, and setting such a thing takes the value out.
+    const std::string wrong = "{\"door\":\"the door\",\"goal\":\"far\",\"tint\":\"red\"}";
+    CHECK(scriptPropertyValue(tint, wrong) == tint.value);
+    CHECK(scriptPropertyValue(goal, wrong) == goal.value);
+    CHECK(scriptPropertyValue(door, wrong) == door.value);
+    CHECK(withScriptPropertyValue(values, tint, DataValue(std::string("red"))).find("tint") == std::string::npos);
+    // Back to the script's value, or to no object: nothing is kept.
+    values = withScriptPropertyValue(values, tint, tint.value);
+    values = withScriptPropertyValue(values, goal, goal.value);
+    values = withScriptPropertyValue(values, door, DataValue(std::string()));
+    CHECK(values.empty());
+
+    const ScriptProperties bad = readScriptProperties(
+        "properties = {\n  a = color(\"red\"),\n  b = color(),\n  c = vector.create(1),\n  d = vector.create(x, 2),\n"
+        "  e = object(\"Door\"),\n  f = game.find(\"Door\"),\n}\n");
+    CHECK(bad.list.empty());
+    REQUIRE(bad.problems.size() == 6);
+    CHECK_THAT(bad.problems[0], ContainsSubstring("line 2") && ContainsSubstring("'a' is not a colour"));
+    CHECK_THAT(bad.problems[1], ContainsSubstring("'b' is not a colour"));
+    CHECK_THAT(bad.problems[2], ContainsSubstring("'c' is not a point"));
+    CHECK_THAT(bad.problems[3], ContainsSubstring("'d' is not a point"));
+    CHECK_THAT(bad.problems[4], ContainsSubstring("nothing in the brackets"));
+    CHECK_THAT(bad.problems[5], ContainsSubstring("'f' is not a plain value") && ContainsSubstring("object()"));
+}
+
+TEST_CASE("Colours, points and objects reach self, and a copy's objects are its own", "[gameplay][script][properties][kinds]")
+{
+    ScriptProject p;
+    const AssetId tank = p.write("scripts/tank.lua", R"(
+        properties = {
+            tint = color("#ffb84d"),
+            goal = vector.create(300, 120),
+            turret = object(),
+            target = object(),
+            gone = object(),
+            never = object(),
+        }
+        function start(self)
+            print(self.object:name(), self.tint, self.goal.x, self.goal.y)
+            print(self.turret and self.turret:parent() == self.object, self.target and self.target:name(),
+                  self.gone, self.never)
+        end
+    )");
+    const AssetId maker = p.write("scripts/maker.lua", R"(
+        function start(self)
+            local flag = game.find("Flag")
+            local copy = game.spawn("Tank", 0, 0, { goal = vector.create(1, 2), target = flag, tint = "#00ff00" })
+            copy:setColor(color("#102030"))
+            print(copy:color(), game.find("Flag"):color())
+            print(pcall(game.spawn, "Tank", 0, 0, { goal = {} }))
+            print(pcall(function() flag:setColor("red") end))
+            print(pcall(function() self.object:setColor("#ffffff") end))
+            print(pcall(object, "Door"))
+            print(object():isValid(), color("FFFFFFF0"))
+        end
+    )");
+    Scene scene("Level", EntityIdGenerator(9));
+    const EntityId flag = scene.create("Flag")->id();
+    scene.addComponent(flag, std::make_unique<Shape>());
+    const EntityId target = scene.create("Target")->id();
+    const EntityId tankId = addScripted(scene, "Tank", tank);
+    scene.addComponent(tankId, std::make_unique<Shape>());
+    const EntityId turret = scene.create("Turret", tankId)->id();
+    const std::string values = "{\"gone\":\"00000000000000ff\",\"goal\":[7,8],\"target\":\"" + target.toString()
+                               + "\",\"tint\":\"#ff0000ff\",\"turret\":\"" + turret.toString() + "\"}";
+    scene.setProperty(tankId, "rolo.Script", "values", values);
+    addScripted(scene, "Maker", maker);
+
+    Game game(p.log, &p.assets);
+    game.start(scene);
+    frames(game, 3);
+    CHECK(p.problems.empty());
+    REQUIRE(p.printed.size() == 10);
+    const auto has = [&p](const std::string& line) {
+        return std::count(p.printed.begin(), p.printed.end(), "scripts/" + line) == 1;
+    };
+    // The tank of the scene: what the Inspector gave it. (An object that is not there is nil.)
+    CHECK(has("tank.lua: Tank\t#ff0000ff\t7\t8"));
+    CHECK(has("tank.lua: true\tTarget\tnil\tnil"));
+    // The copy: its own values, and its turret is the copy's turret, not the pattern's.
+    CHECK(has("tank.lua: Tank\t#00ff00\t1\t2"));
+    CHECK(has("tank.lua: true\tFlag\tnil\tnil"));
+    CHECK(has("maker.lua: #102030ff\t#ffffffff"));
+    const auto said = [&p](const std::string& part) {
+        return std::count_if(p.printed.begin(), p.printed.end(), [&part](const std::string& line) {
+                   return line.find("false") != std::string::npos && line.find(part) != std::string::npos;
+               }) == 1;
+    };
+    CHECK(said("a vector or an object"));
+    CHECK(said("a colour expected"));
+    CHECK(said("no Sprite, Shape or Text"));
+    CHECK(said("object() takes nothing"));
+    CHECK(has("maker.lua: false\t#fffffff0"));
 }

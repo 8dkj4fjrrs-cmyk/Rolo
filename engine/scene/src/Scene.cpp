@@ -1,5 +1,7 @@
 #include "rolo/scene/Scene.hpp"
 
+#include "rolo/scene/Values.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -539,6 +541,34 @@ EntitySnapshot Scene::withNewIds(const EntitySnapshot& snapshot)
         c.active = item.active;
         for (const auto& comp : item.components) {
             c.components.push_back(comp->clone());
+            // Named values (a Script's properties) may point at other
+            // objects by ID. One that points at an object which is copied
+            // too must point at the copy: a spawned tank's "turret" is its
+            // own turret, not the pattern's.
+            Component& made = *c.components.back();
+            for (const PropertyInfo& info : made.type().properties) {
+                if (!info.options.data || !info.get || !info.set) {
+                    continue;
+                }
+                const PropertyValue held = info.get(made);
+                const std::string* text = std::get_if<std::string>(&held);
+                if (text == nullptr || text->empty()) {
+                    continue;
+                }
+                DataValues values = parseDataValues(*text);
+                bool changed = false;
+                for (auto& [name, value] : values) {
+                    const std::string* idText = std::get_if<std::string>(&value);
+                    const auto pointsAt = idText != nullptr ? EntityId::parse(*idText) : std::nullopt;
+                    if (const auto fresh = pointsAt ? remap.find(*pointsAt) : remap.end(); fresh != remap.end()) {
+                        value = fresh->second.toString();
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    info.set(made, PropertyValue(writeDataValues(values)));
+                }
+            }
         }
         copy.items.push_back(std::move(c));
     }

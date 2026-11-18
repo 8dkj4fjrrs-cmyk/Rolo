@@ -39,6 +39,8 @@ and AI assistants.
   Script properties (ADR 0029): the editor learns them by reading the script's text
   (`readScriptProperties`), never by running a script; an object's own values are the Script
   component's `values` text (`rolo/scene/Values.hpp`), changed only through `SetProperty`.
+  A new kind of property (ADR 0034) must be written as Luau that means the same when the script runs,
+  and stored in `values` as plain JSON; IDs of objects in `values` are remapped by `Scene::withNewIds`.
   Objects made while playing (ADR 0030) are copies (`Game::clone`; `game.spawn`, `obj:clone()`), never
   built from nothing; they are not in saved games, and `Game::kMostObjects` stops a runaway script.
   Waiting (ADR 0031): `start(self)` and functions begun with `task.spawn` / `task.delay` are Luau

@@ -424,6 +424,82 @@ int objectSetFlipX(lua_State* L)
     return 0;
 }
 
+// obj:color() and obj:setColor("#ff0000"): the colour of what the object
+// shows, its Sprite (the tint), Shape and Text. Colours are text in
+// scripts, "#rrggbb" or "#rrggbbaa" (the last two digits: how solid, ff
+// fully), as they are written everywhere else in Rolo.
+Color checkColor(lua_State* L, int index)
+{
+    const auto colour = Color::fromHex(checkText(L, index));
+    if (!colour) {
+        luaL_argerror(L, index, "a colour expected, like \"#ffb84d\" (or \"#ffb84d80\" for half see-through)");
+    }
+    return *colour;
+}
+
+int objectColor(lua_State* L)
+{
+    const Entity& entity = objectEntity(L, 1);
+    if (const Sprite* sprite = entity.get<Sprite>()) {
+        pushText(L, sprite->color.toHex());
+    } else if (const Shape* shape = entity.get<Shape>()) {
+        pushText(L, shape->color.toHex());
+    } else if (const Text* text = entity.get<Text>()) {
+        pushText(L, text->color.toHex());
+    } else {
+        luaL_error(L, "this object has no Sprite, Shape or Text to have a colour");
+    }
+    return 1;
+}
+
+int objectSetColor(lua_State* L)
+{
+    const Entity& entity = objectEntity(L, 1);
+    const EntityId id = entity.id();
+    const Color colour = checkColor(L, 2);
+    const Sprite* sprite = entity.get<Sprite>();
+    const Shape* shape = entity.get<Shape>();
+    const Text* text = entity.get<Text>();
+    if (sprite == nullptr && shape == nullptr && text == nullptr) {
+        luaL_error(L, "this object has no Sprite, Shape or Text to colour");
+    }
+    // (Only what differs is touched: changing a component makes the scene be drawn anew.)
+    Game& game = gameOf(L);
+    if (sprite != nullptr && sprite->color != colour) {
+        game.get<Sprite>(id)->color = colour;
+    }
+    if (shape != nullptr && shape->color != colour) {
+        game.get<Shape>(id)->color = colour;
+    }
+    if (text != nullptr && text->color != colour) {
+        game.get<Text>(id)->color = colour;
+    }
+    return 0;
+}
+
+// color("#ffb84d"), for a script's `properties`: says "this text is a
+// colour" to the Inspector, and gives the colour back as "#rrggbbaa".
+int globalColor(lua_State* L)
+{
+    pushText(L, checkColor(L, 1).toHex());
+    return 1;
+}
+
+// object(), for a script's `properties`: "another object, chosen in the
+// Inspector". Here it is an object that does not exist; self gets nil for
+// it until one is chosen (ScriptHost::ensureSelf).
+int globalObject(lua_State* L)
+{
+    if (lua_gettop(L) != 0) {
+        luaL_error(L, "object() takes nothing: it stands for an object chosen in the Inspector. "
+                      "To find one by name, use game.find(\"Door\")");
+    }
+    auto* handle =
+        static_cast<ObjectHandle*>(lua_newuserdatataggedwithmetatable(L, sizeof(ObjectHandle), kObjectTag));
+    handle->id = 0;   // no object: isValid() is false
+    return 1;
+}
+
 int objectEquals(lua_State* L)
 {
     lua_pushboolean(L, objectId(L, 1) == objectId(L, 2));
@@ -487,7 +563,6 @@ int gameSpawn(lua_State* L)
     // made, so that a mistake here leaves nothing behind.
     DataValues values;
     if (withValues) {
-        values = parseDataValues(game.scene().find(source)->get<Script>()->values);
         lua_pushnil(L);
         while (lua_next(L, next) != 0) {
             if (lua_type(L, -2) != LUA_TSTRING) {
@@ -498,8 +573,20 @@ int gameSpawn(lua_State* L)
             case LUA_TNUMBER: values[name] = static_cast<double>(lua_tonumber(L, -1)); break;
             case LUA_TBOOLEAN: values[name] = lua_toboolean(L, -1) != 0; break;
             case LUA_TSTRING: values[name] = std::string(checkText(L, -1)); break;
+            case LUA_TVECTOR: {
+                const float* v = lua_tovector(L, -1);
+                values[name] = Vec2{v[0], v[1]};
+                break;
+            }
+            case LUA_TUSERDATA:
+                if (isObjectForScripts(L, -1)) {
+                    values[name] = objectEntity(L, -1).id().toString();   // (an error if it is gone)
+                    break;
+                }
+                [[fallthrough]];
             default:
-                luaL_error(L, "game.spawn: the property '%s' must be a number, a text or true / false", name.c_str());
+                luaL_error(L, "game.spawn: the property '%s' must be a number, a text, true / false, a vector or an object",
+                           name.c_str());
             }
             lua_pop(L, 1);
         }
@@ -513,7 +600,14 @@ int gameSpawn(lua_State* L)
         }
     }
     if (withValues) {
-        scene.setProperty(made, Script::componentType().id, "values", writeDataValues(values));
+        // Over what the copy has from the original. (The copy's, not the
+        // original's: where the original pointed at an object inside
+        // itself, the copy points inside itself.)
+        DataValues all = parseDataValues(scene.find(made)->get<Script>()->values);
+        for (auto& [name, value] : values) {
+            all[name] = std::move(value);
+        }
+        scene.setProperty(made, Script::componentType().id, "values", writeDataValues(all));
     }
     ScriptHost::of(L).setActive(made, true);
     pushObjectForScripts(L, made);
@@ -1428,6 +1522,11 @@ void setFunctions(lua_State* L, const luaL_Reg* functions)
 
 } // namespace
 
+bool isObjectForScripts(lua_State* L, int index)
+{
+    return lua_touserdatatagged(L, index, kObjectTag) != nullptr;
+}
+
 void pushObjectForScripts(lua_State* L, EntityId id)
 {
     if (id.isNull()) {
@@ -1513,6 +1612,8 @@ void openScriptApi(ScriptHost& host)
         {"isOnGround", guarded<objectIsOnGround>},
         {"contacts", guarded<objectContacts>},
         {"collided", guarded<objectCollided>},
+        {"color", guarded<objectColor>},
+        {"setColor", guarded<objectSetColor>},
         {nullptr, nullptr},
     };
     lua_newtable(L);   // the objects' metatable
@@ -1643,6 +1744,10 @@ void openScriptApi(ScriptHost& host)
     lua_newtable(L);
     setFunctions(L, taskFunctions);
     lua_setglobal(L, "task");
+    lua_pushcfunction(L, guarded<globalColor>, "color");
+    lua_setglobal(L, "color");
+    lua_pushcfunction(L, guarded<globalObject>, "object");
+    lua_setglobal(L, "object");
 
     lua_pushcfunction(L, guarded<scriptPrint>, "print");
     lua_setglobal(L, "print");

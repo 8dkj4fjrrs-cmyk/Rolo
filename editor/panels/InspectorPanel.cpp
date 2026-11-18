@@ -103,6 +103,8 @@ std::string InspectorPanel::signature() const
     if (const Script* script = e->get<Script>()) {
         const AssetDatabase* db = m_editor.assets();
         sig += "|P" + script->script.toString() + "/" + (db != nullptr ? std::to_string(db->revision()) : "");
+        // (...or objects come and go: a property may list the scene's objects.)
+        sig += "/" + std::to_string(scene.structureRevision());
     }
     // A tilemap's layer list is rebuilt when its layers change.
     if (const Tilemap* map = e->get<Tilemap>()) {
@@ -644,23 +646,89 @@ void InspectorPanel::buildScriptProperties(ui::Section& section, EntityId id, co
     const ScriptProperties declared = readScriptProperties(*code);
     const std::string typeId = Script::componentType().id;
     for (const ScriptProperty& property : declared.list) {
-        PropertyInfo info;
-        info.key = property.name;
-        info.label = scriptPropertyLabel(property.name);
-        info.kind = std::holds_alternative<bool>(property.value)     ? PropertyKind::Bool
-                    : std::holds_alternative<double>(property.value) ? PropertyKind::Float
-                                                                     : PropertyKind::String;
-        info.options.help = "self." + property.name + " in the script. The script gives it "
-                            + (std::holds_alternative<bool>(property.value)
-                                   ? std::string(std::get<bool>(property.value) ? "true" : "false")
-                                   : std::holds_alternative<double>(property.value)
-                                         ? formatNumber(std::get<double>(property.value))
-                                         : "\"" + std::get<std::string>(property.value) + "\"")
-                            + "; this object can have its own.";
+        using Kind = ScriptProperty::Kind;
+        const std::string label = scriptPropertyLabel(property.name);
         const auto valuesNow = [this, id, typeId]() -> std::string {
             const auto v = currentValue(m_editor.document().scene(), id, typeId, "values");
             return v && std::holds_alternative<std::string>(*v) ? std::get<std::string>(*v) : std::string();
         };
+        const auto store = [this, id, typeId, property, valuesNow, label](const DataValue& wanted) {
+            m_editor.execute(std::make_unique<SetProperty>(
+                id, typeId, "values", PropertyValue(withScriptPropertyValue(valuesNow(), property, wanted)), label));
+        };
+
+        if (property.kind == Kind::Object) {
+            // Another object of the scene: a list of them all, by where
+            // they are in the Hierarchy ("Level / Door"), with None first.
+            const Scene& scene = m_editor.document().scene();
+            auto ids = std::make_shared<std::vector<std::string>>();
+            std::vector<std::string> names{"None"};
+            ids->push_back("");
+            for (const EntityId other : scene.inOrder()) {
+                const Entity* e = scene.find(other);
+                if (e == nullptr || other == id) {
+                    continue;
+                }
+                std::string path = e->name();
+                for (const Entity* up = scene.find(e->parent()); up != nullptr; up = scene.find(up->parent())) {
+                    path = up->name() + " / " + path;
+                }
+                names.push_back(std::move(path));
+                ids->push_back(other.toString());
+            }
+            // An object chosen earlier and deleted since is said, not hidden.
+            const std::string chosen = std::get<std::string>(scriptPropertyValue(property, valuesNow()));
+            if (!chosen.empty() && std::find(ids->begin(), ids->end(), chosen) == ids->end()) {
+                names.push_back("Missing (it was deleted)");
+                ids->push_back(chosen);
+            }
+            auto& row = section.body().emplace<ui::PropertyField>(label);
+            row.setTooltip("self." + property.name + " in the script: another object of this scene, or nil for None.");
+            auto& field = row.addValue(std::make_unique<ui::ChoiceField>(std::move(names)));
+            field.setOnChoose([this, ids, store](int index) {
+                if (index >= 0 && index < static_cast<int>(ids->size())) {
+                    store(DataValue((*ids)[static_cast<std::size_t>(index)]));
+                    m_editor.endEdit();
+                }
+            });
+            m_refresh.push_back([ids, property, valuesNow, &field] {
+                const std::string now = std::get<std::string>(scriptPropertyValue(property, valuesNow()));
+                const auto at = std::find(ids->begin(), ids->end(), now);
+                field.setSelected(at != ids->end() ? static_cast<int>(at - ids->begin()) : 0);
+            });
+            continue;
+        }
+
+        PropertyInfo info;
+        info.key = property.name;
+        info.label = label;
+        std::string given;
+        switch (property.kind) {
+        case Kind::Flag:
+            info.kind = PropertyKind::Bool;
+            given = std::get<bool>(property.value) ? "true" : "false";
+            break;
+        case Kind::Number:
+            info.kind = PropertyKind::Float;
+            given = formatNumber(std::get<double>(property.value));
+            break;
+        case Kind::Color:
+            info.kind = PropertyKind::Color;
+            given = std::get<std::string>(property.value);
+            break;
+        case Kind::Point: {
+            info.kind = PropertyKind::Vec2;
+            const Vec2 point = std::get<Vec2>(property.value);
+            given = formatNumber(point.x) + ", " + formatNumber(point.y);
+            break;
+        }
+        default:
+            info.kind = PropertyKind::String;
+            given = "\"" + std::get<std::string>(property.value) + "\"";
+            break;
+        }
+        info.options.help = "self." + property.name + " in the script. The script gives it " + given
+                            + "; this object can have its own.";
         addPropertyRow(
             section, id, typeId, info,
             [property, valuesNow]() -> std::optional<PropertyValue> {
@@ -671,19 +739,29 @@ void InspectorPanel::buildScriptProperties(ui::Section& section, EntityId id, co
                 if (const double* number = std::get_if<double>(&value)) {
                     return PropertyValue(static_cast<float>(*number));
                 }
-                return PropertyValue(std::get<std::string>(value));
+                if (const Vec2* point = std::get_if<Vec2>(&value)) {
+                    return PropertyValue(*point);
+                }
+                const std::string& text = std::get<std::string>(value);
+                if (property.kind == Kind::Color) {
+                    return PropertyValue(Color::fromHex(text).value_or(Color{}));
+                }
+                return PropertyValue(text);
             },
-            [this, id, typeId, property, valuesNow, label = info.label](PropertyValue value) {
+            [property, store](PropertyValue value) {
                 DataValue wanted = property.value;
                 if (const bool* flag = std::get_if<bool>(&value)) {
                     wanted = *flag;
                 } else if (const float* number = std::get_if<float>(&value)) {
                     wanted = static_cast<double>(*number);
+                } else if (const Vec2* point = std::get_if<Vec2>(&value)) {
+                    wanted = *point;
+                } else if (const Color* colour = std::get_if<Color>(&value)) {
+                    wanted = colour->toHex();
                 } else if (const std::string* text = std::get_if<std::string>(&value)) {
                     wanted = *text;
                 }
-                m_editor.execute(std::make_unique<SetProperty>(
-                    id, typeId, "values", PropertyValue(withScriptPropertyValue(valuesNow(), property, wanted)), label));
+                store(wanted);
             });
     }
     for (const std::string& problem : declared.problems) {

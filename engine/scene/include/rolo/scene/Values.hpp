@@ -10,6 +10,8 @@
 // write that text. In scene files it is written as JSON itself, not as text
 // (PropertyOptions::data).
 
+#include "rolo/scene/Types.hpp"
+
 #include <map>
 #include <string>
 #include <string_view>
@@ -17,13 +19,15 @@
 
 namespace rolo {
 
-/// One value: true/false, a number, or text.
-using DataValue = std::variant<bool, double, std::string>;
+/// One value: true/false, a number, text, or a point (written [x, y]).
+/// (A colour is text, "#rrggbbaa", and another object is text too, its ID:
+/// who reads the value knows which it is meant to be.)
+using DataValue = std::variant<bool, double, std::string, Vec2>;
 /// Values by name (in the order of their names).
 using DataValues = std::map<std::string, DataValue>;
 
 /// The values in `text`. Text that is empty or not such a set gives none;
-/// values of other kinds (lists, nothing) are left out.
+/// values of other kinds (other lists, nothing) are left out.
 DataValues parseDataValues(std::string_view text);
 /// The values as text: "" for none, else compact JSON with the names in order.
 std::string writeDataValues(const DataValues& values);

@@ -5,6 +5,13 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Script properties can be colours, points and other objects**
+  ([ADR 0034](docs/adr/0034-more-kinds-of-property.md)):
+  `tint = color("#ffb84d")`, `goal = vector.create(300, 120)` and
+  `door = object()` in a script's `properties` give a colour swatch, X
+  and Y fields and a list of the scene's objects in the Inspector. New
+  for scripts: `obj:color()`, `obj:setColor("#ff0000")`. A copied
+  object's properties that point inside it point inside the copy.
 - **Prefabs, step 1** ([ADR 0033](docs/adr/0033-prefabs.md)): **Edit ›
   Save as Prefab** keeps the selected object as a file (`.lprefab`);
   drag it into any scene for a copy, and `game.spawn("Bullet", x, y)`

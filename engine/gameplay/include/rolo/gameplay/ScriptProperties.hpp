@@ -10,6 +10,9 @@
 //         speed = 90,        -- a number
 //         label = "Lift",    -- text
 //         returns = true,    -- a tick box
+//         tint = color("#ffb84d"),         -- a colour
+//         goal = vector.create(300, 120),  -- a point: x, y
+//         door = object(),                 -- another object, chosen in the Inspector
 //     }
 //
 // The Inspector shows a field for each under the object's Script component.
@@ -19,7 +22,8 @@
 // The editor must know the list without running the script (a script's code
 // may do anything, and the editor is not a game), so it is *read* from the
 // script's text here, with Luau's own parser. That is why the values must be
-// written out plainly: a number, a text or true/false, not a calculation.
+// written out plainly: a number, a text, true/false, or one of the three
+// forms above with plain values in it, not a calculation.
 // (The running game uses the real table, so there a calculation works too.)
 
 #include "rolo/scene/Values.hpp"
@@ -32,9 +36,15 @@
 namespace rolo {
 
 struct ScriptProperty {
+    /// What kind of field the Inspector shows. Colours are kept as text
+    /// ("#rrggbbaa") and objects as text too (the object's ID; "" for none),
+    /// so the kind cannot be told from the value alone.
+    enum class Kind { Number, Text, Flag, Color, Point, Object };
+
     std::string name;    // as written: "walkSpeed"
-    DataValue value;     // what the script gives it: decides its kind, too
+    DataValue value;     // what the script gives it
     int line = 0;        // where it is declared, from 1
+    Kind kind = Kind::Number;
 };
 
 struct ScriptProperties {
@@ -52,8 +62,8 @@ ScriptProperties readScriptProperties(std::string_view code);
 std::string scriptPropertyLabel(std::string_view name);
 
 /// What an object's Script should use for `property`: its own value from
-/// `values` (the Script component's text) if there is one of the right kind,
-/// else the script's.
+/// `values` (the Script component's text) if there is one of the right kind
+/// (for a colour or an object: text that is one), else the script's.
 DataValue scriptPropertyValue(const ScriptProperty& property, std::string_view values);
 
 /// `values` with `property` set to `value` for this object. Setting it to
