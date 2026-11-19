@@ -12,7 +12,7 @@ know. Please report anything else.
 | Automated unit tests | **Yes** | **Yes**, in CI | **Yes**, in CI |
 | Automated tests in real windows (playing, the editor, exported games) | **Yes**, on a virtual display | **Yes**, in CI | Not yet: CI machines have no screen that runs OpenGL 3 |
 | Exporting a game | **Yes** | **Yes**, in CI (an `.app`, then started) | **Yes**, in CI (the export; starting it needs a screen) |
-| Editor used by hand | **Yes**, on a virtual display | **Yes**: the downloaded 0.9.1-alpha, by its author | No |
+| Editor used by hand | **Yes**, on a virtual display | **Yes**: the downloaded 0.9.1-alpha and 0.10.0-alpha (opened), by its author | No |
 
 So far:
 - the macOS app bundles, Metal through Axmol and the exported `.app` have
@@ -28,9 +28,10 @@ Please report what you find.
   Windows game needs Rolo on Windows). Web games, and Android games
   (experimental), can be exported from any of the three.
 - macOS apps are signed only "ad hoc", **not with an Apple Developer ID**,
-  and not notarized. The first time, players right-click the app and choose
-  **Open** (on newer macOS: **System Settings › Privacy & Security › Open
-  Anyway**). The same goes for Rolo itself.
+  and not notarized. The first time, macOS warns; players allow the app
+  under **System Settings › Privacy & Security › Open Anyway** (before
+  macOS 15: right-click the app and choose **Open**). The same goes for
+  Rolo itself ([getting started](getting-started.md)).
 - No installer: games are folders (or `.app` bundles) to zip and share.
 - Every game contains the whole runtime (about 16 MB on Linux), even the
   parts a small game does not use.
@@ -110,6 +111,7 @@ Please report what you find.
   the shipped web runtime has no C++ game modules. Tested in headless
   Chromium only (by CI and by hand); Firefox and Safari are expected to
   work but have not been tried.
+
 ## Editor and scripting
 
 - **Custom gameplay code:** write it in **Luau** ([scripting guide](scripting.md));

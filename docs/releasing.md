@@ -93,6 +93,8 @@ The editor finds all of this from its own location
   exported, which is enough for Apple silicon Macs to open them. They need
   an Apple Developer ID and notarization to open without a warning. Windows
   programs need an Authenticode certificate. Neither is set up, so:
-  - macOS asks users to right-click **Open** the first time;
+  - the first time, macOS users must allow the app under **System
+    Settings › Privacy & Security › Open Anyway** (macOS 15 and newer;
+    right-click **Open** before that);
   - Windows SmartScreen may warn.
 - **Installers.** Rolo ships as zips, not `.dmg`, `.msi` or packages.

@@ -53,9 +53,11 @@ and phones, scripted in Luau ([direction](docs/adr/0019-direction.md),
 * **Download it:** [Latest Release](https://github.com/8dkj4fjrrs-cmyk/Rolo/releases),
   for macOS (Apple silicon), Windows and Linux. Unzip it and start
   `rolo_editor`.
-  - On a Mac, the first time: right-click the app and choose **Open**, or
-    **System Settings › Privacy & Security › Open Anyway**. Rolo is not
-    signed by Apple yet.
+  - On a Mac, the first time, macOS warns that it could not check the
+    app. Click **Done**, open **System Settings › Privacy & Security**,
+    scroll down and click **Open Anyway**. (Before macOS 15: right-click
+    the app and choose **Open**.) Rolo is not signed by Apple yet;
+    [more](docs/getting-started.md).
 * **Build it from source:** [docs/building.md](docs/building.md). For
   example, on macOS:
 

@@ -6,10 +6,17 @@ the [known limitations](known-limitations.md) first.
 
 ## 1. Get Rolo
 
-- **A download** (when releases are published): unzip
+- **A download** from the [releases page](https://github.com/8dkj4fjrrs-cmyk/Rolo/releases): unzip
   `Rolo-<version>-<system>.zip` anywhere and run `rolo_editor` (on
-  macOS, `rolo_editor.app`; the first time, right-click it and choose
-  **Open**, because the alpha is not signed by Apple).
+  macOS, `rolo_editor.app`). **On a Mac, the first time**, macOS says it
+  could not check the app, because the alpha is not signed by Apple:
+  1. click **Done** on the warning (not Move to Trash);
+  2. open **System Settings › Privacy & Security** and scroll down;
+  3. beside "rolo_editor was blocked", click **Open Anyway** and confirm;
+  4. open Rolo again and click **Open**. macOS remembers it from then on.
+
+  (On macOS 14 and older: right-click the app and choose **Open**.) If
+  macOS says the app is *damaged*, please report it.
 - **From source**: follow [building](building.md), then run
   `build/dev/bin/rolo_editor/rolo_editor` (on macOS,
   `build/dev/bin/rolo_editor/rolo_editor.app`).

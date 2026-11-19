@@ -96,8 +96,9 @@ struct Copier {
 std::string readme(const ExportOptions& o, const std::string& gameName, const std::string& program)
 {
     const std::string how = o.os == HostOs::MacOS
-                                ? "Open " + gameName + ".app. (The first time, macOS may say it cannot check the app: "
-                                  "right-click it and choose Open.)"
+                                ? "Open " + gameName + ".app. (The first time, macOS may say it could not check the "
+                                  "app: click Done, open System Settings > Privacy & Security, scroll down and "
+                                  "click Open Anyway. On macOS 14 and older: right-click the app and choose Open.)"
                                 : "Run " + program + ".";
     // The keys every Rolo game has, unless the project turned them off.
     ProjectSettings settings;

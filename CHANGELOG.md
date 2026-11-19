@@ -5,6 +5,11 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- Guides: how to open Rolo and exported games on a Mac the first time.
+  Since macOS 15, right-click › Open no longer gets past the warning; the
+  way is **System Settings › Privacy & Security › Open Anyway**. An
+  exported Mac game's README.txt says so too.
+
 ## 0.10.0-alpha — Luau, web and Android games, sound, physics, events and prefabs
 
 The first release under the name Rolo Engine, and a large one. In short:

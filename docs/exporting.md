@@ -320,9 +320,14 @@ same from every system).
 
 - **macOS**: the editor signs the exported app "ad hoc", but it is not
   signed or notarized with an Apple Developer ID. So the first time, players:
-  - right-click the app and choose **Open**, then **Open** again;
-  - on newer macOS, if it is still blocked: **System Settings › Privacy &
-    Security**, then **Open Anyway**.
+  - on macOS 15 and newer: open the app, click **Done** on the warning,
+    then go to **System Settings › Privacy & Security**, scroll down and
+    click **Open Anyway** (and confirm);
+  - on macOS 14 and older: right-click the app and choose **Open**, then
+    **Open** again.
+
+  macOS remembers the choice. Your game's README.txt tells players the
+  same.
 
   Developer ID signing and notarization are on the roadmap. Exported apps
   run on the same kind of Mac they were made on (Apple silicon from an Apple
