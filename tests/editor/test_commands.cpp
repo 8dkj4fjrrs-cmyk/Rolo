@@ -597,3 +597,35 @@ TEST_CASE("Placing a prefab's object puts a copy with new IDs at the end; undo t
     CHECK(second->id() != copy);
     CHECK(f.doc.scene().size() == 5);
 }
+
+TEST_CASE("An object moved into another, or out of it, stays where it stands", "[editor][commands][move]")
+{
+    Fixture f;
+    const EntityId house = f.make("House");
+    const EntityId door = f.make("Door");
+    f.scene().setProperty(house, "rolo.Transform", "position", Vec2{300.0f, 200.0f});
+    f.scene().setProperty(house, "rolo.Transform", "scale", Vec2{2.0f, 2.0f});
+    f.scene().setProperty(door, "rolo.Transform", "position", Vec2{340.0f, 180.0f});
+
+    REQUIRE(f.doc.execute(moveKeepingPlace(f.doc.scene(), door, house, 0)));
+    CHECK(f.doc.scene().find(door)->parent() == house);
+    // Counted from the house now (which is twice the size), and in the same place in the world.
+    CHECK(f.doc.scene().find(door)->transform().position == Vec2{20.0f, -10.0f});
+    CHECK(f.doc.scene().worldTransform(door).apply({}) == Vec2{340.0f, 180.0f});
+
+    // Out again, to just after the house.
+    REQUIRE(f.doc.execute(moveKeepingPlace(f.doc.scene(), door, EntityId{}, 1)));
+    CHECK(f.doc.scene().find(door)->parent().isNull());
+    CHECK(f.doc.scene().roots()[1] == door);
+    CHECK(f.doc.scene().find(door)->transform().position == Vec2{340.0f, 180.0f});
+
+    // Each is one undo step.
+    REQUIRE(f.doc.undo());
+    CHECK(f.doc.scene().find(door)->parent() == house);
+    CHECK(f.doc.scene().find(door)->transform().position == Vec2{20.0f, -10.0f});
+    REQUIRE(f.doc.undo());
+    CHECK(f.doc.scene().find(door)->parent().isNull());
+    CHECK(f.doc.scene().find(door)->transform().position == Vec2{340.0f, 180.0f});
+    // Not into itself.
+    CHECK_FALSE(f.doc.execute(moveKeepingPlace(f.doc.scene(), house, house, 0)));
+}

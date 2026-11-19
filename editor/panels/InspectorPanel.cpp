@@ -420,7 +420,7 @@ void InspectorPanel::buildEntity(ui::Column& content, const Entity& entity)
             own.setWrap(true);
             m_refresh.push_back([this, id, &own] {
                 const CopyDifferences* d = ownDifferences(id);
-                const std::string text =
+                std::string text =
                     d == nullptr || d->none()
                         ? std::string("Nothing here differs from the prefab.")
                         : "Its own here: " + d->summary()
@@ -428,6 +428,14 @@ void InspectorPanel::buildEntity(ui::Column& content, const Entity& entity)
                                      ? std::string(".")
                                      : std::string(". Its own fields have their names in orange: click a name to put "
                                                    "the prefab's value back."));
+                // A part the prefab itself has from another prefab (ADR 0036).
+                const AssetDatabase* assets = m_editor.assets();
+                const AssetRecord* inner = d != nullptr && assets != nullptr ? assets->find(d->within) : nullptr;
+                if (inner != nullptr) {
+                    text += " The prefab has this part from " + inner->path
+                            + ": it follows that prefab too. To change it everywhere, change a copy of "
+                            + inner->fileName() + " that stands on its own, and apply.";
+                }
                 if (own.text() != text) {
                     own.setText(text);
                 }
@@ -856,7 +864,7 @@ const CopyDifferences* InspectorPanel::ownDifferences(EntityId id)
         m_ownPrefab.scene.reset();
         const AssetRecord* record = db->find(asset);
         if (record != nullptr && record->type == AssetType::Prefab) {
-            SceneLoadResult prefab = loadPrefabFile(db->absolutePath(*record), m_editor.registry());
+            SceneLoadResult prefab = loadPrefabFile(db->absolutePath(*record), m_editor.registry(), prefabTextsOf(*db));
             if (prefab.ok()) {
                 m_ownPrefab.scene = std::move(*prefab.scene);
             }
@@ -1459,7 +1467,7 @@ void InspectorPanel::buildAsset(ui::Column& content, const AssetRecord& asset)
 
     if (asset.type == AssetType::Prefab && db != nullptr) {
         // What the prefab holds, and how it is used.
-        const SceneLoadResult prefab = loadPrefabFile(db->absolutePath(asset), m_editor.registry());
+        const SceneLoadResult prefab = loadPrefabFile(db->absolutePath(asset), m_editor.registry(), prefabTextsOf(*db));
         if (prefab.ok()) {
             const Entity* object = prefab.scene->find(prefab.scene->roots().front());
             row("Object", object->name(), "The object this prefab is a pattern of");

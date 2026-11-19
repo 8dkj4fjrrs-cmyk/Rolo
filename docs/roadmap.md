@@ -153,8 +153,9 @@ In order:
    prefab~~ **done** ([ADR 0035](adr/0035-linked-copies-of-prefabs.md)):
    Apply to Prefab, Reset, Unlink, and a copy's own fields marked in
    the Inspector. ~~More events~~ **done**: touching ending, an
-   animation finishing, an object destroyed. Next: prefabs inside
-   prefabs.
+   animation finishing, an object destroyed. ~~Prefabs inside
+   prefabs~~ **done** ([ADR 0036](adr/0036-prefabs-inside-prefabs.md)):
+   a House keeps its Door linked, and follows it.
 
 Alongside: the editor polish below. Later: 3D.
 
@@ -187,7 +188,7 @@ above now):
 6. Smaller gaps:
    - renaming scenes and creating folders in the editor;
    - multi-selection;
-   - ~~prefabs~~ — **done** (ADR 0033, ADR 0035);
+   - ~~prefabs~~ — **done** (ADR 0033, ADR 0035, ADR 0036);
    - fullscreen and window settings for games;
    - ~~removing Axmol's unused networking libraries (and yasio's Anti 996
      terms with them)~~ — **done** after the alpha (ADR 0012).

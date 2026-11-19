@@ -1526,7 +1526,7 @@ struct PrefabGame {
                 return std::nullopt;
             }
             ++loads;
-            SceneLoadResult loaded = loadPrefabFile(p.assets.absolutePath(*record), registry);
+            SceneLoadResult loaded = loadPrefabFile(p.assets.absolutePath(*record), registry, prefabTextsOf(p.assets));
             if (!loaded.ok()) {
                 error = loaded.firstError();
                 return std::nullopt;
@@ -1540,7 +1540,7 @@ struct PrefabGame {
     void save(const std::string& path, const Scene& scene, EntityId root)
     {
         fs::create_directories((p.folder / path).parent_path());
-        std::ofstream(p.folder / path, std::ios::binary) << serializePrefab(scene, root);
+        std::ofstream(p.folder / path, std::ios::binary) << serializePrefab(scene, root, prefabTextsOf(p.assets));
         p.assets.refresh();
         REQUIRE(p.assets.findByPath(path) != nullptr);
     }
@@ -1950,4 +1950,49 @@ TEST_CASE("A script hears a clip that does not loop reach its end", "[gameplay][
     CHECK(p.printed[2] == "scripts/hero.lua: waited for attack");
     CHECK(p.printed[3] == "scripts/hero.lua: finished attack 2");
     CHECK(p.printed[4] == "scripts/hero.lua: and again");
+}
+
+TEST_CASE("game.spawn makes a prefab with another prefab inside it, whole", "[gameplay][script][spawn][prefab][nested]")
+{
+    ScriptProject p;
+    const AssetId wheelScript = p.write("scripts/wheel.lua", R"(
+        properties = { size = 10 }
+        function start(self)
+            print("wheel " .. self.size .. " on " .. self.object:parent():name())
+        end
+    )");
+    const AssetId depot = p.write("scripts/depot.lua", R"(
+        function start(self)
+            local cart = game.spawn("cart", 100, 0)
+            print(cart:name(), #cart:children(), cart:child("Wheel") ~= nil)
+        end
+    )");
+    PrefabGame g(p);
+    Scene workshop("Workshop", EntityIdGenerator(21));
+    const EntityId wheel = addScripted(workshop, "Wheel", wheelScript);
+    g.save("prefabs/wheel.lprefab", workshop, wheel);
+    {
+        // A Cart with a linked copy of the Wheel inside: the cart's file holds a link, not the wheel.
+        const AssetId wheelAsset = p.assets.findByPath("prefabs/wheel.lprefab")->id;
+        const SceneLoadResult prefab = loadPrefabFile(p.folder / "prefabs/wheel.lprefab", g.registry);
+        REQUIRE(prefab.ok());
+        const EntityId cart = workshop.create("Cart")->id();
+        REQUIRE(workshop.restore(linkedCopyOf(workshop, *prefab.scene, wheelAsset), cart, 0));
+        g.save("prefabs/cart.lprefab", workshop, cart);
+        std::ifstream in(p.folder / "prefabs/cart.lprefab", std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        CHECK_THAT(text, ContainsSubstring("\"prefab\"") && !ContainsSubstring("wheel.lua"));
+    }
+    // The wheel is changed after the cart was made: a bigger size.
+    workshop.setProperty(wheel, "rolo.Script", "values", std::string("{\"size\": 24}"));
+    g.save("prefabs/wheel.lprefab", workshop, wheel);
+
+    Scene scene;
+    addScripted(scene, "Depot", depot);
+    g.game->start(scene);
+    frames(*g.game, 3);
+    CHECK(p.problems.empty());
+    REQUIRE(p.printed.size() == 2);
+    CHECK(p.printed[0] == "scripts/depot.lua: Cart\t1\ttrue");
+    CHECK(p.printed[1] == "scripts/wheel.lua: wheel 24 on Cart");
 }

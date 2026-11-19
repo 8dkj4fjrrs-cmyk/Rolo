@@ -293,3 +293,209 @@ TEST_CASE("What a copy has of its own is found field by field, and can be put ba
     CHECK(valuesWithNamePutBack("{\"speed\":50,\"label\":\"x\"}", "speed", DataValue(20.0)) == "{\"label\":\"x\",\"speed\":20}");
     CHECK(valuesWithNamePutBack("{\"speed\":50}", "speed", std::nullopt).empty());
 }
+
+// --- Prefabs inside prefabs (ADR 0036) ----------------------------------------------------------------
+
+namespace {
+
+const AssetId kDoor{0xD00A};
+const AssetId kHouse{0xA005E};
+
+struct Project {
+    std::string door, house;
+    PrefabTexts texts()
+    {
+        return [this](AssetId id) -> std::optional<std::string> {
+            const std::string& text = id == kDoor ? door : house;
+            return (id == kDoor || id == kHouse) && !text.empty() ? std::optional<std::string>(text) : std::nullopt;
+        };
+    }
+};
+
+EntityId placeOf(Scene& scene, Project& project, AssetId asset, EntityId parent = {})
+{
+    const SceneLoadResult prefab = parsePrefab(asset == kDoor ? project.door : project.house, registry(), project.texts());
+    REQUIRE(prefab.ok());
+    const EntitySnapshot copy = linkedCopyOf(scene, *prefab.scene, asset);
+    const std::size_t index = parent.isNull() ? scene.roots().size() : scene.find(parent)->children().size();
+    REQUIRE(scene.restore(copy, parent, index));
+    return copy.rootId();
+}
+
+// Door (a Shape) with a Knob (a Shape); House made in a scene from a Wall and a copy of Door, with Save as Prefab.
+struct Street {
+    Project project;
+    EntityId door, knob;   // in the door's file
+    Scene scene{"Level", EntityIdGenerator(5)};
+    EntityId house;        // the object the house prefab was made from, now its first copy
+
+    Street()
+    {
+        Scene workshop("Doors", EntityIdGenerator(21));
+        door = workshop.create("Door")->id();
+        workshop.addComponent(door, std::make_unique<Shape>());
+        knob = workshop.create("Knob", door)->id();
+        workshop.addComponent(knob, std::make_unique<Shape>());
+        project.door = serializePrefab(workshop, door);
+
+        house = scene.create("House")->id();
+        scene.create("Wall", house);
+        placeOf(scene, project, kDoor, house);
+        // Edit > Save as Prefab.
+        project.house = serializePrefab(scene, house, project.texts());
+        for (auto& [id, link] : linksAfterSaving(scene, house, kHouse)) {
+            scene.setPrefabLink(id, std::move(link));
+        }
+    }
+};
+
+} // namespace
+
+TEST_CASE("Saving an object that holds a copy of a prefab keeps the copy linked", "[editor][prefabs][nested]")
+{
+    Street s;
+    CHECK(s.project.house.find("\"prefab\": \"" + kDoor.toString() + "\"") != std::string::npos);
+    CHECK(s.project.house.find("Knob") == std::string::npos);
+    // In the scene the object is now a copy of the house, the door a part of it.
+    CHECK(s.scene.find(s.house)->isPrefabCopy());
+    CHECK(prefabCopyMembers(s.scene, s.house).size() == 4);
+    const Entity* door = childNamed(s.scene, s.house, "Door");
+    CHECK_FALSE(door->isPrefabCopy());
+    CHECK(copyRootOf(s.scene, childNamed(s.scene, door->id(), "Knob")->id()) == s.house);
+    {
+        // The Inspector can say which prefab a part comes from.
+        const SceneLoadResult prefab = parsePrefab(s.project.house, registry(), s.project.texts());
+        REQUIRE(prefab.ok());
+        const EntityId knobHere = childNamed(s.scene, door->id(), "Knob")->id();
+        CHECK(differencesFromPrefab(s.scene, knobHere, *prefab.scene)->within == kDoor);
+        CHECK(differencesFromPrefab(s.scene, door->id(), *prefab.scene)->within == kDoor);
+        CHECK(differencesFromPrefab(s.scene, s.house, *prefab.scene)->within.isNull());
+        CHECK(differencesFromPrefab(s.scene, childNamed(s.scene, s.house, "Wall")->id(), *prefab.scene)->within.isNull());
+    }
+
+    // The scene is saved and read: the same objects, as one link.
+    const std::string text = serializeScene(s.scene, s.project.texts());
+    CHECK(text.find("Wall") == std::string::npos);
+    const SceneLoadResult back = parseScene(text, registry(), s.project.texts());
+    REQUIRE(back.ok());
+    CHECK(back.warningCount() == 0);
+    CHECK(back.scene->size() == 4);
+    CHECK(back.scene->find(door->id()) != nullptr);
+    CHECK(serializeScene(*back.scene, s.project.texts()) == text);
+    // Nothing of its own: applying changes nothing.
+    CHECK(prefabTextFromCopy(s.scene, s.house, s.project.house, registry(), s.project.texts()) == s.project.house);
+}
+
+TEST_CASE("Applying a copy keeps the prefabs inside its prefab linked, and other copies follow", "[editor][prefabs][nested]")
+{
+    Street s;
+    Scene& scene = s.scene;
+    const EntityId other = placeOf(scene, s.project, kHouse);
+    scene.setProperty(other, "rolo.Transform", "position", Vec2{500.0f, 0.0f});
+    const EntityId door = childNamed(scene, s.house, "Door")->id();
+    const EntityId knobHere = childNamed(scene, door, "Knob")->id();
+    const EntityId otherDoor = childNamed(scene, other, "Door")->id();
+    const EntityId otherKnob = childNamed(scene, otherDoor, "Knob")->id();
+
+    // In the first house: the door moved, its knob red, a Chimney added.
+    scene.setProperty(door, "rolo.Transform", "position", Vec2{40.0f, 0.0f});
+    scene.setProperty(knobHere, "rolo.Shape", "color", Color{255, 0, 0, 255});
+    scene.create("Chimney", s.house);
+
+    const std::string oldText = s.project.house;
+    const std::string newText = prefabTextFromCopy(scene, s.house, oldText, registry(), s.project.texts());
+    CHECK(newText != oldText);
+    // Still a link to the door, with what this house changes in it.
+    CHECK(newText.find("\"prefab\": \"" + kDoor.toString() + "\"") != std::string::npos);
+    CHECK(newText.find("Knob") == std::string::npos);
+    CHECK(newText.find("Chimney") != std::string::npos);
+    std::string error;
+    s.project.house = newText;
+    const std::optional<Scene> after =
+        sceneAfterApply(scene, s.house, kHouse, oldText, newText, registry(), s.project.texts(), error);
+    REQUIRE(after);
+    CHECK(after->size() == 10);
+    CHECK(after->find(knobHere)->get<Shape>()->color == Color{255, 0, 0, 255});
+    CHECK(after->find(otherDoor)->transform().position == Vec2{40.0f, 0.0f});
+    CHECK(after->find(otherKnob)->get<Shape>()->color == Color{255, 0, 0, 255});
+    CHECK(after->find(other)->transform().position == Vec2{500.0f, 0.0f});
+    CHECK(childNamed(*after, other, "Chimney") != nullptr);
+    // Applied again at once, nothing changes.
+    CHECK(prefabTextFromCopy(*after, s.house, newText, registry(), s.project.texts()) == newText);
+
+    // Now the door itself changes, through a copy of it that stands alone.
+    Scene level(*after);
+    const EntityId loose = placeOf(level, s.project, kDoor);
+    level.setProperty(loose, "rolo.Shape", "size", Vec2{20.0f, 50.0f});
+    level.create("Bell", loose);
+    const std::string oldDoor = s.project.door;
+    const std::string newDoor = prefabTextFromCopy(level, loose, oldDoor, registry(), s.project.texts());
+    s.project.door = newDoor;
+    const std::optional<Scene> later =
+        sceneAfterApply(level, loose, kDoor, oldDoor, newDoor, registry(), s.project.texts(), error);
+    REQUIRE(later);
+    // Both houses' doors follow, and keep what their house says of them.
+    for (const EntityId d : {door, otherDoor}) {
+        REQUIRE(later->find(d) != nullptr);
+        CHECK(later->find(d)->get<Shape>()->size == Vec2{20.0f, 50.0f});
+        CHECK(later->find(d)->transform().position == Vec2{40.0f, 0.0f});
+        CHECK(childNamed(*later, d, "Bell") != nullptr);
+    }
+    CHECK(later->find(knobHere)->get<Shape>()->color == Color{255, 0, 0, 255});
+    // The house's file did not have to change for that.
+    CHECK(s.project.house == newText);
+}
+
+TEST_CASE("A prefab cannot be applied into itself", "[editor][prefabs][nested]")
+{
+    Street s;
+    Scene& scene = s.scene;
+    const EntityId other = placeOf(scene, s.project, kHouse);
+    CHECK_FALSE(applyWouldLoop(scene, s.house, s.project.texts()));
+    // A second door inside the house is fine.
+    placeOf(scene, s.project, kDoor, s.house);
+    CHECK_FALSE(applyWouldLoop(scene, s.house, s.project.texts()));
+    // A house inside the house is not.
+    placeOf(scene, s.project, kHouse, other);
+    CHECK(applyWouldLoop(scene, other, s.project.texts()));
+    // Nor a house inside a door: the house holds the door.
+    const EntityId loose = placeOf(scene, s.project, kDoor);
+    CHECK_FALSE(applyWouldLoop(scene, loose, s.project.texts()));
+    placeOf(scene, s.project, kHouse, loose);
+    CHECK(applyWouldLoop(scene, loose, s.project.texts()));
+}
+
+TEST_CASE("Unlinking a copy leaves the prefabs inside it linked", "[editor][prefabs][nested]")
+{
+    Street s;
+    Scene& scene = s.scene;
+    const EntityId door = childNamed(scene, s.house, "Door")->id();
+    const EntityId knobHere = childNamed(scene, door, "Knob")->id();
+    scene.setProperty(door, "rolo.Transform", "position", Vec2{40.0f, 0.0f});
+    const SceneLoadResult prefab = parsePrefab(s.project.house, registry(), s.project.texts());
+    REQUIRE(prefab.ok());
+    for (auto& [id, link] : linksAfterUnlinking(scene, s.house, &*prefab.scene)) {
+        scene.setPrefabLink(id, std::move(link));
+    }
+    CHECK_FALSE(scene.find(s.house)->isPrefabCopy());
+    CHECK(scene.find(door)->isPrefabCopy());
+    CHECK(scene.find(door)->prefabLink().prefab == kDoor);
+    CHECK(copyRootOf(scene, knobHere) == door);
+
+    // The house is ordinary objects in the file now, the door a link that follows its prefab.
+    const std::string text = serializeScene(scene, s.project.texts());
+    CHECK(text.find("Wall") != std::string::npos);
+    CHECK(text.find("Knob") == std::string::npos);
+    CHECK(text.find(kHouse.toString()) == std::string::npos);
+    const SceneLoadResult back = parseScene(text, registry(), s.project.texts());
+    REQUIRE(back.ok());
+    CHECK(back.scene->find(door)->transform().position == Vec2{40.0f, 0.0f});
+    CHECK(back.scene->find(knobHere) != nullptr);
+
+    // Without the prefab to ask, everything becomes ordinary.
+    Street t;
+    for (auto& [id, link] : linksAfterUnlinking(t.scene, t.house, nullptr)) {
+        t.scene.setPrefabLink(id, std::move(link));
+    }
+    t.scene.forEach([](const Entity& e, int) { CHECK(e.prefabLink().none()); });
+}

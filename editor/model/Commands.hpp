@@ -516,6 +516,13 @@ private:
     std::string m_name;
 };
 
+/// Moves an object to another parent (null: the top of the scene), to
+/// `index` among its new siblings, as one undo step, and keeps it where it
+/// stands: an object's position is counted from its parent, so its position
+/// is changed to match. (Its rotation and scale are left as they are; inside
+/// a turned or resized object it may look different.)
+std::unique_ptr<Command> moveKeepingPlace(const Scene& scene, EntityId id, EntityId newParent, std::size_t index);
+
 // --- Asset commands (change project files, not the scene) ---------------------------------------
 
 /// Replaces a tileset's definition (tile size, margin, spacing, image, solid

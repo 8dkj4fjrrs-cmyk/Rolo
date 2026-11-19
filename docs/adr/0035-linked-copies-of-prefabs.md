@@ -138,7 +138,7 @@ change. A Script's properties are marked one by one.
 - **Putting back one by one** a component the copy added or removed, its
   name, or a component's other contents (a Tilemap's tiles): they are
   counted in the Inspector, and Reset puts the whole copy back.
-- **Prefabs inside prefabs** that stay linked.
+- ~~**Prefabs inside prefabs** that stay linked.~~ Done: [ADR 0036](0036-prefabs-inside-prefabs.md).
 - **Opening a prefab on its own** to edit it.
 - **Undo for Apply to Prefab:** it rewrites the prefab file and rebuilds
   the open scene, whose undo history starts afresh.

@@ -307,7 +307,7 @@ void EditorApp::placeAsset(AssetId id, Vec2 worldPosition)
     } else if (asset->type == AssetType::Prefab) {
         // A linked copy of the prefab's object: it follows the prefab, and
         // the scene keeps only what the copy changes (ADR 0035).
-        SceneLoadResult prefab = loadPrefabFile(m_assetDb->absolutePath(*asset), m_registry);
+        SceneLoadResult prefab = loadPrefabFile(m_assetDb->absolutePath(*asset), m_registry, prefabTexts());
         reportIssues(m_assetDb->absolutePath(*asset), prefab.issues);
         if (!prefab.ok()) {
             showMessage("Cannot Place This Prefab", asset->fileName() + " could not be read: " + prefab.firstError());
@@ -739,7 +739,7 @@ std::optional<Scene> EditorApp::loadSceneForGame(AssetId id, std::string& error)
     const AssetRecord* record = m_assetDb ? m_assetDb->find(id) : nullptr;
     if (record != nullptr && record->type == AssetType::Prefab) {
         // A prefab (game.spawn): read as a scene holding its one object.
-        SceneLoadResult prefab = loadPrefabFile(m_assetDb->absolutePath(*record), m_registry);
+        SceneLoadResult prefab = loadPrefabFile(m_assetDb->absolutePath(*record), m_registry, prefabTexts());
         if (!prefab.ok()) {
             error = prefab.firstError();
             return std::nullopt;
@@ -887,7 +887,8 @@ void EditorApp::savePrefabFromSelection()
     }
     // Always a new file (a name that is taken gets a number): an existing
     // prefab is changed with Apply to Prefab, which its other copies survive.
-    const std::string text = serializePrefab(m_document->scene(), id);
+    // (Copies of other prefabs inside the object stay linked to them.)
+    const std::string text = serializePrefab(m_document->scene(), id, prefabTexts());
     std::string error;
     const auto prefab = m_assetDb->createTextAsset("prefabs", name, PrefabFormat::kExtension, text, &error);
     if (!prefab) {
@@ -923,7 +924,14 @@ void EditorApp::applyToPrefab(EntityId id)
     }
     const std::string name = copy->name();
     const std::string path = record->path;
-    const std::string newText = prefabTextFromCopy(m_document->scene(), id, *oldText, m_registry);
+    if (applyWouldLoop(m_document->scene(), id, prefabTexts())) {
+        showMessage("A Prefab Cannot Hold Itself",
+                    "Inside this copy there is a copy of the same prefab, or of a prefab that holds it. Applying "
+                    "would put " + record->fileName() + " inside itself, without end. Unlink that inner copy (it "
+                    "then becomes ordinary objects) or remove it, and apply again.");
+        return;
+    }
+    const std::string newText = prefabTextFromCopy(m_document->scene(), id, *oldText, m_registry, prefabTexts());
     if (newText == *oldText) {
         log().info(kCategory, "'" + name + "' is as its prefab " + path + " has it: nothing to apply.");
         return;
@@ -968,7 +976,7 @@ void EditorApp::resetToPrefab(EntityId id)
     }
     const AssetRecord* record = m_assetDb->find(copy->prefabLink().prefab);
     SceneLoadResult prefab = record != nullptr && record->type == AssetType::Prefab
-                                 ? loadPrefabFile(m_assetDb->absolutePath(*record), m_registry)
+                                 ? loadPrefabFile(m_assetDb->absolutePath(*record), m_registry, prefabTexts())
                                  : SceneLoadResult{};
     if (!prefab.ok()) {
         showMessage("The Prefab Is Missing", "This copy's prefab file cannot be read, so there is nothing to reset it to.");
@@ -990,12 +998,14 @@ void EditorApp::unlinkFromPrefab(EntityId id)
     if (copy == nullptr || !copy->isPrefabCopy()) {
         return;
     }
-    std::vector<std::pair<EntityId, PrefabLink>> none{{id, PrefabLink{}}};
-    for (const auto& [member, inPrefab] : prefabCopyMembers(scene, id)) {
-        if (member != id) {
-            none.emplace_back(member, PrefabLink{});
-        }
-    }
+    // Ordinary objects from now on; but a part the prefab has as a copy of
+    // another prefab goes on following that one (ADR 0036).
+    const AssetRecord* record = m_assetDb ? m_assetDb->find(copy->prefabLink().prefab) : nullptr;
+    const SceneLoadResult prefab = record != nullptr && record->type == AssetType::Prefab && copy->prefabLink().kept.empty()
+                                       ? loadPrefabFile(m_assetDb->absolutePath(*record), m_registry, prefabTexts())
+                                       : SceneLoadResult{};
+    std::vector<std::pair<EntityId, PrefabLink>> none =
+        linksAfterUnlinking(scene, id, prefab.ok() ? &*prefab.scene : nullptr);
     // (A stand-in for a missing prefab has stand-ins inside it, too.)
     for (const EntityId child : copy->children()) {
         const Entity* c = scene.find(child);
@@ -1006,6 +1016,40 @@ void EditorApp::unlinkFromPrefab(EntityId id)
     }
     if (execute(std::make_unique<SetPrefabLinks>(std::move(none), "Unlink from Prefab"))) {
         endEdit();
+    }
+}
+
+void EditorApp::moveSelectionInOrOut(bool into)
+{
+    const EntityId id = selection();
+    const Scene& scene = m_document->scene();
+    if (id.isNull() || scene.find(id) == nullptr) {
+        return;
+    }
+    const std::string name = scene.find(id)->name();
+    const EntityId parent = scene.find(id)->parent();
+    EntityId newParent;
+    std::size_t index = 0;
+    if (into) {
+        const std::size_t at = scene.indexOf(id).value_or(0);
+        if (at == 0) {
+            log().info(kCategory, "'" + name + "' has no object above it (at the same level) to move into. Use Edit > "
+                                                "Move Up / Move Down to put it just below the object it should go into.");
+            return;
+        }
+        newParent = scene.childrenOf(parent)[at - 1];
+        index = scene.childrenOf(newParent).size();
+    } else {
+        if (parent.isNull()) {
+            log().info(kCategory, "'" + name + "' is not inside another object.");
+            return;
+        }
+        newParent = scene.find(parent)->parent();
+        index = scene.indexOf(parent).value_or(0) + 1;
+    }
+    if (execute(moveKeepingPlace(scene, id, newParent, index))) {
+        endEdit();
+        select(id);
     }
 }
 
@@ -1761,7 +1805,9 @@ void EditorApp::buildMenus(ui::Widget& root)
                                hasSelection),
                       ui::MenuItem::divider(),
                       menuItem("Move Up", "", [this] { moveSelection(-1); }, hasSelection),
-                      menuItem("Move Down", "", [this] { moveSelection(1); }, hasSelection)}});
+                      menuItem("Move Down", "", [this] { moveSelection(1); }, hasSelection),
+                      menuItem("Move Into the Object Above", "", [this] { moveSelectionInOrOut(true); }, hasSelection),
+                      menuItem("Move Out of Its Object", "", [this] { moveSelectionInOrOut(false); }, hasSelection)}});
 
     std::vector<ui::MenuItem> view;
     for (const PanelInfo& panel : kPanels) {

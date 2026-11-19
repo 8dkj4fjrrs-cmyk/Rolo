@@ -561,6 +561,233 @@ TEST_CASE("Copies of a linked copy are linked copies, and older scene files stil
     CHECK(serializeScene(*oldScene.scene, prefabs.texts()).find("\"version\": 1") != std::string::npos);
     // A file from a newer Rolo is refused.
     std::string newer = old;
-    newer.replace(newer.find("\"version\": 1"), 12, "\"version\": 3");
+    newer.replace(newer.find("\"version\": 1"), 12, "\"version\": 4");
     CHECK(mentions(parseScene(newer, registry()), "newer version of Rolo"));
+}
+
+// --- Prefabs inside prefabs (ADR 0036) ----------------------------------------------------------------
+
+namespace {
+
+const AssetId kDoorPrefab{0xD00A};
+const AssetId kHousePrefab{0xA005E};
+
+// A project with several prefabs, as texts that tests change.
+struct ManyPrefabs {
+    std::vector<std::pair<AssetId, std::string>> all;
+    std::string& text(AssetId id)
+    {
+        for (auto& [known, held] : all) {
+            if (known == id) {
+                return held;
+            }
+        }
+        all.emplace_back(id, std::string());
+        return all.back().second;
+    }
+    PrefabTexts texts()
+    {
+        return [this](AssetId id) -> std::optional<std::string> {
+            for (const auto& [known, held] : all) {
+                if (known == id && !held.empty()) {
+                    return held;
+                }
+            }
+            return std::nullopt;
+        };
+    }
+};
+
+EntityId placeCopy(Scene& scene, ManyPrefabs& project, AssetId asset, EntityId parent = {})
+{
+    const SceneLoadResult prefab = parsePrefab(project.text(asset), registry(), project.texts());
+    REQUIRE(prefab.ok());
+    const EntitySnapshot copy = linkedCopyOf(scene, *prefab.scene, asset);
+    const std::size_t index = parent.isNull() ? scene.roots().size() : scene.find(parent)->children().size();
+    REQUIRE(scene.restore(copy, parent, index));
+    return copy.rootId();
+}
+
+// Door (a Shape) with a Knob (a Shape) inside; House with a Wall and a linked copy of Door inside.
+struct Village {
+    ManyPrefabs project;
+    EntityId door, knob, house, wall, houseDoor;
+    Scene doorWorkshop{"Doors", EntityIdGenerator(21)};
+    Scene houseWorkshop{"Houses", EntityIdGenerator(22)};
+
+    Village()
+    {
+        door = doorWorkshop.create("Door")->id();
+        doorWorkshop.addComponent(door, std::make_unique<Shape>());
+        knob = doorWorkshop.create("Knob", door)->id();
+        doorWorkshop.addComponent(knob, std::make_unique<Shape>());
+        project.text(kDoorPrefab) = serializePrefab(doorWorkshop, door);
+
+        house = houseWorkshop.create("House")->id();
+        wall = houseWorkshop.create("Wall", house)->id();
+        houseDoor = placeCopy(houseWorkshop, project, kDoorPrefab, house);
+        houseWorkshop.setProperty(houseDoor, "rolo.Transform", "position", Vec2{30.0f, 0.0f});
+        project.text(kHousePrefab) = serializePrefab(houseWorkshop, house, project.texts());
+    }
+};
+
+} // namespace
+
+TEST_CASE("A prefab keeps a copy of another prefab inside it as a link", "[scene][file][nested]")
+{
+    Village v;
+    const std::string& houseText = v.project.text(kHousePrefab);
+    // The door is a link in the house's file: its Knob is not written there.
+    CHECK(houseText.find("\"prefab\": \"" + kDoorPrefab.toString() + "\"") != std::string::npos);
+    CHECK(houseText.find("Knob") == std::string::npos);
+    CHECK(houseText.find("\"version\": 3") != std::string::npos);
+    // A prefab without one is a version 1 file still.
+    CHECK(v.project.text(kDoorPrefab).find("\"version\": 1") != std::string::npos);
+
+    const SceneLoadResult house = parsePrefab(houseText, registry(), v.project.texts());
+    REQUIRE(house.ok());
+    CHECK(house.warningCount() == 0);
+    CHECK(house.scene->size() == 4);
+    const Entity* top = house.scene->find(house.scene->roots().front());
+    CHECK(top->id() == v.house);
+    CHECK_FALSE(top->isPrefabCopy());
+    const Entity* door = childNamed(*house.scene, v.house, "Door");
+    REQUIRE(door != nullptr);
+    CHECK(door->id() == v.houseDoor);
+    CHECK(door->isPrefabCopy());
+    CHECK(door->prefabLink().prefab == kDoorPrefab);
+    CHECK(door->transform().position == Vec2{30.0f, 0.0f});
+    REQUIRE(childNamed(*house.scene, door->id(), "Knob") != nullptr);
+    // Written again, it is the same text.
+    CHECK(serializePrefab(*house.scene, v.house, v.project.texts()) == houseText);
+
+    // The door changes: the house has the new door.
+    v.doorWorkshop.setProperty(v.knob, "rolo.Shape", "size", Vec2{3.0f, 3.0f});
+    v.doorWorkshop.create("Bell", v.door);
+    v.project.text(kDoorPrefab) = serializePrefab(v.doorWorkshop, v.door);
+    const SceneLoadResult later = parsePrefab(houseText, registry(), v.project.texts());
+    REQUIRE(later.ok());
+    CHECK(later.scene->size() == 5);
+    const Entity* laterDoor = childNamed(*later.scene, v.house, "Door");
+    CHECK(childNamed(*later.scene, laterDoor->id(), "Knob")->get<Shape>()->size == Vec2{3.0f, 3.0f});
+    CHECK(childNamed(*later.scene, laterDoor->id(), "Bell") != nullptr);
+
+    // Without the project's prefabs, or without the door, the house has a stand-in and says so.
+    const SceneLoadResult alone = parsePrefab(houseText, registry());
+    REQUIRE(alone.ok());
+    CHECK(mentions(alone, "could not be read"));
+    v.project.text(kDoorPrefab).clear();
+    const SceneLoadResult doorless = parsePrefab(houseText, registry(), v.project.texts());
+    REQUIRE(doorless.ok());
+    CHECK(mentions(doorless, "could not be read"));
+    // ...and writes the link back as it was.
+    CHECK(serializePrefab(*doorless.scene, v.house, v.project.texts()) == houseText);
+}
+
+TEST_CASE("A scene's copy of a prefab follows the prefabs inside that prefab", "[scene][file][nested]")
+{
+    Village v;
+    Scene scene("Level", EntityIdGenerator(5));
+    const EntityId copy = placeCopy(scene, v.project, kHousePrefab);
+    REQUIRE(scene.size() == 4);
+    const Entity* door = childNamed(scene, copy, "Door");
+    REQUIRE(door != nullptr);
+    const EntityId doorId = door->id();
+    // In the scene the door is simply part of the house's copy.
+    CHECK_FALSE(door->isPrefabCopy());
+    CHECK(door->prefabLink().source == v.houseDoor);
+    const EntityId knobId = childNamed(scene, doorId, "Knob")->id();
+    // This copy's knob has a colour of its own.
+    scene.setProperty(knobId, "rolo.Shape", "color", Color{0, 255, 0, 255});
+
+    const std::string text = serializeScene(scene, v.project.texts());
+    CHECK(text.find("Wall") == std::string::npos);
+    CHECK(text.find("Knob") == std::string::npos);
+    CHECK(text.find(kDoorPrefab.toString()) == std::string::npos);   // the scene knows the house only
+    CHECK(text.find("\"version\": 2") != std::string::npos);
+
+    // The door prefab changes: bigger knob, and a Bell.
+    v.doorWorkshop.setProperty(v.knob, "rolo.Shape", "size", Vec2{3.0f, 3.0f});
+    v.doorWorkshop.create("Bell", v.door);
+    v.project.text(kDoorPrefab) = serializePrefab(v.doorWorkshop, v.door);
+
+    const SceneLoadResult back = parseScene(text, registry(), v.project.texts());
+    REQUIRE(back.ok());
+    CHECK(back.warningCount() == 0);
+    CHECK(back.scene->size() == 5);
+    REQUIRE(back.scene->find(doorId) != nullptr);
+    REQUIRE(back.scene->find(knobId) != nullptr);
+    CHECK(back.scene->find(doorId)->transform().position == Vec2{30.0f, 0.0f});
+    CHECK(back.scene->find(knobId)->get<Shape>()->size == Vec2{3.0f, 3.0f});
+    CHECK(back.scene->find(knobId)->get<Shape>()->color == Color{0, 255, 0, 255});
+    const Entity* bell = childNamed(*back.scene, doorId, "Bell");
+    REQUIRE(bell != nullptr);
+    // The Bell has the same ID every time the scene is read.
+    const SceneLoadResult again = parseScene(text, registry(), v.project.texts());
+    REQUIRE(again.ok());
+    CHECK(again.scene->find(bell->id()) != nullptr);
+    // Saved and read once more, nothing moves.
+    const std::string saved = serializeScene(*back.scene, v.project.texts());
+    const SceneLoadResult third = parseScene(saved, registry(), v.project.texts());
+    REQUIRE(third.ok());
+    CHECK(third.scene->size() == 5);
+    CHECK(third.scene->find(bell->id()) != nullptr);
+    CHECK(serializeScene(*third.scene, v.project.texts()) == saved);
+
+    // The door prefab goes missing: the copy has an empty object there, with a warning, and loses nothing.
+    const std::string doorText = v.project.text(kDoorPrefab);
+    v.project.text(kDoorPrefab).clear();
+    const SceneLoadResult doorless = parseScene(saved, registry(), v.project.texts());
+    REQUIRE(doorless.ok());
+    CHECK(mentions(doorless, "holds a copy of another prefab that could not be read"));
+    CHECK(doorless.scene->find(doorId) != nullptr);
+    const std::string keptText = serializeScene(*doorless.scene, v.project.texts());
+    v.project.text(kDoorPrefab) = doorText;
+    const SceneLoadResult returned = parseScene(keptText, registry(), v.project.texts());
+    REQUIRE(returned.ok());
+    REQUIRE(returned.scene->find(knobId) != nullptr);
+    CHECK(returned.scene->find(knobId)->get<Shape>()->color == Color{0, 255, 0, 255});
+}
+
+TEST_CASE("A prefab that holds itself is not read without end", "[scene][file][nested]")
+{
+    Village v;
+    CHECK(prefabHolds(v.project.texts(), kHousePrefab, kDoorPrefab));
+    CHECK(prefabHolds(v.project.texts(), kHousePrefab, kHousePrefab));
+    CHECK_FALSE(prefabHolds(v.project.texts(), kDoorPrefab, kHousePrefab));
+
+    // By hand: the door is given a copy of the house, which holds the door.
+    Scene loop(v.doorWorkshop);
+    placeCopy(loop, v.project, kHousePrefab, v.door);
+    v.project.text(kDoorPrefab) = serializePrefab(loop, v.door, v.project.texts());
+    CHECK(prefabHolds(v.project.texts(), kDoorPrefab, kHousePrefab));
+    const SceneLoadResult door = parsePrefab(v.project.text(kDoorPrefab), registry(), v.project.texts());
+    REQUIRE(door.ok());
+    CHECK(door.scene->size() < 20);
+    Scene scene("Level", EntityIdGenerator(5));
+    placeCopy(scene, v.project, kHousePrefab);
+    const SceneLoadResult back = parseScene(serializeScene(scene, v.project.texts()), registry(), v.project.texts());
+    REQUIRE(back.ok());
+    CHECK(back.scene->size() < 20);
+}
+
+TEST_CASE("Files from before prefabs inside prefabs still open", "[scene][file][nested]")
+{
+    Village v;
+    // A version 1 prefab.
+    const std::string oldPrefab = "{\"format\": \"rolo.prefab\", \"version\": 1, \"entities\": ["
+                                  "{\"id\": \"00000000000000b1\", \"name\": \"Rock\", \"active\": true, \"components\": []}]}";
+    const SceneLoadResult rock = parsePrefab(oldPrefab, registry(), v.project.texts());
+    REQUIRE(rock.ok());
+    CHECK(rock.warningCount() == 0);
+    CHECK(serializePrefab(*rock.scene, rock.scene->roots().front(), v.project.texts()).find("\"version\": 1")
+          != std::string::npos);
+    // A version 2 scene with a linked copy.
+    const std::string oldScene = "{\"format\": \"rolo.scene\", \"version\": 2, \"name\": \"Old\", \"entities\": ["
+                                 "{\"id\": \"00000000000000c1\", \"prefab\": \"" + kDoorPrefab.toString() + "\"}]}";
+    const SceneLoadResult level = parseScene(oldScene, registry(), v.project.texts());
+    REQUIRE(level.ok());
+    CHECK(level.warningCount() == 0);
+    CHECK(level.scene->size() == 2);
+    CHECK(serializeScene(*level.scene, v.project.texts()).find("\"version\": 2") != std::string::npos);
 }

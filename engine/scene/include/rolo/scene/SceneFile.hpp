@@ -60,7 +60,7 @@ struct SceneLoadResult {
 
 namespace SceneFormat {
 inline constexpr std::string_view kName = "rolo.scene";
-inline constexpr int kVersion = 2;
+inline constexpr int kVersion = 3;
 inline constexpr std::string_view kExtension = ".lscene";
 } // namespace SceneFormat
 
@@ -99,12 +99,24 @@ SceneLoadResult loadSceneFile(const std::filesystem::path& path, const Component
 Status saveSceneFile(const std::filesystem::path& path, const Scene& scene, const PrefabTexts& prefabs = {});
 
 /// Reads a prefab: the result is a scene holding just the prefab's object
-/// (scene.roots().front()) and what is inside it.
-SceneLoadResult parsePrefab(std::string_view json, const ComponentRegistry& registry);
-SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const ComponentRegistry& registry);
+/// (scene.roots().front()) and what is inside it. A prefab may hold linked
+/// copies of other prefabs (ADR 0036), which `prefabs` reads: they come
+/// back as ordinary objects marked with where they are from (PrefabLink),
+/// as in a scene. Without `prefabs` they are stand-ins.
+SceneLoadResult parsePrefab(std::string_view json, const ComponentRegistry& registry, const PrefabTexts& prefabs = {});
+SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const ComponentRegistry& registry,
+                               const PrefabTexts& prefabs = {});
+
 /// Writes the object `root` of `scene`, with everything inside it, as a
-/// prefab file's text. Empty if there is no such object.
-std::string serializePrefab(const Scene& scene, EntityId root);
+/// prefab file's text. Empty if there is no such object. The object itself
+/// is written in full; linked copies of prefabs inside it are written as
+/// links if `prefabs` can read their prefabs, and in full otherwise.
+std::string serializePrefab(const Scene& scene, EntityId root, const PrefabTexts& prefabs = {});
+
+/// Whether the prefab `outer` is `inner`, or holds a linked copy of it,
+/// directly or inside another prefab it holds. (Putting `outer` into
+/// `inner` would then make a prefab that holds itself.)
+bool prefabHolds(const PrefabTexts& prefabs, AssetId outer, AssetId inner);
 
 /// The object of a prefab (`prefab`: as parsePrefab gives it; `asset`: the
 /// prefab file's ID) as a linked copy to put into `scene` with

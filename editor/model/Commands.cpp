@@ -747,6 +747,31 @@ void MoveEntity::revert(Scene& scene)
     scene.move(m_id, m_oldParent, m_oldIndex);
 }
 
+std::unique_ptr<Command> moveKeepingPlace(const Scene& scene, EntityId id, EntityId newParent, std::size_t index)
+{
+    const Entity* entity = scene.find(id);
+    auto group = std::make_unique<CommandGroup>("Move " + (entity != nullptr ? entity->name() : std::string("Object")));
+    group->add(std::make_unique<MoveEntity>(id, newParent, index));
+    // (Into itself, or into something inside it, is no move at all: the
+    // move fails, and then nothing else must change either.)
+    bool possible = entity != nullptr;
+    for (const Entity* e = scene.find(newParent); e != nullptr && possible; e = scene.find(e->parent())) {
+        possible = e->id() != id;
+    }
+    if (possible && entity->get<Transform>() != nullptr) {
+        const Vec2 world = scene.worldTransform(id).apply({});
+        const std::optional<Affine2> back =
+            newParent.isNull() ? std::optional<Affine2>(Affine2{}) : scene.worldTransform(newParent).inverse();
+        if (back) {
+            const Vec2 local = back->apply(world);
+            if (local != entity->transform().position) {
+                group->add(std::make_unique<SetProperty>(id, Transform::componentType().id, "position", local, "Position"));
+            }
+        }
+    }
+    return group;
+}
+
 // --- Asset commands ---------------------------------------------------------------------------
 
 ChangeTileset::ChangeTileset(AssetId tileset, Tileset definition, std::string label)

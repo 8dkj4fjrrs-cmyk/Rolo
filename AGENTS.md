@@ -71,9 +71,14 @@ and AI assistants.
   Linked copies (ADR 0035): an object placed from a prefab is written in its scene as a link and its
   differences, and is turned back into ordinary objects when the scene is read
   (`expandLinkedCopies`, `linkedCopyJson` in `SceneFile.cpp`); nothing outside scene files and
-  `editor/model/Prefabs.*` may treat such an object specially. Everything that reads or writes scene
+  `editor/model/Prefabs.*` may treat such an object specially.
+  Everything that reads or writes scene
   files must be given the project's prefabs (`prefabTextsOf`), or links are read as stand-ins and
   written out in full. A prefab's objects keep their IDs for ever (`prefabTextFromCopy`).
+  Prefabs inside prefabs (ADR 0036): a prefab file may hold such links too, and "the prefab's
+  objects" always means the prefab with them expanded (`prefabEntities`); a scene's copy never
+  names an inner prefab. Whatever reads a prefab file must be given the project's prefabs as well,
+  and nothing may make a prefab hold itself (`prefabHolds`, `applyWouldLoop`).
 - File formats (`docs/formats/`) are versioned: changing one means bumping its version, adding an upgrade step and a test with an old file.
 - No global mutable state. Pass `Engine&` / `Logger&` explicitly.
 - Ownership: RAII and `std::unique_ptr` by default; raw pointers only as non-owning observers.

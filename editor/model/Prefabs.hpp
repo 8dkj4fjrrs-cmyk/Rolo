@@ -40,8 +40,24 @@ std::vector<std::pair<EntityId, PrefabLink>> linksAfterSaving(const Scene& scene
 /// is: objects keep the IDs they have in it (other copies know them by
 /// those), and the top object stays where the prefab had it (where a copy
 /// stands is always the copy's own).
+///
+/// A part the prefab has as a linked copy of another prefab is written as
+/// one again (with what this copy changed in it), and so is a linked copy
+/// that was put into this copy here; `prefabs` reads those prefabs.
 std::string prefabTextFromCopy(const Scene& scene, EntityId root, const std::string& oldText,
-                               const ComponentRegistry& registry);
+                               const ComponentRegistry& registry, const PrefabTexts& prefabs = {});
+
+/// Whether applying the copy `root` to its prefab would make a prefab that
+/// holds itself: a copy of the same prefab, or of a prefab that holds it,
+/// was put inside this copy.
+bool applyWouldLoop(const Scene& scene, EntityId root, const PrefabTexts& prefabs);
+
+/// The links that make the copy `root` ordinary objects again, for
+/// Scene::setPrefabLink. A part its prefab (`prefab`, as parsePrefab gives
+/// it; null if it cannot be read) has as a linked copy of another prefab
+/// becomes a linked copy of that prefab.
+std::vector<std::pair<EntityId, PrefabLink>> linksAfterUnlinking(const Scene& scene, EntityId root,
+                                                                 const Scene* prefab);
 
 /// `scene` after its prefab `asset` changed from `oldText` to `newText`
 /// because the copy `applied` was applied to it: every other copy of the
@@ -69,6 +85,9 @@ struct CopyDifferences {
     EntityId root;       // the copy's top object
     AssetId prefab;      // the prefab file it follows
     bool top = false;    // the object is that top object
+    /// If the prefab has this object from another prefab it holds a copy
+    /// of (ADR 0036): that prefab. Null for the prefab's very own objects.
+    AssetId within;
 
     /// Properties whose value differs: (component type, property key) and
     /// the prefab's value, which putting the field back sets. Where the top

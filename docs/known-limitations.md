@@ -142,9 +142,12 @@ Please report what you find.
   their prefab, and the Inspector marks the fields that are a copy's
   own; a component the copy added or removed, a changed name and a
   Tilemap's changed tiles are counted there but can only be put back
-  with **Reset** (the whole copy). A prefab cannot hold
-  a linked copy of another prefab (it is written into it in full), and
-  cannot be opened on its own (change a copy and Apply). Apply to Prefab
+  with **Reset** (the whole copy). A prefab can hold copies of other
+  prefabs, but inside a copy such a part belongs to the outer prefab:
+  it cannot be applied to its own prefab from there, and the Hierarchy
+  does not mark it. A prefab cannot be a variant of another (its top
+  object is always its own), and cannot be opened on its own (change a
+  copy and Apply). Apply to Prefab
   cannot be undone and clears the open scene's undo history. Inside a
   copy, the prefab's objects come before the ones you added. Exporting
   warns about a scene whose prefab is missing but does not refuse it.

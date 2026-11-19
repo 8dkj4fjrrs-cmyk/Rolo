@@ -273,8 +273,11 @@ std::optional<PropertyValue> fromJson(const PropertyInfo& info, const Json& j, s
 // 1 -> 2 (ADR 0035): version 2 adds linked copies of prefabs (entities with
 // a "prefab"). A version 1 file has none and is a valid version 2 file as
 // it stands, so the step changes nothing.
+//
+// 2 -> 3 (ADR 0036): version 3 lets a prefab file hold linked copies of
+// other prefabs, which older files do not have: nothing to change either.
 using Upgrade = void (*)(Json& document);
-constexpr Upgrade kUpgrades[] = {[](Json&) {}};
+constexpr Upgrade kUpgrades[] = {[](Json&) {}, [](Json&) {}};
 static_assert(std::size(kUpgrades) == SceneFormat::kVersion - 1, "one upgrade step per older version");
 
 // --- Linked copies of prefabs (ADR 0035) ---------------------------------------------------------
@@ -303,12 +306,25 @@ static_assert(std::size(kUpgrades) == SceneFormat::kVersion - 1, "one upgrade st
 // engine) sees ordinary objects, which carry "prefab" / "from" marks so
 // that writing can find the link again.
 
+Json expandLinkedCopies(const Json& entities, const PrefabTexts& prefabs, Issues& issues, std::vector<AssetId>& open);
+
 // The entities of a prefab file, upgraded to the current format: first the
 // object, then what is inside it. Nothing, with `why`, if it cannot be used.
-std::optional<Json> prefabEntities(const PrefabTexts& prefabs, AssetId id, std::string& why)
+//
+// A prefab may itself hold linked copies of other prefabs (ADR 0036): they
+// are turned into ordinary entities here, as a scene's are, so that what
+// comes back is always the whole object. Those entities keep their marks
+// ("prefab", "from", "kept"), which say which part came from which prefab.
+// `open` lists the prefabs being read right now, outermost first: a prefab
+// that holds itself, directly or through others, would never end.
+std::optional<Json> prefabEntities(const PrefabTexts& prefabs, AssetId id, std::string& why, std::vector<AssetId>& open)
 {
     if (!prefabs) {
         why = "prefabs cannot be read here";
+        return std::nullopt;
+    }
+    if (std::find(open.begin(), open.end(), id) != open.end()) {
+        why = "it holds a copy of itself, directly or through another prefab";
         return std::nullopt;
     }
     const std::optional<std::string> text = prefabs(id);
@@ -342,7 +358,24 @@ std::optional<Json> prefabEntities(const PrefabTexts& prefabs, AssetId id, std::
             return std::nullopt;
         }
     }
-    return std::move(document["entities"]);
+    // (What goes wrong inside is said when the prefab itself is checked;
+    // here its copies only need to know that a part is missing.)
+    std::vector<FileIssue> unheard;
+    Issues inner{unheard};
+    open.push_back(id);
+    Json entities = expandLinkedCopies(document["entities"], prefabs, inner, open);
+    open.pop_back();
+    if (entities.empty()) {
+        why = "it holds no object";
+        return std::nullopt;
+    }
+    return entities;
+}
+
+std::optional<Json> prefabEntities(const PrefabTexts& prefabs, AssetId id, std::string& why)
+{
+    std::vector<AssetId> open;
+    return prefabEntities(prefabs, id, why, open);
 }
 
 std::string textOf(const Json& j, const char* key)
@@ -476,7 +509,7 @@ void applyChanges(Json& entity, const Json& changes)
 
 // The scene's "entities" with every linked copy turned into ordinary
 // entities (see above).
-Json expandLinkedCopies(const Json& entities, const PrefabTexts& prefabs, Issues& issues)
+Json expandLinkedCopies(const Json& entities, const PrefabTexts& prefabs, Issues& issues, std::vector<AssetId>& open)
 {
     Json out = Json::array();
     // Objects a copy had and its prefab has no longer: what was put inside
@@ -499,7 +532,7 @@ Json expandLinkedCopies(const Json& entities, const PrefabTexts& prefabs, Issues
         const std::string where = describeEntity(textOf(e, "name"), rootId);
         const std::optional<AssetId> asset = AssetId::parse(textOf(e, "prefab"));
         std::string why = "its \"prefab\" is not the ID of a prefab";
-        const std::optional<Json> prefab = asset ? prefabEntities(prefabs, *asset, why) : std::nullopt;
+        const std::optional<Json> prefab = asset ? prefabEntities(prefabs, *asset, why, open) : std::nullopt;
         const Json* objects = e.contains("objects") && e["objects"].is_array() ? &e["objects"] : nullptr;
 
         if (!prefab) {
@@ -533,6 +566,13 @@ Json expandLinkedCopies(const Json& entities, const PrefabTexts& prefabs, Issues
                                       + "). It is shown as an empty object and kept in the scene file as it "
                                         "was, so nothing is lost: put the prefab back and open the scene again.");
             continue;
+        }
+
+        // A prefab inside this one that could not be read left a stand-in.
+        if (std::any_of(prefab->begin(), prefab->end(), [](const Json& p) { return p.contains("kept"); })) {
+            issues.warning(where, "The prefab this is a copy of holds a copy of another prefab that could not be "
+                                  "read. That part is shown as an empty object; nothing is lost: put the missing "
+                                  "prefab back and open the scene again.");
         }
 
         // Which ID each object of the prefab has in this scene.
@@ -584,6 +624,10 @@ Json expandLinkedCopies(const Json& entities, const PrefabTexts& prefabs, Issues
             made["id"] = ids[id];
             made["from"] = id;
             made.erase("parent");
+            // Seen from here, every object is this prefab's: which of them
+            // the prefab took from another prefab is the prefab's business.
+            made.erase("prefab");
+            made.erase("kept");
             if (top) {
                 made["prefab"] = e["prefab"];
                 if (e.contains("parent")) {
@@ -806,9 +850,9 @@ SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& re
         }
     }
 
-    // Linked copies of prefabs become ordinary entities first (scenes only:
-    // a prefab file holds none).
-    const Json entities = kind.prefab ? document["entities"] : expandLinkedCopies(document["entities"], prefabs, issues);
+    // Linked copies of prefabs become ordinary entities first.
+    std::vector<AssetId> open;
+    const Json entities = expandLinkedCopies(document["entities"], prefabs, issues, open);
 
     std::size_t index = 0;
     for (const Json& e : entities) {
@@ -862,7 +906,7 @@ SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& re
                 }
             }
         }
-        if (!kind.prefab) {
+        {
             // Marks left by expandLinkedCopies: where the object came from.
             PrefabLink link;
             link.prefab = AssetId::parse(textOf(e, "prefab")).value_or(AssetId{});
@@ -874,7 +918,7 @@ SceneLoadResult parseDocument(std::string_view text, const ComponentRegistry& re
         }
         for (const auto& [key, value] : e.items()) {
             const bool known = key == "id" || key == "parent" || key == "name" || key == "active" || key == "components"
-                               || (!kind.prefab && (key == "prefab" || key == "from" || key == "kept"));
+                               || key == "prefab" || key == "from" || key == "kept";
             if (!known) {
                 issues.warning(where, "Unknown field \"" + key + "\" was ignored.");
             }
@@ -927,9 +971,9 @@ SceneLoadResult parseScene(std::string_view text, const ComponentRegistry& regis
     return parseDocument(text, registry, kSceneKind, prefabs);
 }
 
-SceneLoadResult parsePrefab(std::string_view text, const ComponentRegistry& registry)
+SceneLoadResult parsePrefab(std::string_view text, const ComponentRegistry& registry, const PrefabTexts& prefabs)
 {
-    return parseDocument(text, registry, kPrefabKind);
+    return parseDocument(text, registry, kPrefabKind, prefabs);
 }
 
 SceneLoadResult loadSceneFile(const std::filesystem::path& path, const ComponentRegistry& registry,
@@ -938,9 +982,10 @@ SceneLoadResult loadSceneFile(const std::filesystem::path& path, const Component
     return loadFile(path, registry, kSceneKind, prefabs);
 }
 
-SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const ComponentRegistry& registry)
+SceneLoadResult loadPrefabFile(const std::filesystem::path& path, const ComponentRegistry& registry,
+                               const PrefabTexts& prefabs)
 {
-    return loadFile(path, registry, kPrefabKind);
+    return loadFile(path, registry, kPrefabKind, prefabs);
 }
 
 // --- Writing ---------------------------------------------------------------------------------------
@@ -950,7 +995,7 @@ std::string serializeScene(const Scene& scene, const PrefabTexts& prefabs)
     return serializeDocument(scene, kSceneKind, prefabs);
 }
 
-std::string serializePrefab(const Scene& scene, EntityId root)
+std::string serializePrefab(const Scene& scene, EntityId root, const PrefabTexts& prefabs)
 {
     if (!scene.contains(root)) {
         return {};
@@ -961,7 +1006,42 @@ std::string serializePrefab(const Scene& scene, EntityId root)
     // prefab into a scene gives the copy new ones.)
     Scene alone("Prefab");
     alone.restore(scene.capture(root), EntityId{}, 0);
-    return serializeDocument(alone, kPrefabKind);
+    // The object itself is always written in full, also when it is a copy
+    // of another prefab: a prefab file starts with an object, not a link.
+    // Linked copies *inside* it stay links (ADR 0036).
+    alone.setPrefabLink(root, PrefabLink{});
+    return serializeDocument(alone, kPrefabKind, prefabs);
+}
+
+bool prefabHolds(const PrefabTexts& prefabs, AssetId outer, AssetId inner)
+{
+    if (!prefabs) {
+        return outer == inner;
+    }
+    std::vector<AssetId> todo{outer};
+    std::vector<AssetId> seen;
+    while (!todo.empty()) {
+        const AssetId id = todo.back();
+        todo.pop_back();
+        if (id == inner) {
+            return true;
+        }
+        if (std::find(seen.begin(), seen.end(), id) != seen.end()) {
+            continue;
+        }
+        seen.push_back(id);
+        const std::optional<std::string> text = prefabs(id);
+        const Json document = text ? Json::parse(*text, nullptr, false) : Json();
+        if (!document.is_object() || !document.contains("entities") || !document["entities"].is_array()) {
+            continue;
+        }
+        for (const Json& e : document["entities"]) {
+            if (const auto held = AssetId::parse(textOf(e, "prefab"))) {
+                todo.push_back(*held);
+            }
+        }
+    }
+    return false;
 }
 
 EntitySnapshot linkedCopyOf(Scene& scene, const Scene& prefab, AssetId asset)
@@ -1208,7 +1288,7 @@ std::string serializeDocument(const Scene& scene, const FileKind& kind, const Pr
 {
     Json document;
     document["format"] = kind.format;
-    document["version"] = 1;   // (2 below, if the scene needs it)
+    document["version"] = 1;   // (2 or 3 below, if the file needs it)
     if (!kind.prefab) {
         document["name"] = scene.name();
         // Written only when changed, so scenes without physics stay as they were.
@@ -1224,13 +1304,15 @@ std::string serializeDocument(const Scene& scene, const FileKind& kind, const Pr
             return;
         }
         const PrefabLink& link = e.prefabLink();
-        if (!kind.prefab && !link.kept.empty()) {
+        if (!link.kept.empty()) {
             // A stand-in for a copy whose prefab could not be read: back
             // into the file as it came, with its own stand-ins inside.
             Json kept = Json::parse(link.kept, nullptr, false);
             if (kept.is_object()) {
-                kept.erase("parent");
-                if (!e.parent().isNull()) {
+                // (Set in place: the entry keeps its order, and so its text.)
+                if (e.parent().isNull()) {
+                    kept.erase("parent");
+                } else {
                     kept["parent"] = e.parent().toString();
                 }
                 for (const EntityId child : e.children()) {
@@ -1244,7 +1326,7 @@ std::string serializeDocument(const Scene& scene, const FileKind& kind, const Pr
                 return;
             }
         }
-        if (!kind.prefab && prefabs && e.isPrefabCopy()) {
+        if (prefabs && e.isPrefabCopy()) {
             if (auto entry = linkedCopyJson(scene, e, prefabs, covered)) {
                 entities.push_back(std::move(*entry));
                 linkedCopies = true;
@@ -1253,10 +1335,11 @@ std::string serializeDocument(const Scene& scene, const FileKind& kind, const Pr
         }
         entities.push_back(entityJson(e));
     });
-    // Version 2 only where it is needed: a scene without linked copies is a
-    // version 1 file still, and stays readable by older Rolo.
+    // A newer version only where it is needed: a file without linked copies
+    // is a version 1 file still, and stays readable by older Rolo. Links in
+    // a scene came with version 2, links in a prefab with version 3.
     if (linkedCopies) {
-        document["version"] = 2;
+        document["version"] = kind.prefab ? 3 : 2;
     }
     document["entities"] = std::move(entities);
     return pretty(document);

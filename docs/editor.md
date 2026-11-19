@@ -157,6 +157,23 @@ a copy stands is always its own, so applying never moves other copies.
 | **Reset** | This copy drops its own changes, and what you put inside it, and is what the prefab is again, where it stands. Undoable |
 | **Unlink** | Makes it an ordinary object that no longer follows the prefab. Undoable |
 
+**Prefabs inside prefabs.** A prefab can hold copies of other prefabs: a
+House with a Door inside, where Door is a prefab too. Put a Door into
+the house (place it in the scene: it lands at the bottom of the
+Hierarchy; with **Edit > Move Up** bring it just below the house, then
+choose **Edit > Move Into the Object Above**), and **Save as Prefab**
+or **Apply to Prefab** on the house keeps the door linked. Change the Door prefab later and every house has
+the new door.
+- Inside a copy of House, the door is part of the house: what you change
+  there is that house's own, and Apply to Prefab on the house makes it
+  true of every house (not of every door). The Inspector says which
+  prefab such a part comes from.
+- To change every door, place a Door on its own, change it, and click
+  Apply to Prefab on *it*.
+- Unlink on a house leaves its door a copy of Door.
+- A prefab cannot hold itself (a House inside a House): Apply to Prefab
+  says so and does nothing.
+
 A script makes copies while the game runs with
 `game.spawn("Bullet", x, y)`, without a Bullet in the scene
 ([scripting guide](scripting.md#examples)).
@@ -381,6 +398,7 @@ Undoing one changes the file back, for every scene that uses it.
 | Keep it as a file for other scenes | **Edit > Save as Prefab** ([prefabs](#prefabs-an-object-kept-as-a-file)) |
 | Delete it | Delete / Backspace in the Hierarchy, or **Edit > Delete** |
 | Change its drawing order | **Edit > Move Up / Move Down** (later siblings are drawn on top) |
+| Put it inside another object, or take it out | **Edit > Move Into the Object Above** (it goes inside the object just above it in the Hierarchy, at the same level) / **Move Out of Its Object**. It stays where it stands |
 | Hide it | Untick the box next to its name in the Inspector |
 | Change a number | Type it and press Enter (Esc cancels), use ↑ ↓ to nudge, or drag the small label at the field's right end (X, Y, °) left and right |
 | Change a colour | Type a hex value (`#ffb84d`), or click the swatch to pick one |

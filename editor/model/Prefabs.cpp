@@ -80,15 +80,22 @@ std::vector<std::pair<EntityId, PrefabLink>> linksAfterSaving(const Scene& scene
 }
 
 std::string prefabTextFromCopy(const Scene& scene, EntityId root, const std::string& oldText,
-                               const ComponentRegistry& registry)
+                               const ComponentRegistry& registry, const PrefabTexts& prefabs)
 {
     Scene work(scene);
-    const SceneLoadResult old = parsePrefab(oldText, registry);
+    const SceneLoadResult old = parsePrefab(oldText, registry, prefabs);
     if (old.ok()) {
         const Vec2 where = old.scene->find(old.scene->roots().front())->transform().position;
         work.setProperty(root, "rolo.Transform", "position", where);
+        // A part the prefab has as a linked copy of another prefab stays
+        // one (ADR 0036). In a scene such a part is simply the copy's; the
+        // prefab as it was knows which of its objects came from where.
+        for (const auto& [here, inPrefab] : prefabCopyMembers(scene, root)) {
+            const Entity* theirs = old.scene->find(inPrefab);
+            work.setPrefabLink(here, here == root || theirs == nullptr ? PrefabLink{} : theirs->prefabLink());
+        }
     }
-    std::string text = serializePrefab(work, root);
+    std::string text = serializePrefab(work, root, prefabs);
     // In the file the prefab's objects have the prefab's IDs, wherever an ID
     // is written: as an object's own, as a parent, in a property that points
     // at an object. (IDs are sixteen random digits in quotes: replacing the
@@ -146,6 +153,33 @@ std::optional<Scene> sceneAfterApply(const Scene& scene, EntityId applied, Asset
     link.source = source;
     made.scene->setPrefabLink(applied, std::move(link));
     return std::move(*made.scene);
+}
+
+bool applyWouldLoop(const Scene& scene, EntityId root, const PrefabTexts& prefabs)
+{
+    const Entity* top = scene.find(root);
+    if (top == nullptr || !top->isPrefabCopy()) {
+        return false;
+    }
+    const AssetId asset = top->prefabLink().prefab;
+    bool loop = false;
+    forEachInside(scene, root, [&](const Entity& e) {
+        loop = loop || (e.id() != root && e.isPrefabCopy() && prefabHolds(prefabs, e.prefabLink().prefab, asset));
+    });
+    return loop;
+}
+
+std::vector<std::pair<EntityId, PrefabLink>> linksAfterUnlinking(const Scene& scene, EntityId root, const Scene* prefab)
+{
+    std::vector<std::pair<EntityId, PrefabLink>> links;
+    for (const auto& [member, inPrefab] : prefabCopyMembers(scene, root)) {
+        const Entity* theirs = prefab != nullptr && member != root ? prefab->find(inPrefab) : nullptr;
+        // (A stand-in's kept text is the prefab's, with the prefab's IDs:
+        // it has no place in a scene.)
+        links.emplace_back(member, theirs != nullptr && theirs->prefabLink().kept.empty() ? theirs->prefabLink()
+                                                                                         : PrefabLink{});
+    }
+    return links;
 }
 
 EntitySnapshot copyReset(Scene& scene, EntityId root, const Scene& prefab)
@@ -236,6 +270,12 @@ std::optional<CopyDifferences> differencesFromPrefab(const Scene& scene, EntityI
     d.root = root;
     d.prefab = scene.find(root)->prefabLink().prefab;
     d.top = root == object;
+    for (const Entity* e = theirs; e != nullptr; e = prefab.find(e->parent())) {
+        if (e->isPrefabCopy()) {
+            d.within = e->prefabLink().prefab;
+            break;
+        }
+    }
     if (mine->name() != theirs->name()) {
         d.name = theirs->name();
     }

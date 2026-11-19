@@ -5,6 +5,16 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+- **Prefabs inside prefabs** ([ADR 0036](docs/adr/0036-prefabs-inside-prefabs.md)):
+  a prefab keeps a copy of another prefab inside it linked (a House with
+  a Door), through **Save as Prefab** and **Apply to Prefab**. Change
+  the Door prefab and every house follows, in scenes and in games. A
+  prefab cannot hold itself. Prefab files with such a link are format
+  version 3; other files are written as before.
+- **Edit › Move Into the Object Above** and **Move Out of Its Object**
+  put the selected object inside another, or take it out; it stays
+  where it stands. (Until now an object could only be made inside
+  another, not moved there.)
 - **Three more events for scripts** (ADR 0032): `obj:separated()`
   (touching ended), `obj:animationFinished()` (a clip that does not loop
   reached its end) and `obj:destroyed()`, each with `connect`, `once`

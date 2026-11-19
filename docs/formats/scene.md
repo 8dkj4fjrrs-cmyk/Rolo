@@ -3,7 +3,8 @@
 Rolo saves projects and scenes as UTF-8 JSON text. The files are meant to
 be readable, to diff cleanly in version control, and to keep working when
 Rolo changes. This page describes format **version 1** of each, and
-**version 2** of scenes, which adds [linked copies of prefabs](#a-linked-copy-of-a-prefab).
+**version 2** of scenes, which adds [linked copies of prefabs](#a-linked-copy-of-a-prefab),
+and **version 3**, which lets a [prefab file hold them](#a-prefab-inside-a-prefab).
 
 Code: `engine/scene` (`SceneFile.hpp`, `Project.hpp`). Design reasons:
 [ADR 0005](../adr/0005-scenes-and-serialization.md).
@@ -301,8 +302,8 @@ is, under another format name and without the scene's `name` and
   upgrade steps are applied to both kinds of file.
 - The IDs are the object's own. Putting a prefab into a scene, in the
   editor or with `game.spawn`, gives the copy new IDs.
-- A prefab file holds no linked copies: one inside the object is written
-  into it in full.
+- A linked copy of another prefab inside the object is written as a
+  link ([below](#a-prefab-inside-a-prefab)).
 
 ### A linked copy of a prefab
 
@@ -352,6 +353,33 @@ themselves:
 - **Version:** a scene is written as version 2 only if it holds a linked
   copy; otherwise as version 1, which older Rolo reads. A version 1 file
   is a valid version 2 file, so its upgrade step changes nothing.
+
+### A prefab inside a prefab
+
+*Format version 3* ([ADR 0036](../adr/0036-prefabs-inside-prefabs.md)).
+A prefab file's `entities` may hold linked copies of *other* prefabs,
+written exactly as a scene's are (above):
+
+```json
+{ "format": "rolo.prefab", "version": 3, "entities": [
+  { "id": "00000000000a0001", "name": "House", "active": true, "components": [ ... ] },
+  { "id": "00000000000a0003", "parent": "00000000000a0001", "prefab": "c2e64fe8da5ad87a",
+    "components": [ { "type": "rolo.Transform", "position": [0, -25] } ],
+    "objects": [ { "from": "00000000000d0002", "id": "00000000000a0004" } ] } ] }
+```
+
+- The first entity, the prefab's object, is always an ordinary one.
+- **Reading a prefab** turns such entries into ordinary objects first,
+  inwards as deep as they go. A scene's linked copy of this prefab is
+  laid over the result, so its `from` IDs are the IDs given here
+  (`00000000000a0004` for the door's knob), and the scene file never
+  names the inner prefab.
+- **A prefab that holds itself**, directly or through others, is read
+  with an empty stand-in in that place, and a warning.
+- **Version:** a prefab is written as version 3 only if it holds such a
+  link; otherwise as version 1. Scenes are never written as version 3:
+  nothing in them changed. Older files are valid version 3 files, so
+  the upgrade step changes nothing.
 
 ## Asset IDs (`.meta` files)
 

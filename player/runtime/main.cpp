@@ -362,7 +362,7 @@ int Player::run()
         const rolo::AssetRecord* record = assets != nullptr ? assets->find(id) : nullptr;
         if (record != nullptr && record->type == rolo::AssetType::Prefab) {
             // A prefab (game.spawn): read as a scene holding its one object.
-            rolo::SceneLoadResult prefab = rolo::loadPrefabFile(assets->absolutePath(*record), registry);
+            rolo::SceneLoadResult prefab = rolo::loadPrefabFile(assets->absolutePath(*record), registry, prefabs);
             if (!prefab.ok()) {
                 error = prefab.firstError();
                 return std::nullopt;

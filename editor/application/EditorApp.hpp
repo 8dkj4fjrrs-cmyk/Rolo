@@ -151,6 +151,9 @@ private:
     std::optional<Scene> loadSceneForGame(AssetId id, std::string& error);
     void updateGame(UiFrame& frame);
     void moveSelection(int direction);
+    /// Puts the selected object inside the one above it (`into`), or takes
+    /// it out of the object it is in; it stays where it stands.
+    void moveSelectionInOrOut(bool into);
     /// Runs `then` once unsaved changes are saved or discarded (asks first);
     /// does nothing if the user cancels.
     void confirmDiscard(const std::string& action, std::function<void()> then);
