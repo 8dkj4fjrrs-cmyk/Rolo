@@ -15,6 +15,10 @@ All notable changes to Rolo Engine. Versions follow the milestones in
   put the selected object inside another, or take it out; it stays
   where it stands. (Until now an object could only be made inside
   another, not moved there.)
+- Fixed: on Linux, exporting a game whose name is `game` (or `licenses`,
+  or the name of another file every export holds) failed with "Not a
+  directory": the program would have had the same name as a folder beside
+  it. Its program is now called `game-program`.
 - **Three more events for scripts** (ADR 0032): `obj:separated()`
   (touching ended), `obj:animationFinished()` (a clip that does not loop
   reached its end) and `obj:destroyed()`, each with `connect`, `once`

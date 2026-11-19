@@ -97,6 +97,40 @@ TEST_CASE("A Linux or Windows export is the runtime, renamed, with the game besi
     }
 }
 
+TEST_CASE("A game named like one of the export's own files still exports", "[editor][export]")
+{
+    // On Linux the program has no ending: a game called "game" would be named like its data folder.
+    for (const char* name : {"game", "licenses", "axslc"}) {
+        Setup s;
+        s.file("runtime/rolo_player", "program");
+        s.file("runtime/axslc/positionColor_vs", "shader");
+        s.options.player = s.root / "runtime/rolo_player";
+        s.options.os = HostOs::Linux;
+        s.options.gameName = name;
+        const ExportResult r = exportGame(s.options);
+        INFO(name << ": " << r.error);
+        REQUIRE(r.ok);
+        const fs::path game = s.root / "exports" / name;
+        CHECK(r.program == game / (std::string(name) + "-program"));
+        CHECK(*readTextFile(r.program) == "program");
+        CHECK(fs::exists(game / "game/project.rolo"));
+        CHECK(fs::exists(game / "licenses/axmol.txt"));
+        CHECK(fs::exists(game / "axslc/positionColor_vs"));
+        CHECK(readTextFile(game / "README.txt")->find(std::string(name) + "-program") != std::string::npos);
+        // Again, over the earlier export.
+        REQUIRE(exportGame(s.options).ok);
+    }
+    // On Windows the program ends in .exe and clashes with nothing.
+    Setup s;
+    s.file("runtime/rolo_player.exe", "program");
+    s.options.player = s.root / "runtime/rolo_player.exe";
+    s.options.os = HostOs::Windows;
+    s.options.gameName = "game";
+    const ExportResult r = exportGame(s.options);
+    REQUIRE(r.ok);
+    CHECK(r.program == s.root / "exports/game/game.exe");
+}
+
 TEST_CASE("A macOS export is the runtime app, renamed, with the game inside", "[editor][export]")
 {
     Setup s;

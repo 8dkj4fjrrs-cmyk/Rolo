@@ -346,12 +346,23 @@ ExportResult exportGame(const ExportOptions& o)
     } else {
         // The runtime's folder: the program (renamed) and what it needs beside it.
         const fs::path runtime = o.player.parent_path();
-        const std::string program = o.os == HostOs::Windows ? name + ".exe" : name;
+        std::string program = o.os == HostOs::Windows ? name + ".exe" : name;
         const auto runtimeFile = [&](const fs::path& p) {
             return anyFile(p) && p.filename() != "game" && p.filename() != "licenses";
         };
         if (!copy.tree(runtime, result.game, runtimeFile)) {
             return fail(copy.error);
+        }
+        // The program sits beside the game's data ("game"), the licenses and
+        // the runtime's own files. Without an ending (Linux), a game called
+        // "game" would be named exactly like its data folder: such a program
+        // gets another name, and the folder keeps the game's.
+        const auto taken = [&](const std::string& candidate) {
+            return candidate == "game" || candidate == "licenses" || candidate == "README.txt" || candidate == kMarker
+                   || (candidate != o.player.filename().string() && fs::exists(result.game / candidate, ec));
+        };
+        if (taken(program)) {
+            program = name + "-program" + (o.os == HostOs::Windows ? ".exe" : "");
         }
         fs::rename(result.game / o.player.filename(), result.game / program, ec);
         if (ec) {
