@@ -1,4 +1,4 @@
-# Known limitations (0.9.1-alpha)
+# Known limitations (0.10.0-alpha)
 
 Rolo is an alpha: it works end to end, from a new project to an
 exported game, but much is missing or untested. This page lists what we
@@ -8,7 +8,7 @@ know. Please report anything else.
 
 | | Linux x86_64 | macOS Apple silicon | Windows x64 |
 |---|---|---|---|
-| Builds | **Yes**, development and release | **Yes**, development build in CI (GitHub, macOS 14, Xcode 15); release build not yet | **Yes**, development build in CI (Windows Server 2022, MSVC); release build not yet |
+| Builds | **Yes**, development and release | **Yes**, development build in CI (GitHub, macOS 15); release build by the release workflow | **Yes**, development build in CI (Windows Server 2022, MSVC); release build by the release workflow |
 | Automated unit tests | **Yes** | **Yes**, in CI | **Yes**, in CI |
 | Automated tests in real windows (playing, the editor, exported games) | **Yes**, on a virtual display | **Yes**, in CI | Not yet: CI machines have no screen that runs OpenGL 3 |
 | Exporting a game | **Yes** | **Yes**, in CI (an `.app`, then started) | **Yes**, in CI (the export; starting it needs a screen) |
@@ -24,8 +24,9 @@ Please report what you find.
 
 ## Exporting
 
-- Games are exported for the system the editor runs on; there is no
-  cross-export.
+- Desktop games are exported for the system the editor runs on (a
+  Windows game needs Rolo on Windows). Web games, and Android games
+  (experimental), can be exported from any of the three.
 - macOS apps are signed only "ad hoc", **not with an Apple Developer ID**,
   and not notarized. The first time, players right-click the app and choose
   **Open** (on newer macOS: **System Settings › Privacy & Security › Open
@@ -49,8 +50,9 @@ Please report what you find.
   rumble (one strength, not two motors), and on Linux with force-feedback
   drivers. It was written without a real gamepad to try it on. The mouse position is available to C++ behaviours and scripts.
 - Text with button pictures is not wrapped.
-- The window is 1280 × 720 points. There is no fullscreen setting, and no
-  built-in title screen or options menu (games make their own; the
+- A game's size is set per project (1280 × 720 points unless changed;
+  [screens of other shapes](exporting.md#screens-of-other-shapes)). There
+  is no fullscreen setting, and no built-in title screen or options menu (games make their own; the
   Platformer Starter has a pause menu). Escape quitting and the F5 / F9
   keys can be turned off per project ([controls guide](controls.md#escape-quitting-and-the-quick-save-keys)).
 - **Physics** ([guide](physics.md)) has no joints, one-way platforms, ray
@@ -64,9 +66,9 @@ Please report what you find.
   TrueType and OpenType fonts, with kerning. Not supported: colour emoji,
   writing that joins letters or runs right to left (Arabic, Hebrew, Indic
   scripts), and a second font for letters the chosen font lacks.
-- Desktop only: no mobile or web.
+- No iOS. Web and Android games: see the next section.
 
-## Editor
+## Web, touch and Android
 
 - **Touch** ([controls](controls.md#touch-screens)): the on-screen stick and
   buttons have one look and cannot be remapped; no gestures (scripts get the
@@ -108,6 +110,8 @@ Please report what you find.
   the shipped web runtime has no C++ game modules. Tested in headless
   Chromium only (by CI and by hand); Firefox and Safari are expected to
   work but have not been tried.
+## Editor and scripting
+
 - **Custom gameplay code:** write it in **Luau** ([scripting guide](scripting.md));
   a downloaded Rolo runs scripts. **C++** behaviours still need Rolo
   built from source: game modules are linked into the editor and the player

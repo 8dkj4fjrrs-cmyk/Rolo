@@ -20,7 +20,7 @@ on Roblox and want games of their own, light and easy, for desktop, the web
 and phones, scripted in Luau ([direction](docs/adr/0019-direction.md),
 [roadmap](docs/roadmap.md)).
 
-> **Status: 0.9.1-alpha.**
+> **Status: 0.10.0-alpha.**
 >
 > - Built and tested on Linux, macOS and Windows by CI.
 > - Used by hand on Linux and macOS so far.

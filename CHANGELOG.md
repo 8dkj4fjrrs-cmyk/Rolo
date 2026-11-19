@@ -5,6 +5,16 @@ All notable changes to Rolo Engine. Versions follow the milestones in
 
 ## Unreleased
 
+## 0.10.0-alpha — Luau, web and Android games, sound, physics, events and prefabs
+
+The first release under the name Rolo Engine, and a large one. In short:
+scripts are written in **Luau** (Roblox's Lua) and can wait, listen to
+events and have settings in the Inspector; games have **sound, physics,
+gamepads and touch controls**; they export for **web browsers** and,
+experimentally, **Android**; and objects can be kept as **prefabs** whose
+copies follow them. Projects and files from 0.9.1 open as they are.
+Everything, newest first:
+
 - **Prefabs inside prefabs** ([ADR 0036](docs/adr/0036-prefabs-inside-prefabs.md)):
   a prefab keeps a copy of another prefab inside it linked (a House with
   a Door), through **Save as Prefab** and **Apply to Prefab**. Change

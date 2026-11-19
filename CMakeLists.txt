@@ -23,7 +23,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(Rolo
-    VERSION 0.9.1
+    VERSION 0.10.0
     DESCRIPTION "Rolo Engine: a 2D game engine and editor"
     LANGUAGES C CXX)
 # Pre-release label shown after the version ("0.9.0-alpha"); empty for a release.
